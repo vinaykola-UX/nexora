@@ -1,0 +1,30 @@
+{
+  "info" : {
+    "version" : 1,
+    "author" : "xcode"
+  },
+  "project_number": "YOUR_PROJECT_NUMBER",
+  "project_id": "nexora-bvc",
+  "storage_bucket": "nexora-bvc.appspot.com",
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "YOUR_IOS_MOBILE_SDK_APP_ID",
+        "ios_client_info": {
+          "bundle_id": "com.bvccollege.nexora"
+        }
+      },
+      "oauth_client": [],
+      "api_key": [
+        {
+          "current_key": "YOUR_IOS_API_KEY"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": []
+        }
+      }
+    }
+  ]
+}

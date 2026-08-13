@@ -1,0 +1,87 @@
+name: nexora
+description: >
+  Nexora AI - College-aware AI assistant for students, teachers/staff and administrators
+  at BVC Engineering College.
+
+publish_to: 'none'
+
+version: 1.0.0+1
+
+environment:
+  sdk: '>=3.0.0 <4.0.0'
+
+dependencies:
+  flutter:
+    sdk: flutter
+
+  # UI & Theme
+  google_fonts: ^6.0.0
+  cached_network_image: ^3.3.0
+  flutter_svg: ^2.0.0
+
+  # Navigation & Routing
+  go_router: ^14.0.0
+
+  # State Management
+  riverpod: ^2.5.0
+  flutter_riverpod: ^2.5.0
+  riverpod_generator: ^2.4.0
+
+  # Firebase
+  firebase_core: ^3.15.2
+  firebase_auth: ^5.1.0
+  google_sign_in: ^6.2.0
+  cloud_firestore: ^5.1.0
+  firebase_storage: ^12.1.0
+  firebase_analytics: ^11.1.0
+
+  # HTTP & API
+  http: ^1.1.0
+  dio: ^5.4.0
+
+  # Local Storage & Preferences
+  shared_preferences: ^2.2.0
+  hive: ^2.2.0
+  hive_flutter: ^1.1.0
+
+  # Utility
+  intl: ^0.19.0
+  uuid: ^4.0.0
+  connectivity_plus: ^6.0.0
+  package_info_plus: ^10.2.1
+
+  # Logging
+  logger: ^2.1.0
+
+  # Image Picking
+  image_picker: ^1.0.0
+  permission_handler: ^11.4.0
+
+dev_dependencies:
+  flutter_test:
+    sdk: flutter
+
+  flutter_lints: ^3.0.0
+  build_runner: ^2.4.0
+  riverpod_generator: ^2.4.0
+  hive_generator: ^2.0.0
+
+flutter:
+  uses-material-design: true
+
+  assets:
+    - assets/images/
+    - assets/icons/
+    - assets/logos/
+    - assets/illustrations/
+
+  fonts:
+    - family: Poppins
+      fonts:
+        - asset: assets/fonts/Poppins-Regular.ttf
+        - asset: assets/fonts/Poppins-Medium.ttf
+          weight: 500
+        - asset: assets/fonts/Poppins-SemiBold.ttf
+          weight: 600
+        - asset: assets/fonts/Poppins-Bold.ttf
+          weight: 700

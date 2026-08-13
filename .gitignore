@@ -1,0 +1,129 @@
+# Miscellaneous
+*.class
+*.lock
+*.log
+*.pot
+*.swp
+*.swo
+*~
+.DS_Store
+.atom/
+.buildlog/
+.history
+.svn/
+migrate_working_dir/
+
+# IntelliJ related
+*.iml
+*.ipr
+*.iws
+.idea/
+
+# The .vscode folder contains launch configuration and tasks you configure in
+# VS Code which you may wish to be included in version control, so this line
+# is commented out by default.
+#.vscode/
+
+# Flutter/Dart/Pub related
+**/doc/api/
+**/ios/Flutter/.last_build_id
+.dart_tool/
+.flutter-plugins
+.flutter-plugins-dependencies
+.packages
+.pub-cache/
+.pub/
+/build/
+
+# Symbolication related
+app.*.symbols
+
+# Obfuscation related
+app.*.map.json
+
+# iOS/macOS
+**/ios/**/*.mode1v3
+**/ios/**/*.mode2v3
+**/ios/**/*.moved-aside
+**/ios/**/*.pbxuser
+**/ios/**/*.perspectivev3
+**/ios/**/*sync/
+**/ios/**/.sconsign.dblite
+**/ios/**/.tags*
+**/ios/**/.vscode/*
+!**/ios/**/.vscode/settings.json
+!**/ios/**/.vscode/tasks.json
+!**/ios/**/.vscode/launch.json
+!**/ios/**/.vscode/extensions.json
+**/ios/Flutter/Flutter.framework
+**/ios/Flutter/Flutter.podspec
+**/ios/Flutter/Generated.xcconfig
+**/ios/Flutter/ephemeralmodules.txt
+**/ios/Flutter/app.flx
+**/ios/Flutter/app.zip
+**/ios/Flutter/flutter_assets/
+**/ios/Flutter/flutter_export_environment.sh
+**/ios/ServiceDefinitions.json
+**/ios/Runner/GeneratedPluginRegistrant.*
+
+# Exceptions to above rules.
+!/packages/flutter_tools/test/data/dart_dependencies_test/**/.packages
+!/dev/ci/**/packages/**/.packages
+
+# Android Studio
+**/android/.gradle/
+**/android/.idea/
+**/android/local.properties
+**/android/**/GeneratedPluginRegistrant.java
+
+# iOS/macOS generated files
+**/ios/Pods/
+**/ios/Podfile.lock
+**/ios/.symlinks/
+**/ios/Flutter/Flutter.framework
+**/ios/.generated/
+**/ios/Runner.xcworkspace/xcshareddata/
+**/ios/Runner.xcworkspace/xcuserdata/
+
+# Web
+lib/generated_plugin_registrant.dart
+
+# Environment files
+.env
+.env.local
+.env.*.local
+.env.production
+
+# Firebase configuration (secrets)
+google-services-backup.json
+GoogleService-Info-backup.plist
+
+# Secrets and credentials
+secrets.json
+*.pem
+*.key
+*.pub
+private.key
+
+# Generated files
+lib/generated_bindings.dart
+lib/models/*.freezed.dart
+lib/models/*.g.dart
+
+# Coverage
+coverage/
+lcov.info
+
+# OS
+.DS_Store
+Thumbs.db
+
+# IDE
+.vscode/
+.idea/
+*.iml
+
+# Project
+build/
+dist/
+release/
