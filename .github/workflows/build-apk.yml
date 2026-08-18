@@ -1,0 +1,121 @@
+name: Build Release APK
+
+on:
+  push:
+    branches: [ main ]
+  workflow_dispatch:
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout repo
+        uses: actions/checkout@v4
+
+      - name: Set up JDK 17
+        uses: actions/setup-java@v4
+        with:
+          distribution: 'temurin'
+          java-version: '17'
+
+      - name: Set up Flutter
+        uses: subosito/flutter-action@v2
+        with:
+          channel: 'stable'
+          cache: true
+
+      - name: Regenerate missing Android platform files
+        # android/ is missing build.gradle, settings.gradle, the Gradle
+        # wrapper, AndroidManifest.xml, MainActivity, etc. This restores
+        # them using the real Flutter template (matched to the Flutter
+        # version installed above) without touching lib/ or the existing
+        # google-services.json.
+        run: flutter create --platforms=android --org com.bvccollege .
+
+      - name: Decode keystore
+        run: echo "${{ secrets.KEYSTORE_BASE64 }}" | base64 --decode > android/nexora-release.jks
+
+      - name: Write key.properties
+        run: |
+          cat <<EOF > android/key.properties
+          storePassword=${{ secrets.KEY_STORE_PASSWORD }}
+          keyPassword=${{ secrets.KEY_PASSWORD }}
+          keyAlias=${{ secrets.KEY_ALIAS }}
+          storeFile=nexora-release.jks
+          EOF
+
+      - name: Wire up release signing config
+        run: |
+          python3 - <<'PY'
+          import re, pathlib
+
+          kts = pathlib.Path("android/app/build.gradle.kts")
+          groovy = pathlib.Path("android/app/build.gradle")
+
+          if kts.exists():
+              path = kts
+              content = path.read_text()
+              block = '''
+              signingConfigs {
+                  create("release") {
+                      val keystoreProperties = java.util.Properties()
+                      val keystorePropertiesFile = rootProject.file("key.properties")
+                      if (keystorePropertiesFile.exists()) {
+                          keystoreProperties.load(java.io.FileInputStream(keystorePropertiesFile))
+                      }
+                      keyAlias = keystoreProperties["keyAlias"] as String?
+                      keyPassword = keystoreProperties["keyPassword"] as String?
+                      storeFile = keystoreProperties["storeFile"]?.let { file(it as String) }
+                      storePassword = keystoreProperties["storePassword"] as String?
+                  }
+              }
+              '''
+              content = content.replace("android {", "android {\n" + block, 1)
+              content = re.sub(
+                  r'signingConfig\s*=\s*signingConfigs\.getByName\("debug"\)',
+                  'signingConfig = signingConfigs.getByName("release")',
+                  content,
+              )
+              path.write_text(content)
+              print("Patched build.gradle.kts")
+          elif groovy.exists():
+              path = groovy
+              content = path.read_text()
+              block = '''
+              signingConfigs {
+                  release {
+                      def keystoreProperties = new Properties()
+                      def keystorePropertiesFile = rootProject.file('key.properties')
+                      if (keystorePropertiesFile.exists()) {
+                          keystoreProperties.load(new FileInputStream(keystorePropertiesFile))
+                      }
+                      keyAlias keystoreProperties['keyAlias']
+                      keyPassword keystoreProperties['keyPassword']
+                      storeFile keystoreProperties['storeFile'] ? file(keystoreProperties['storeFile']) : null
+                      storePassword keystoreProperties['storePassword']
+                  }
+              }
+              '''
+              content = content.replace("android {", "android {\n" + block, 1)
+              content = re.sub(
+                  r'signingConfig\s+signingConfigs\.debug',
+                  'signingConfig signingConfigs.release',
+                  content,
+              )
+              path.write_text(content)
+              print("Patched build.gradle")
+          else:
+              raise SystemExit("No android/app/build.gradle(.kts) found after flutter create")
+          PY
+
+      - name: Install dependencies
+        run: flutter pub get
+
+      - name: Build release APK
+        run: flutter build apk --release
+
+      - name: Upload APK artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: nexora-release-apk
+          path: build/app/outputs/flutter-apk/app-release.apk
