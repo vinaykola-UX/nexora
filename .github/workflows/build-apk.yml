@@ -15,27 +15,20 @@ jobs:
 
     steps:
 
-      # --------------------------------------------------
-      # 1. Checkout project
-      # --------------------------------------------------
+      # 1. Checkout repository
       - name: Checkout repository
         uses: actions/checkout@v4
 
 
-      # --------------------------------------------------
       # 2. Install Java 17
-      # --------------------------------------------------
       - name: Set up JDK 17
         uses: actions/setup-java@v5
         with:
           distribution: temurin
           java-version: '17'
-          cache: gradle
 
 
-      # --------------------------------------------------
       # 3. Install Flutter
-      # --------------------------------------------------
       - name: Set up Flutter
         uses: subosito/flutter-action@v2
         with:
@@ -43,110 +36,87 @@ jobs:
           cache: true
 
 
-      # --------------------------------------------------
       # 4. Show versions
-      # --------------------------------------------------
-      - name: Show Flutter and Dart versions
+      - name: Show versions
         run: |
           flutter --version
           dart --version
           java -version
 
 
-      # --------------------------------------------------
-      # 5. Remove old Android platform
-      #
-      # IMPORTANT:
-      # Your project was using the deleted Android v1
-      # embedding. We create a fresh modern Android host.
-      # --------------------------------------------------
-      - name: Backup Google Services file
+      # 5. Backup Firebase configuration
+      - name: Backup Google Services
         shell: bash
         run: |
           if [ -f android/app/google-services.json ]; then
             cp android/app/google-services.json /tmp/google-services.json
-            echo "google-services.json backed up"
+            echo "Google Services file backed up."
           else
-            echo "No google-services.json found"
+            echo "No google-services.json found."
           fi
 
 
+      # 6. Remove old Android project
+      #
+      # This is required because the existing Android project
+      # uses the deleted Android v1 embedding.
+      #
       - name: Remove old Android platform
         shell: bash
         run: |
           rm -rf android
-          echo "Old Android folder removed"
+          echo "Old Android platform removed."
 
 
-      # --------------------------------------------------
-      # 6. Generate fresh modern Flutter Android project
-      # --------------------------------------------------
+      # 7. Generate a fresh modern Android project
       - name: Generate modern Android platform
         run: |
           flutter create \
             --platforms=android \
-            --org=com.bvccollege \
-            --project-name=nexora \
+            --org com.bvccollege \
+            --project-name nexora \
             .
 
 
-      # --------------------------------------------------
-      # 7. Restore Google Services file if it existed
-      # --------------------------------------------------
-      - name: Restore Google Services file
+      # 8. Restore Firebase configuration
+      - name: Restore Google Services
         shell: bash
         run: |
           if [ -f /tmp/google-services.json ]; then
             mkdir -p android/app
             cp /tmp/google-services.json android/app/google-services.json
-            echo "google-services.json restored"
+            echo "Google Services file restored."
           else
-            echo "No Google Services file to restore"
+            echo "No Google Services file found."
           fi
 
 
-      # --------------------------------------------------
-      # 8. Get Flutter dependencies
-      # --------------------------------------------------
-      - name: Get Flutter dependencies
+      # 9. Get Flutter packages
+      - name: Flutter Pub Get
         run: flutter pub get
 
 
-      # --------------------------------------------------
-      # 9. Clean Flutter build
-      # --------------------------------------------------
-      - name: Flutter clean
-        run: flutter clean
+      # 10. Check Flutter project
+      - name: Flutter Analyze
+        run: flutter analyze
 
 
-      # --------------------------------------------------
-      # 10. Get dependencies again after clean
-      # --------------------------------------------------
-      - name: Get dependencies again
-        run: flutter pub get
-
-
-      # --------------------------------------------------
-      # 11. Build APK
-      # --------------------------------------------------
-      - name: Build release APK
+      # 11. Build release APK
+      - name: Build Release APK
         run: flutter build apk --release
 
 
-      # --------------------------------------------------
-      # 12. Show generated APK
-      # --------------------------------------------------
-      - name: Verify APK exists
+      # 12. Verify APK
+      - name: Verify APK
         shell: bash
         run: |
+          echo "Generated APK:"
           ls -lh build/app/outputs/flutter-apk/
           test -f build/app/outputs/flutter-apk/app-release.apk
 
 
-      # --------------------------------------------------
-      # 13. Upload APK to GitHub Actions
-      # --------------------------------------------------
-      - name: Upload APK artifact
+      # 13. Upload APK
+      - name: Upload APK
         uses: actions/upload-artifact@v4
         with:
           name: nexora-release-apk
