@@ -32,6 +32,13 @@ jobs:
         # google-services.json.
         run: flutter create --platforms=android --org com.bvccollege .
 
+      - name: Disable AGP 9 declarative DSL
+        # AGP 9.0 defaults android { } blocks to the new "declarative" DSL,
+        # which rejects plain Kotlin code (e.g. java.util.Properties()) even
+        # inside build.gradle.kts. Opt back into the classic DSL so our
+        # signing config script below can use normal Kotlin.
+        run: echo "android.newDsl=false" >> android/gradle.properties
+
       - name: Decode keystore
         run: echo "${{ secrets.KEYSTORE_BASE64 }}" | base64 --decode > android/nexora-release.jks
 
