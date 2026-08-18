@@ -1,0 +1,28 @@
+{
+  "name": "nexora-backend",
+  "version": "1.0.0",
+  "private": true,
+  "description": "Backend foundation for Nexora AI",
+  "main": "dist/server.js",
+  "scripts": {
+    "dev": "ts-node-dev --respawn --transpile-only src/server.ts",
+    "build": "tsc -p tsconfig.json",
+    "start": "node dist/server.js"
+  },
+  "dependencies": {
+    "@aws-sdk/client-s3": "^3.31.0",
+    "@aws-sdk/s3-request-presigner": "^3.31.0",
+    "cors": "^2.8.5",
+    "dotenv": "^16.4.5",
+    "express": "^4.19.2",
+    "uuid": "^10.0.0"
+  },
+  "devDependencies": {
+    "@types/cors": "^2.8.5",
+    "@types/express": "^4.17.21",
+    "@types/node": "^22.10.1",
+    "@types/uuid": "^10.0.0",
+    "ts-node-dev": "^2.0.0",
+    "typescript": "^5.6.3"
+  }
+}

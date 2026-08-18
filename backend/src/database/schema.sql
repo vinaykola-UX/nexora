@@ -1,0 +1,37 @@
+CREATE TABLE IF NOT EXISTS users (
+  id UUID PRIMARY KEY,
+  email VARCHAR(255) NOT NULL UNIQUE,
+  first_name VARCHAR(255),
+  last_name VARCHAR(255),
+  role VARCHAR(50) NOT NULL DEFAULT 'student',
+  created_at TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT NOW(),
+  updated_at TIMESTAMP WITH TIME ZONE
+);
+
+CREATE TABLE IF NOT EXISTS documents (
+  id UUID PRIMARY KEY,
+  user_id UUID NOT NULL,
+  file_name VARCHAR(255) NOT NULL,
+  file_type VARCHAR(255),
+  storage_key VARCHAR(500) NOT NULL,
+  upload_status VARCHAR(50) NOT NULL DEFAULT 'pending',
+  created_at TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT NOW(),
+  updated_at TIMESTAMP WITH TIME ZONE
+);
+
+CREATE TABLE IF NOT EXISTS conversations (
+  id UUID PRIMARY KEY,
+  user_id UUID NOT NULL,
+  title VARCHAR(255) NOT NULL,
+  created_at TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT NOW(),
+  updated_at TIMESTAMP WITH TIME ZONE
+);
+
+CREATE TABLE IF NOT EXISTS conversation_messages (
+  id UUID PRIMARY KEY,
+  conversation_id UUID NOT NULL,
+  user_id UUID NOT NULL,
+  role VARCHAR(50) NOT NULL,
+  content TEXT NOT NULL,
+  created_at TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT NOW()
+);

@@ -20,8 +20,6 @@ class NexoraTheme {
         tertiary: Color(NexoraColors.primaryDark),
         error: Color(NexoraColors.error),
         onError: Color(NexoraColors.surface),
-        background: Color(NexoraColors.background),
-        onBackground: Color(NexoraColors.text),
         surface: Color(NexoraColors.surface),
         onSurface: Color(NexoraColors.text),
         outline: Color(NexoraColors.border),
@@ -149,7 +147,7 @@ class NexoraTheme {
         ),
       ),
       // Card
-      cardTheme: CardTheme(
+      cardTheme: CardThemeData(
         color: Color(NexoraColors.surface),
         elevation: 0,
         shape: RoundedRectangleBorder(
@@ -173,7 +171,7 @@ class NexoraTheme {
         type: BottomNavigationBarType.fixed,
       ),
       // Dialog
-      dialogTheme: DialogTheme(
+      dialogTheme: DialogThemeData(
         backgroundColor: Color(NexoraColors.surface),
         elevation: 8,
         shape: RoundedRectangleBorder(

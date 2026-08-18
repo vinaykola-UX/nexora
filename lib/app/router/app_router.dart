@@ -1,12 +1,12 @@
 import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
-import '../features/onboarding/presentation/screens/onboarding_screen.dart';
-import '../features/authentication/presentation/screens/login_screen.dart';
-import '../features/terms/presentation/screens/terms_screen.dart';
-import '../features/chat/presentation/screens/start_chat_screen.dart';
-import '../features/chat/presentation/screens/chat_screen.dart';
-import '../features/profile/presentation/screens/profile_screen.dart';
-import '../features/splash/presentation/screens/splash_screen.dart';
+import '../../features/onboarding/presentation/screens/onboarding_screen.dart';
+import '../../features/authentication/presentation/screens/login_screen.dart';
+import '../../features/terms/presentation/screens/terms_screen.dart';
+import '../../features/chat/presentation/screens/start_chat_screen.dart';
+import '../../features/chat/presentation/screens/chat_screen.dart';
+import '../../features/profile/presentation/screens/profile_screen.dart';
+import '../../features/splash/presentation/screens/splash_screen.dart';
 
 /// Route paths
 class RoutePaths {
