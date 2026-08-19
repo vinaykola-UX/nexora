@@ -5,7 +5,6 @@ on:
     branches:
       - main
       - master
-
   workflow_dispatch:
 
 jobs:
@@ -19,14 +18,12 @@ jobs:
       - name: Checkout repository
         uses: actions/checkout@v4
 
-
       # 2. Install Java 17
       - name: Set up JDK 17
-        uses: actions/setup-java@v5
+        uses: actions/setup-java@v4
         with:
           distribution: temurin
           java-version: '17'
-
 
       # 3. Install Flutter
       - name: Set up Flutter
@@ -35,14 +32,12 @@ jobs:
           channel: stable
           cache: true
 
-
       # 4. Show versions
       - name: Show versions
         run: |
           flutter --version
           dart --version
           java -version
-
 
       # 5. Backup Firebase configuration
       - name: Backup Google Services
@@ -55,18 +50,12 @@ jobs:
             echo "No google-services.json found."
           fi
 
-
       # 6. Remove old Android project
-      #
-      # This is required because the existing Android project
-      # uses the deleted Android v1 embedding.
-      #
       - name: Remove old Android platform
         shell: bash
         run: |
           rm -rf android
           echo "Old Android platform removed."
-
 
       # 7. Generate a fresh modern Android project
       - name: Generate modern Android platform
@@ -76,7 +65,6 @@ jobs:
             --org com.bvccollege \
             --project-name nexora \
             .
-
 
       # 8. Restore Firebase configuration
       - name: Restore Google Services
@@ -90,23 +78,113 @@ jobs:
             echo "No Google Services file found."
           fi
 
+      # 9. Decode signing keystore
+      - name: Decode keystore
+        run: echo "${{ secrets.KEYSTORE_BASE64 }}" | base64 --decode > android/nexora-release.jks
 
-      # 9. Get Flutter packages
+      # 10. Write key.properties
+      - name: Write key.properties
+        run: |
+          cat <<EOF > android/key.properties
+          storePassword=${{ secrets.KEY_STORE_PASSWORD }}
+          keyPassword=${{ secrets.KEY_PASSWORD }}
+          keyAlias=${{ secrets.KEY_ALIAS }}
+          storeFile=nexora-release.jks
+          EOF
+
+      # 11. Wire up release signing config
+      - name: Wire up release signing config
+        run: |
+          python3 - <<'PY'
+          import re, pathlib
+
+          kts = pathlib.Path("android/app/build.gradle.kts")
+          groovy = pathlib.Path("android/app/build.gradle")
+
+          if kts.exists():
+              # AGP 9's default declarative DSL rejects arbitrary Kotlin code
+              # written *inside* the android { } block. So keystore-loading
+              # logic goes at the top of the file (unrestricted scope), and
+              # only a plain property assignment goes inside android { }.
+              path = kts
+              content = path.read_text()
+
+              imports = 'import java.io.FileInputStream\nimport java.util.Properties\n\n'
+              content = imports + content
+
+              loader = '''val keystoreProperties = Properties()
+val keystorePropertiesFile = rootProject.file("key.properties")
+if (keystorePropertiesFile.exists()) {
+    keystoreProperties.load(FileInputStream(keystorePropertiesFile))
+}
+
+'''
+              signing_block = '''    signingConfigs {
+        create("release") {
+            keyAlias = keystoreProperties.getProperty("keyAlias")
+            keyPassword = keystoreProperties.getProperty("keyPassword")
+            storeFile = keystoreProperties.getProperty("storeFile")?.let { file(it) }
+            storePassword = keystoreProperties.getProperty("storePassword")
+        }
+    }
+'''
+              content = content.replace("android {", loader + "android {\n" + signing_block, 1)
+              content = re.sub(
+                  r'signingConfig\s*=\s*signingConfigs\.getByName\("debug"\)',
+                  'signingConfig = signingConfigs.getByName("release")',
+                  content,
+              )
+              path.write_text(content)
+              print("Patched build.gradle.kts")
+          elif groovy.exists():
+              path = groovy
+              content = path.read_text()
+
+              loader = '''def keystoreProperties = new Properties()
+def keystorePropertiesFile = rootProject.file('key.properties')
+if (keystorePropertiesFile.exists()) {
+    keystoreProperties.load(new FileInputStream(keystorePropertiesFile))
+}
+
+'''
+              signing_block = '''    signingConfigs {
+        release {
+            keyAlias keystoreProperties['keyAlias']
+            keyPassword keystoreProperties['keyPassword']
+            storeFile keystoreProperties['storeFile'] ? file(keystoreProperties['storeFile']) : null
+            storePassword keystoreProperties['storePassword']
+        }
+    }
+'''
+              content = content.replace("android {", loader + "android {\n" + signing_block, 1)
+              content = re.sub(
+                  r'signingConfig\s+signingConfigs\.debug',
+                  'signingConfig signingConfigs.release',
+                  content,
+              )
+              path.write_text(content)
+              print("Patched build.gradle")
+          else:
+              raise SystemExit("No android/app/build.gradle(.kts) found after flutter create")
+          PY
+
+      # 12. Show patched build file (debugging aid)
+      - name: Show patched build file
+        run: cat android/app/build.gradle.kts 2>/dev/null || cat android/app/build.gradle
+
+      # 13. Get Flutter packages
       - name: Flutter Pub Get
         run: flutter pub get
 
-
-      # 10. Check Flutter project
+      # 14. Check Flutter project
       - name: Flutter Analyze
         run: flutter analyze
 
-
-      # 11. Build release APK
+      # 15. Build release APK
       - name: Build Release APK
         run: flutter build apk --release
 
-
-      # 12. Verify APK
+      # 16. Verify APK
       - name: Verify APK
         shell: bash
         run: |
@@ -114,8 +192,7 @@ jobs:
           ls -lh build/app/outputs/flutter-apk/
           test -f build/app/outputs/flutter-apk/app-release.apk
 
-
-      # 13. Upload APK
+      # 17. Upload APK
       - name: Upload APK
         uses: actions/upload-artifact@v4
         with:
