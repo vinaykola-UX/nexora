@@ -79,8 +79,13 @@ jobs:
           fi
 
       # 9. Decode signing keystore
+      #
+      # IMPORTANT: this must be written into android/app/, not android/,
+      # because Gradle Kotlin DSL resolves the storeFile path in
+      # key.properties relative to the app module directory (android/app/),
+      # not the project root (android/).
       - name: Decode keystore
-        run: echo "${{ secrets.KEYSTORE_BASE64 }}" | base64 --decode > android/nexora-release.jks
+        run: echo "${{ secrets.KEYSTORE_BASE64 }}" | base64 --decode > android/app/nexora-release.jks
 
       # 10. Write key.properties
       - name: Write key.properties
@@ -148,49 +153,4 @@ jobs:
                   "    signingConfigs {\n"
                   "        release {\n"
                   "            keyAlias keystoreProperties['keyAlias']\n"
-                  "            keyPassword keystoreProperties['keyPassword']\n"
-                  "            storeFile keystoreProperties['storeFile'] ? file(keystoreProperties['storeFile']) : null\n"
-                  "            storePassword keystoreProperties['storePassword']\n"
-                  "        }\n"
-                  "    }\n"
-              )
-              content = content.replace("android {", loader + "android {\n" + signing_block, 1)
-              content = re.sub(
-                  r'signingConfig\s+signingConfigs\.debug',
-                  'signingConfig signingConfigs.release',
-                  content,
-              )
-              path.write_text(content)
-              print("Patched build.gradle")
-          else:
-              raise SystemExit("No android/app/build.gradle(.kts) found after flutter create")
-          PYEOF
-          python3 /tmp/patch_gradle.py
-
-      # 12. Show patched build file (debugging aid)
-      - name: Show patched build file
-        run: cat android/app/build.gradle.kts 2>/dev/null || cat android/app/build.gradle
-
-      # 13. Get Flutter packages
-      - name: Flutter Pub Get
-        run: flutter pub get
-
-      # 14. Build release APK
-      - name: Build Release APK
-        run: flutter build apk --release
-
-      # 15. Verify APK
-      - name: Verify APK
-        shell: bash
-        run: |
-          echo "Generated APK:"
-          ls -lh build/app/outputs/flutter-apk/
-          test -f build/app/outputs/flutter-apk/app-release.apk
-
-      # 16. Upload APK
-      - name: Upload APK
-        uses: actions/upload-artifact@v4
-        with:
-          name: nexora-release-apk
-          path: build/app/outputs/flutter-apk/app-release.apk
-          if-no-files-found: error
+                  "            keyPassword keystoreProperties
