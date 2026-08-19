@@ -1,40 +1,88 @@
-name: Build Release APK
+name: Build Nexora APK
 
 on:
   push:
-    branches: [ main ]
+    branches:
+      - main
+      - master
   workflow_dispatch:
 
 jobs:
   build:
+    name: Build Release APK
     runs-on: ubuntu-latest
+
     steps:
-      - name: Checkout repo
+
+      # 1. Checkout repository
+      - name: Checkout repository
         uses: actions/checkout@v4
 
+      # 2. Install Java 17
       - name: Set up JDK 17
         uses: actions/setup-java@v4
         with:
-          distribution: 'temurin'
+          distribution: temurin
           java-version: '17'
 
+      # 3. Install Flutter
       - name: Set up Flutter
         uses: subosito/flutter-action@v2
         with:
-          channel: 'stable'
+          channel: stable
           cache: true
 
-      - name: Regenerate missing Android platform files
-        # android/ is missing build.gradle, settings.gradle, the Gradle
-        # wrapper, AndroidManifest.xml, MainActivity, etc. This restores
-        # them using the real Flutter template (matched to the Flutter
-        # version installed above) without touching lib/ or the existing
-        # google-services.json.
-        run: flutter create --platforms=android --org com.bvccollege .
+      # 4. Show versions
+      - name: Show versions
+        run: |
+          flutter --version
+          dart --version
+          java -version
 
+      # 5. Backup Firebase configuration
+      - name: Backup Google Services
+        shell: bash
+        run: |
+          if [ -f android/app/google-services.json ]; then
+            cp android/app/google-services.json /tmp/google-services.json
+            echo "Google Services file backed up."
+          else
+            echo "No google-services.json found."
+          fi
+
+      # 6. Remove old Android project
+      - name: Remove old Android platform
+        shell: bash
+        run: |
+          rm -rf android
+          echo "Old Android platform removed."
+
+      # 7. Generate a fresh modern Android project
+      - name: Generate modern Android platform
+        run: |
+          flutter create \
+            --platforms=android \
+            --org com.bvccollege \
+            --project-name nexora \
+            .
+
+      # 8. Restore Firebase configuration
+      - name: Restore Google Services
+        shell: bash
+        run: |
+          if [ -f /tmp/google-services.json ]; then
+            mkdir -p android/app
+            cp /tmp/google-services.json android/app/google-services.json
+            echo "Google Services file restored."
+          else
+            echo "No Google Services file found."
+          fi
+
+      # 9. Decode signing keystore
       - name: Decode keystore
         run: echo "${{ secrets.KEYSTORE_BASE64 }}" | base64 --decode > android/nexora-release.jks
 
+      # 10. Write key.properties
       - name: Write key.properties
         run: |
           cat <<EOF > android/key.properties
@@ -44,6 +92,7 @@ jobs:
           storeFile=nexora-release.jks
           EOF
 
+      # 11. Wire up release signing config
       - name: Wire up release signing config
         run: |
           python3 - <<'PY'
@@ -54,9 +103,8 @@ jobs:
 
           if kts.exists():
               # AGP 9's default declarative DSL rejects arbitrary Kotlin code
-              # (imports, java.util.Properties(), etc.) written *inside* the
-              # android { } block. So the keystore-loading logic goes at the
-              # very top of the file (plain script scope, unrestricted), and
+              # written *inside* the android { } block. So keystore-loading
+              # logic goes at the top of the file (unrestricted scope), and
               # only a plain property assignment goes inside android { }.
               path = kts
               content = path.read_text()
@@ -120,17 +168,34 @@ if (keystorePropertiesFile.exists()) {
               raise SystemExit("No android/app/build.gradle(.kts) found after flutter create")
           PY
 
-      - name: Show patched build file (for debugging)
+      # 12. Show patched build file (debugging aid)
+      - name: Show patched build file
         run: cat android/app/build.gradle.kts 2>/dev/null || cat android/app/build.gradle
 
-      - name: Install dependencies
+      # 13. Get Flutter packages
+      - name: Flutter Pub Get
         run: flutter pub get
 
-      - name: Build release APK
+      # 14. Check Flutter project
+      - name: Flutter Analyze
+        run: flutter analyze
+
+      # 15. Build release APK
+      - name: Build Release APK
         run: flutter build apk --release
 
-      - name: Upload APK artifact
+      # 16. Verify APK
+      - name: Verify APK
+        shell: bash
+        run: |
+          echo "Generated APK:"
+          ls -lh build/app/outputs/flutter-apk/
+          test -f build/app/outputs/flutter-apk/app-release.apk
+
+      # 17. Upload APK
+      - name: Upload APK
         uses: actions/upload-artifact@v4
         with:
           name: nexora-release-apk
           path: build/app/outputs/flutter-apk/app-release.apk
+          if-no-files-found: error
