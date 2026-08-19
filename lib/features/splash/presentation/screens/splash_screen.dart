@@ -1,10 +1,29 @@
 import 'package:flutter/material.dart';
+import 'package:go_router/go_router.dart';
 import '../../../../core/theme/colors.dart';
 import '../../../../core/theme/spacing.dart';
 
 /// Splash screen - shown during app initialization
-class SplashScreen extends StatelessWidget {
+class SplashScreen extends StatefulWidget {
   const SplashScreen({Key? key}) : super(key: key);
+
+  @override
+  State<SplashScreen> createState() => _SplashScreenState();
+}
+
+class _SplashScreenState extends State<SplashScreen> {
+  @override
+  void initState() {
+    super.initState();
+    _navigateNext();
+  }
+
+  Future<void> _navigateNext() async {
+    await Future.delayed(const Duration(seconds: 2));
+    if (mounted) {
+      context.go('/onboarding');
+    }
+  }
 
   @override
   Widget build(BuildContext context) {
