@@ -11,7 +11,7 @@ class NexoraTypography {
     fontSize: 32,
     fontWeight: FontWeight.bold, // 700
     height: 1.2,
-    color: NexoraColors.text,
+    color: Color(NexoraColors.text),
   );
 
   static const TextStyle heading2 = TextStyle(
@@ -19,7 +19,7 @@ class NexoraTypography {
     fontSize: 28,
     fontWeight: FontWeight.bold, // 700
     height: 1.2,
-    color: NexoraColors.text,
+    color: Color(NexoraColors.text),
   );
 
   static const TextStyle heading3 = TextStyle(
@@ -27,7 +27,7 @@ class NexoraTypography {
     fontSize: 24,
     fontWeight: FontWeight.bold, // 700
     height: 1.3,
-    color: NexoraColors.text,
+    color: Color(NexoraColors.text),
   );
 
   static const TextStyle heading4 = TextStyle(
@@ -35,7 +35,7 @@ class NexoraTypography {
     fontSize: 20,
     fontWeight: FontWeight.bold, // 700
     height: 1.3,
-    color: NexoraColors.text,
+    color: Color(NexoraColors.text),
   );
 
   // Body Styles
@@ -44,7 +44,7 @@ class NexoraTypography {
     fontSize: 18,
     fontWeight: FontWeight.w500, // 500 (Medium)
     height: 1.5,
-    color: NexoraColors.text,
+    color: Color(NexoraColors.text),
   );
 
   static const TextStyle bodyMedium = TextStyle(
@@ -52,7 +52,7 @@ class NexoraTypography {
     fontSize: 16,
     fontWeight: FontWeight.w400, // 400 (Regular)
     height: 1.5,
-    color: NexoraColors.text,
+    color: Color(NexoraColors.text),
   );
 
   static const TextStyle bodySmall = TextStyle(
@@ -60,7 +60,7 @@ class NexoraTypography {
     fontSize: 14,
     fontWeight: FontWeight.w400, // 400 (Regular)
     height: 1.5,
-    color: NexoraColors.textSecondary,
+    color: Color(NexoraColors.textSecondary),
   );
 
   // Label Styles
@@ -69,7 +69,7 @@ class NexoraTypography {
     fontSize: 16,
     fontWeight: FontWeight.w600, // 600 (Semi-bold)
     height: 1.4,
-    color: NexoraColors.text,
+    color: Color(NexoraColors.text),
   );
 
   static const TextStyle labelMedium = TextStyle(
@@ -77,7 +77,7 @@ class NexoraTypography {
     fontSize: 14,
     fontWeight: FontWeight.w600, // 600 (Semi-bold)
     height: 1.4,
-    color: NexoraColors.text,
+    color: Color(NexoraColors.text),
   );
 
   static const TextStyle labelSmall = TextStyle(
@@ -85,7 +85,7 @@ class NexoraTypography {
     fontSize: 12,
     fontWeight: FontWeight.w600, // 600 (Semi-bold)
     height: 1.3,
-    color: NexoraColors.textMuted,
+    color: Color(NexoraColors.textMuted),
   );
 
   // Display Styles
@@ -94,7 +94,7 @@ class NexoraTypography {
     fontSize: 40,
     fontWeight: FontWeight.bold, // 700
     height: 1.2,
-    color: NexoraColors.text,
+    color: Color(NexoraColors.text),
   );
 
   // Button Text
@@ -103,7 +103,7 @@ class NexoraTypography {
     fontSize: 16,
     fontWeight: FontWeight.w600, // 600 (Semi-bold)
     height: 1.5,
-    color: NexoraColors.surface,
+    color: Color(NexoraColors.surface),
   );
 
   static const TextStyle buttonSmall = TextStyle(
@@ -111,7 +111,7 @@ class NexoraTypography {
     fontSize: 14,
     fontWeight: FontWeight.w600, // 600 (Semi-bold)
     height: 1.4,
-    color: NexoraColors.surface,
+    color: Color(NexoraColors.surface),
   );
 
   // Caption
@@ -120,6 +120,6 @@ class NexoraTypography {
     fontSize: 12,
     fontWeight: FontWeight.w400, // 400 (Regular)
     height: 1.4,
-    color: NexoraColors.textMuted,
+    color: Color(NexoraColors.textMuted),
   );
 }
