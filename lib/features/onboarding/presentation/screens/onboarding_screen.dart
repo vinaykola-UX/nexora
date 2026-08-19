@@ -29,7 +29,7 @@ class _OnboardingScreenState extends State<OnboardingScreen> {
     OnboardingPage(
       title: 'Always Learning',
       description: 'Powered by your college knowledge base',
-      icon: Icons.books,
+      icon: Icons.menu_book,
     ),
   ];
 
