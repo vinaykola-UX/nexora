@@ -95,39 +95,36 @@ jobs:
       # 11. Wire up release signing config
       - name: Wire up release signing config
         run: |
-          python3 - <<'PY'
+          cat <<'PYEOF' > /tmp/patch_gradle.py
           import re, pathlib
 
           kts = pathlib.Path("android/app/build.gradle.kts")
           groovy = pathlib.Path("android/app/build.gradle")
 
           if kts.exists():
-              # AGP 9's default declarative DSL rejects arbitrary Kotlin code
-              # written *inside* the android { } block. So keystore-loading
-              # logic goes at the top of the file (unrestricted scope), and
-              # only a plain property assignment goes inside android { }.
               path = kts
               content = path.read_text()
 
-              imports = 'import java.io.FileInputStream\nimport java.util.Properties\n\n'
+              imports = "import java.io.FileInputStream\nimport java.util.Properties\n\n"
               content = imports + content
 
-              loader = '''val keystoreProperties = Properties()
-val keystorePropertiesFile = rootProject.file("key.properties")
-if (keystorePropertiesFile.exists()) {
-    keystoreProperties.load(FileInputStream(keystorePropertiesFile))
-}
-
-'''
-              signing_block = '''    signingConfigs {
-        create("release") {
-            keyAlias = keystoreProperties.getProperty("keyAlias")
-            keyPassword = keystoreProperties.getProperty("keyPassword")
-            storeFile = keystoreProperties.getProperty("storeFile")?.let { file(it) }
-            storePassword = keystoreProperties.getProperty("storePassword")
-        }
-    }
-'''
+              loader = (
+                  "val keystoreProperties = Properties()\n"
+                  "val keystorePropertiesFile = rootProject.file(\"key.properties\")\n"
+                  "if (keystorePropertiesFile.exists()) {\n"
+                  "    keystoreProperties.load(FileInputStream(keystorePropertiesFile))\n"
+                  "}\n\n"
+              )
+              signing_block = (
+                  "    signingConfigs {\n"
+                  "        create(\"release\") {\n"
+                  "            keyAlias = keystoreProperties.getProperty(\"keyAlias\")\n"
+                  "            keyPassword = keystoreProperties.getProperty(\"keyPassword\")\n"
+                  "            storeFile = keystoreProperties.getProperty(\"storeFile\")?.let { file(it) }\n"
+                  "            storePassword = keystoreProperties.getProperty(\"storePassword\")\n"
+                  "        }\n"
+                  "    }\n"
+              )
               content = content.replace("android {", loader + "android {\n" + signing_block, 1)
               content = re.sub(
                   r'signingConfig\s*=\s*signingConfigs\.getByName\("debug"\)',
@@ -140,22 +137,23 @@ if (keystorePropertiesFile.exists()) {
               path = groovy
               content = path.read_text()
 
-              loader = '''def keystoreProperties = new Properties()
-def keystorePropertiesFile = rootProject.file('key.properties')
-if (keystorePropertiesFile.exists()) {
-    keystoreProperties.load(new FileInputStream(keystorePropertiesFile))
-}
-
-'''
-              signing_block = '''    signingConfigs {
-        release {
-            keyAlias keystoreProperties['keyAlias']
-            keyPassword keystoreProperties['keyPassword']
-            storeFile keystoreProperties['storeFile'] ? file(keystoreProperties['storeFile']) : null
-            storePassword keystoreProperties['storePassword']
-        }
-    }
-'''
+              loader = (
+                  "def keystoreProperties = new Properties()\n"
+                  "def keystorePropertiesFile = rootProject.file('key.properties')\n"
+                  "if (keystorePropertiesFile.exists()) {\n"
+                  "    keystoreProperties.load(new FileInputStream(keystorePropertiesFile))\n"
+                  "}\n\n"
+              )
+              signing_block = (
+                  "    signingConfigs {\n"
+                  "        release {\n"
+                  "            keyAlias keystoreProperties['keyAlias']\n"
+                  "            keyPassword keystoreProperties['keyPassword']\n"
+                  "            storeFile keystoreProperties['storeFile'] ? file(keystoreProperties['storeFile']) : null\n"
+                  "            storePassword keystoreProperties['storePassword']\n"
+                  "        }\n"
+                  "    }\n"
+              )
               content = content.replace("android {", loader + "android {\n" + signing_block, 1)
               content = re.sub(
                   r'signingConfig\s+signingConfigs\.debug',
@@ -166,7 +164,8 @@ if (keystorePropertiesFile.exists()) {
               print("Patched build.gradle")
           else:
               raise SystemExit("No android/app/build.gradle(.kts) found after flutter create")
-          PY
+          PYEOF
+          python3 /tmp/patch_gradle.py
 
       # 12. Show patched build file (debugging aid)
       - name: Show patched build file
