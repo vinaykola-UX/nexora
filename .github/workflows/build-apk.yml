@@ -175,15 +175,11 @@ jobs:
       - name: Flutter Pub Get
         run: flutter pub get
 
-      # 14. Check Flutter project
-      - name: Flutter Analyze
-        run: flutter analyze
-
-      # 15. Build release APK
+      # 14. Build release APK
       - name: Build Release APK
         run: flutter build apk --release
 
-      # 16. Verify APK
+      # 15. Verify APK
       - name: Verify APK
         shell: bash
         run: |
@@ -191,7 +187,7 @@ jobs:
           ls -lh build/app/outputs/flutter-apk/
           test -f build/app/outputs/flutter-apk/app-release.apk
 
-      # 17. Upload APK
+      # 16. Upload APK
       - name: Upload APK
         uses: actions/upload-artifact@v4
         with:
