@@ -16,6 +16,7 @@ class NexoraButton extends StatefulWidget {
   final TextStyle? textStyle;
   final Color? backgroundColor;
   final Color? foregroundColor;
+  final double? borderRadius;
 
   const NexoraButton({
     Key? key,
@@ -30,6 +31,7 @@ class NexoraButton extends StatefulWidget {
     this.textStyle,
     this.backgroundColor,
     this.foregroundColor,
+    this.borderRadius,
   }) : super(key: key);
 
   @override
@@ -49,8 +51,11 @@ class _NexoraButtonState extends State<NexoraButton> {
           foregroundColor: widget.foregroundColor ?? Color(NexoraColors.surface),
           disabledBackgroundColor: Color(NexoraColors.gray4),
           disabledForegroundColor: Color(NexoraColors.textMuted),
+          elevation: 0,
           shape: RoundedRectangleBorder(
-            borderRadius: BorderRadius.circular(NexoraSpacing.radiusMD),
+            borderRadius: BorderRadius.circular(
+              widget.borderRadius ?? NexoraSpacing.radiusMD,
+            ),
           ),
         ),
         child: widget.isLoading
@@ -99,6 +104,8 @@ class NexoraOutlineButton extends StatelessWidget {
   final double height;
   final Color? borderColor;
   final Color? textColor;
+  final Color? backgroundColor;
+  final double? borderRadius;
 
   const NexoraOutlineButton({
     Key? key,
@@ -112,6 +119,8 @@ class NexoraOutlineButton extends StatelessWidget {
     this.height = NexoraSpacing.buttonHeightMD,
     this.borderColor,
     this.textColor,
+    this.backgroundColor,
+    this.borderRadius,
   }) : super(key: key);
 
   @override
@@ -122,13 +131,16 @@ class NexoraOutlineButton extends StatelessWidget {
       child: OutlinedButton(
         onPressed: isEnabled && !isLoading ? onPressed : null,
         style: OutlinedButton.styleFrom(
+          backgroundColor: backgroundColor,
           side: BorderSide(
-            color: borderColor ?? Color(NexoraColors.primary),
-            width: 2,
+            color: borderColor ?? Color(NexoraColors.border),
+            width: 1.5,
           ),
           disabledForegroundColor: Color(NexoraColors.textMuted),
           shape: RoundedRectangleBorder(
-            borderRadius: BorderRadius.circular(NexoraSpacing.radiusMD),
+            borderRadius: BorderRadius.circular(
+              borderRadius ?? NexoraSpacing.radiusMD,
+            ),
           ),
         ),
         child: isLoading
@@ -138,7 +150,7 @@ class NexoraOutlineButton extends StatelessWidget {
           child: CircularProgressIndicator(
             strokeWidth: 2,
             valueColor: AlwaysStoppedAnimation<Color>(
-              textColor ?? Color(NexoraColors.primary),
+              textColor ?? Color(NexoraColors.text),
             ),
           ),
         )
@@ -153,7 +165,7 @@ class NexoraOutlineButton extends StatelessWidget {
             Text(
               label,
               style: NexoraTypography.button.copyWith(
-                color: textColor ?? Color(NexoraColors.primary),
+                color: textColor ?? Color(NexoraColors.text),
               ),
             ),
             if (trailingIcon != null) ...[
