@@ -6,10 +6,12 @@ import '../../../../core/widgets/nexora_widgets.dart';
 /// Main chat screen
 class ChatScreen extends StatefulWidget {
   final String? chatId;
+  final String? initialPrompt;
 
   const ChatScreen({
     Key? key,
     this.chatId,
+    this.initialPrompt,
   }) : super(key: key);
 
   @override
@@ -24,7 +26,9 @@ class _ChatScreenState extends State<ChatScreen> {
   @override
   void initState() {
     super.initState();
-    _messageController = TextEditingController();
+    _messageController = TextEditingController(
+      text: widget.initialPrompt,
+    );
     
     // Mock messages for now
     _messages.addAll([
