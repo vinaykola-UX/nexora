@@ -14,11 +14,11 @@
       },
       "oauth_client": [
         {
-          "client_id": "1056749020398-ss06l45gm0c2bheo2vgre8l7fc0ojiqp.apps.googleusercontent.com",
+          "client_id": "1056749020398-0c84pq3qh9ipf7bjhkrih4295gu3hlau.apps.googleusercontent.com",
           "client_type": 1,
           "android_info": {
             "package_name": "com.bvcollege.nexora",
-            "certificate_hash": "39a87808a76fced59e60df4754385df4f5f86f47"
+            "certificate_hash": "39a87808a76fced59e60df4754385df4f5786e47"
           }
         },
         {
