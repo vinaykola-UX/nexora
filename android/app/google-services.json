@@ -58,6 +58,14 @@
       },
       "oauth_client": [
         {
+          "client_id": "1056749020398-opo9cvk5tvbdrve6gee2bitfo1o830f2.apps.googleusercontent.com",
+          "client_type": 1,
+          "android_info": {
+            "package_name": "com.example.nexora",
+            "certificate_hash": "39a87808a76fced59e60df4754385df4f5786e47"
+          }
+        },
+        {
           "client_id": "1056749020398-673a9ldv57g51vrdltv9on8k1ve5tf7l.apps.googleusercontent.com",
           "client_type": 3
         }
