@@ -1,5 +1,6 @@
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/foundation.dart';
+import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:google_sign_in/google_sign_in.dart';
 
@@ -26,7 +27,10 @@ class AuthService {
     FirebaseAuth? firebaseAuth,
     GoogleSignIn? googleSignIn,
   })  : _firebaseAuth = firebaseAuth ?? FirebaseAuth.instance,
-        _googleSignIn = googleSignIn ?? GoogleSignIn(scopes: const ['email', 'profile']);
+        _googleSignIn = googleSignIn ?? GoogleSignIn(
+          scopes: const ['email', 'profile'],
+          serverClientId: '1056749020398-673a9ldv57g51vrdltv9on8k1ve5tf7l.apps.googleusercontent.com',
+        );
 
   /// Stream of authentication state changes
   Stream<User?> get authStateChanges => _firebaseAuth.authStateChanges();
@@ -132,6 +136,25 @@ class AuthService {
             code: e.code,
           );
       }
+    } on PlatformException catch (e) {
+      debugPrint('[AuthService] PlatformException: ${e.code} - ${e.message} - ${e.details}');
+      if (e.code == 'network_error') {
+        throw const NexoraAuthException(
+          'Network error. Please check your internet connection and try again.',
+          code: 'network-error',
+        );
+      } else if (e.code == 'sign_in_canceled') {
+        return null;
+      } else if (e.code == 'sign_in_failed') {
+        throw NexoraAuthException(
+          'Google Sign-In failed: ${e.message ?? e.code}. Please ensure the app was rebuilt after configuration changes.',
+          code: e.code,
+        );
+      }
+      throw NexoraAuthException(
+        e.message ?? 'Google Sign-In failed. Please try again.',
+        code: e.code,
+      );
     } on NexoraAuthException {
       rethrow;
     } catch (e, stackTrace) {
