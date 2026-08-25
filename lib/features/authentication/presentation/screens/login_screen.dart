@@ -5,6 +5,7 @@ import '../../../../core/theme/spacing.dart';
 import '../../../../core/widgets/nexora_button.dart';
 import '../../../../core/widgets/nexora_textfield.dart';
 import '../../../../app/router/app_router.dart';
+import '../../data/auth_service.dart';
 
 /// Login screen matching Figma Mobile UI
 class LoginScreen extends StatefulWidget {
@@ -19,6 +20,8 @@ class _LoginScreenState extends State<LoginScreen> {
   late TextEditingController _passwordController;
   bool _obscurePassword = true;
   bool _isLoading = false;
+  bool _isGoogleLoading = false;
+  final AuthService _authService = AuthService();
 
   @override
   void initState() {
@@ -50,9 +53,53 @@ class _LoginScreenState extends State<LoginScreen> {
     });
   }
 
-  void _onGoogleLogin() {
-    // Google sign in placeholder -> navigate to terms
-    context.go(RoutePaths.terms);
+  Future<void> _onGoogleLogin() async {
+    if (_isGoogleLoading) return;
+    setState(() {
+      _isGoogleLoading = true;
+    });
+
+    try {
+      final user = await _authService.signInWithGoogle();
+
+      if (!mounted) return;
+
+      if (user != null) {
+        // Successful login with valid @bvcgroup.in domain
+        context.go(RoutePaths.terms);
+      }
+      // If user is null, user cancelled Google Sign-In dialog
+    } on NexoraAuthException catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text(e.message),
+            backgroundColor: const Color(NexoraColors.error),
+            behavior: SnackBarBehavior.floating,
+            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+            duration: const Duration(seconds: 4),
+          ),
+        );
+      }
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: const Text('An error occurred during sign in. Please try again.'),
+            backgroundColor: const Color(NexoraColors.error),
+            behavior: SnackBarBehavior.floating,
+            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+            duration: const Duration(seconds: 4),
+          ),
+        );
+      }
+    } finally {
+      if (mounted) {
+        setState(() {
+          _isGoogleLoading = false;
+        });
+      }
+    }
   }
 
   @override
@@ -201,6 +248,8 @@ class _LoginScreenState extends State<LoginScreen> {
               NexoraOutlineButton(
                 label: 'Login with Google',
                 onPressed: _onGoogleLogin,
+                isLoading: _isGoogleLoading,
+                isEnabled: !_isGoogleLoading && !_isLoading,
                 width: double.infinity,
                 height: 54,
                 borderRadius: 100,

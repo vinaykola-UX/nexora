@@ -1,8 +1,10 @@
+import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
 import '../../../../core/theme/colors.dart';
 import '../../../../core/theme/spacing.dart';
 import '../../../../app/router/app_router.dart';
+import '../../../authentication/data/auth_service.dart';
 
 /// Profile screen matching Figma Mobile UI
 class ProfileScreen extends StatefulWidget {
@@ -14,6 +16,7 @@ class ProfileScreen extends StatefulWidget {
 
 class _ProfileScreenState extends State<ProfileScreen> {
   bool _notificationsEnabled = true;
+  final AuthService _authService = AuthService();
 
   void _showLogoutConfirmation() {
     showDialog(
@@ -35,9 +38,12 @@ class _ProfileScreenState extends State<ProfileScreen> {
             ),
           ),
           TextButton(
-            onPressed: () {
+            onPressed: () async {
               Navigator.pop(context);
-              context.go(RoutePaths.login);
+              await _authService.signOut();
+              if (mounted) {
+                context.go(RoutePaths.login);
+              }
             },
             child: const Text(
               'Log out',
@@ -70,8 +76,29 @@ class _ProfileScreenState extends State<ProfileScreen> {
     );
   }
 
+  String _getInitials(String? name, String? email) {
+    if (name != null && name.trim().isNotEmpty) {
+      final parts = name.trim().split(RegExp(r'\s+'));
+      if (parts.length > 1) {
+        return (parts[0][0] + parts[1][0]).toUpperCase();
+      } else if (parts[0].isNotEmpty) {
+        return parts[0].substring(0, parts[0].length >= 2 ? 2 : 1).toUpperCase();
+      }
+    }
+    if (email != null && email.isNotEmpty) {
+      return email.substring(0, email.length >= 2 ? 2 : 1).toUpperCase();
+    }
+    return 'BVC';
+  }
+
   @override
   Widget build(BuildContext context) {
+    final user = FirebaseAuth.instance.currentUser;
+    final displayName = user?.displayName ?? 'BVC Student';
+    final displayEmail = user?.email ?? 'student@bvcgroup.in';
+    final photoUrl = user?.photoURL;
+    final initials = _getInitials(user?.displayName, user?.email);
+
     return Scaffold(
       backgroundColor: const Color(NexoraColors.background),
       appBar: AppBar(
@@ -139,20 +166,28 @@ class _ProfileScreenState extends State<ProfileScreen> {
                     Container(
                       width: 60,
                       height: 60,
-                      decoration: const BoxDecoration(
-                        color: Color(0xFFD4C5B3), // Warm tan beige
+                      decoration: BoxDecoration(
+                        color: const Color(0xFFD4C5B3), // Warm tan beige
                         shape: BoxShape.circle,
+                        image: photoUrl != null
+                            ? DecorationImage(
+                                image: NetworkImage(photoUrl),
+                                fit: BoxFit.cover,
+                              )
+                            : null,
                       ),
-                      child: const Center(
-                        child: Text(
-                          'VK',
-                          style: TextStyle(
-                            fontSize: 20,
-                            fontWeight: FontWeight.bold,
-                            color: Color(0xFF4A3B2C),
-                          ),
-                        ),
-                      ),
+                      child: photoUrl == null
+                          ? Center(
+                              child: Text(
+                                initials,
+                                style: const TextStyle(
+                                  fontSize: 20,
+                                  fontWeight: FontWeight.bold,
+                                  color: Color(0xFF4A3B2C),
+                                ),
+                              ),
+                            )
+                          : null,
                     ),
                     const SizedBox(width: NexoraSpacing.lg),
 
@@ -161,18 +196,18 @@ class _ProfileScreenState extends State<ProfileScreen> {
                       child: Column(
                         crossAxisAlignment: CrossAxisAlignment.start,
                         children: [
-                          const Text(
-                            'Vinay Kola',
-                            style: TextStyle(
+                          Text(
+                            displayName,
+                            style: const TextStyle(
                               fontSize: 18,
                               fontWeight: FontWeight.bold,
                               color: Color(NexoraColors.text),
                             ),
                           ),
                           const SizedBox(height: 2),
-                          const Text(
-                            'vinaykola@bvc.edu.in',
-                            style: TextStyle(
+                          Text(
+                            displayEmail,
+                            style: const TextStyle(
                               fontSize: 13,
                               color: Color(NexoraColors.textSecondary),
                             ),

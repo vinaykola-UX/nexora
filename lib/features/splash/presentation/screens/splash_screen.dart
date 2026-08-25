@@ -5,6 +5,8 @@ import '../../../../core/theme/spacing.dart';
 import '../../../../core/widgets/nexora_sparkle_icon.dart';
 import '../../../../app/router/app_router.dart';
 
+import '../../../authentication/data/auth_service.dart';
+
 /// Splash screen - shown during app initialization
 class SplashScreen extends StatefulWidget {
   const SplashScreen({Key? key}) : super(key: key);
@@ -17,6 +19,7 @@ class _SplashScreenState extends State<SplashScreen> with SingleTickerProviderSt
   late AnimationController _controller;
   late Animation<double> _scaleAnimation;
   late Animation<double> _fadeAnimation;
+  final AuthService _authService = AuthService();
 
   @override
   void initState() {
@@ -46,7 +49,11 @@ class _SplashScreenState extends State<SplashScreen> with SingleTickerProviderSt
 
   Future<void> _navigateNext() async {
     await Future.delayed(const Duration(seconds: 2));
-    if (mounted) {
+    if (!mounted) return;
+
+    if (_authService.isAuthenticatedAndValid) {
+      context.go(RoutePaths.startChat);
+    } else {
       context.go(RoutePaths.onboarding);
     }
   }
