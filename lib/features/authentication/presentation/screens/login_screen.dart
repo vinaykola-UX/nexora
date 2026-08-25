@@ -1,10 +1,12 @@
 import 'package:flutter/material.dart';
+import 'package:go_router/go_router.dart';
 import '../../../../core/theme/colors.dart';
 import '../../../../core/theme/spacing.dart';
 import '../../../../core/widgets/nexora_button.dart';
 import '../../../../core/widgets/nexora_textfield.dart';
+import '../../../../app/router/app_router.dart';
 
-/// Login screen
+/// Login screen matching Figma Mobile UI
 class LoginScreen extends StatefulWidget {
   const LoginScreen({Key? key}) : super(key: key);
 
@@ -15,6 +17,7 @@ class LoginScreen extends StatefulWidget {
 class _LoginScreenState extends State<LoginScreen> {
   late TextEditingController _emailController;
   late TextEditingController _passwordController;
+  bool _obscurePassword = true;
   bool _isLoading = false;
 
   @override
@@ -31,132 +34,211 @@ class _LoginScreenState extends State<LoginScreen> {
     super.dispose();
   }
 
+  void _onLogin() {
+    setState(() {
+      _isLoading = true;
+    });
+
+    // Simulate login & navigate to terms
+    Future.delayed(const Duration(milliseconds: 400), () {
+      if (mounted) {
+        setState(() {
+          _isLoading = false;
+        });
+        context.go(RoutePaths.terms);
+      }
+    });
+  }
+
+  void _onGoogleLogin() {
+    // Google sign in placeholder -> navigate to terms
+    context.go(RoutePaths.terms);
+  }
+
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      backgroundColor: Color(NexoraColors.background),
-      appBar: AppBar(
-        title: Text('Login'),
-      ),
+      backgroundColor: const Color(NexoraColors.background),
       body: SafeArea(
         child: SingleChildScrollView(
-          padding: EdgeInsets.all(NexoraSpacing.lg),
+          padding: const EdgeInsets.symmetric(
+            horizontal: NexoraSpacing.xl,
+            vertical: NexoraSpacing.lg,
+          ),
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              Text(
+              const SizedBox(height: NexoraSpacing.xl),
+
+              // Headline & Subtitle
+              const Text(
                 'Welcome back',
                 style: TextStyle(
-                  fontSize: 28,
+                  fontSize: 32,
                   fontWeight: FontWeight.bold,
                   color: Color(NexoraColors.text),
+                  letterSpacing: -0.5,
                 ),
               ),
-              SizedBox(height: NexoraSpacing.md),
-              Text(
-                'Sign in with your college account',
+              const SizedBox(height: NexoraSpacing.xs),
+              const Text(
+                'Login with your college account',
                 style: TextStyle(
-                  fontSize: 14,
+                  fontSize: 15,
                   color: Color(NexoraColors.textSecondary),
+                  fontWeight: FontWeight.w400,
                 ),
               ),
-              SizedBox(height: NexoraSpacing.xl),
+              const SizedBox(height: NexoraSpacing.xxxl),
 
-              // Email field
+              // Email / Roll Number field
               NexoraTextField(
-                label: 'Email',
-                hint: 'Enter your college email',
+                label: 'Email / Roll Number',
+                hint: 'Enter your college email or roll number',
                 controller: _emailController,
                 keyboardType: TextInputType.emailAddress,
-                prefixIcon: Icons.email,
+                prefixIcon: Icons.alternate_email,
               ),
-              SizedBox(height: NexoraSpacing.lg),
+              const SizedBox(height: NexoraSpacing.lg),
 
               // Password field
               NexoraTextField(
                 label: 'Password',
                 hint: 'Enter your password',
                 controller: _passwordController,
-                obscureText: true,
-                prefixIcon: Icons.lock,
+                obscureText: _obscurePassword,
+                prefixIcon: Icons.lock_outline,
+                suffixIcon: _obscurePassword
+                    ? Icons.visibility_off_outlined
+                    : Icons.visibility_outlined,
+                onSuffixIconTap: () {
+                  setState(() {
+                    _obscurePassword = !_obscurePassword;
+                  });
+                },
               ),
-              SizedBox(height: NexoraSpacing.md),
+              const SizedBox(height: NexoraSpacing.sm),
 
               // Forgot password link
               Align(
                 alignment: Alignment.centerRight,
                 child: TextButton(
                   onPressed: () {
-                    // TODO: Navigate to forgot password
+                    ScaffoldMessenger.of(context).showSnackBar(
+                      const SnackBar(
+                        content: Text('Password reset link sent to your email'),
+                        duration: Duration(seconds: 2),
+                      ),
+                    );
                   },
-                  child: Text(
+                  style: TextButton.styleFrom(
+                    padding: EdgeInsets.zero,
+                    minimumSize: const Size(0, 36),
+                    tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+                  ),
+                  child: const Text(
                     'Forgot password?',
                     style: TextStyle(
-                      color: Color(NexoraColors.primary),
-                      fontSize: 14,
+                      color: Color(0xFFD32F2F), // Reddish accent per Figma
+                      fontSize: 13,
+                      fontWeight: FontWeight.w500,
                     ),
                   ),
                 ),
               ),
-              SizedBox(height: NexoraSpacing.xl),
+              const SizedBox(height: NexoraSpacing.xl),
 
-              // Login button
+              // Primary Login Action - Black Pill Button
               NexoraButton(
-                label: 'Login',
-                onPressed: () {
-                  // TODO: Handle login
-                },
+                label: 'LOG IN',
+                onPressed: _onLogin,
                 isLoading: _isLoading,
                 width: double.infinity,
+                height: 54,
+                backgroundColor: const Color(0xFF171717),
+                foregroundColor: Colors.white,
+                borderRadius: 100,
+                textStyle: const TextStyle(
+                  fontSize: 16,
+                  fontWeight: FontWeight.bold,
+                  letterSpacing: 1.0,
+                  color: Colors.white,
+                ),
               ),
-              SizedBox(height: NexoraSpacing.lg),
+              const SizedBox(height: NexoraSpacing.xl),
 
-              // Divider
+              // "OR" Divider
               Row(
                 children: [
-                  Expanded(child: Divider()),
-                  Padding(
-                    padding: EdgeInsets.symmetric(horizontal: NexoraSpacing.md),
-                    child: Text('OR'),
+                  Expanded(
+                    child: Divider(
+                      color: const Color(NexoraColors.divider),
+                      thickness: 1,
+                    ),
                   ),
-                  Expanded(child: Divider()),
+                  Padding(
+                    padding: const EdgeInsets.symmetric(horizontal: NexoraSpacing.md),
+                    child: Text(
+                      'OR',
+                      style: TextStyle(
+                        fontSize: 12,
+                        fontWeight: FontWeight.w600,
+                        color: const Color(NexoraColors.textMuted),
+                      ),
+                    ),
+                  ),
+                  Expanded(
+                    child: Divider(
+                      color: const Color(NexoraColors.divider),
+                      thickness: 1,
+                    ),
+                  ),
                 ],
               ),
-              SizedBox(height: NexoraSpacing.lg),
+              const SizedBox(height: NexoraSpacing.xl),
 
-              // Google login button
+              // Login with Google Pill Button
               NexoraOutlineButton(
                 label: 'Login with Google',
-                onPressed: () {
-                  // TODO: Handle Google login
-                },
-                leadingIcon: Icons.login,
+                onPressed: _onGoogleLogin,
                 width: double.infinity,
+                height: 54,
+                borderRadius: 100,
+                backgroundColor: const Color(NexoraColors.surface),
+                borderColor: const Color(NexoraColors.border),
+                textColor: const Color(NexoraColors.text),
+                leadingIcon: Icons.g_mobiledata_rounded,
               ),
-              SizedBox(height: NexoraSpacing.xl),
+              const SizedBox(height: NexoraSpacing.xxl),
 
-              // Sign up link
+              // Footer: Sign up link
               Center(
-                child: RichText(
-                  text: TextSpan(
-                    text: "Don't have an account? ",
-                    style: TextStyle(
-                      color: Color(NexoraColors.textSecondary),
-                      fontSize: 14,
-                    ),
-                    children: [
-                      TextSpan(
-                        text: 'Sign up',
-                        style: TextStyle(
-                          color: Color(NexoraColors.primary),
-                          fontWeight: FontWeight.bold,
-                          fontSize: 14,
-                        ),
+                child: GestureDetector(
+                  onTap: () {
+                    // Navigate to sign up or show message
+                  },
+                  child: RichText(
+                    text: const TextSpan(
+                      text: "Don't have an account? ",
+                      style: TextStyle(
+                        color: Color(NexoraColors.textSecondary),
+                        fontSize: 14,
                       ),
-                    ],
+                      children: [
+                        TextSpan(
+                          text: 'Sign up',
+                          style: TextStyle(
+                            color: Color(NexoraColors.text),
+                            fontWeight: FontWeight.bold,
+                            decoration: TextDecoration.underline,
+                          ),
+                        ),
+                      ],
+                    ),
                   ),
                 ),
               ),
+              const SizedBox(height: NexoraSpacing.lg),
             ],
           ),
         ),
