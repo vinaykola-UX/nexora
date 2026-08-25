@@ -59,18 +59,14 @@ final GoRouter appRouter = GoRouter(
     // Chat - Main
     GoRoute(
       path: RoutePaths.chat,
-      builder: (context, state) {
-        final initialPrompt = state.extra as String?;
-        return ChatScreen(initialPrompt: initialPrompt);
-      },
+      builder: (context, state) => ChatScreen(),
       routes: [
         // Chat Detail by ID
         GoRoute(
           path: ':chatId',
           builder: (context, state) {
             final chatId = state.pathParameters['chatId'] ?? '';
-            final initialPrompt = state.extra as String?;
-            return ChatScreen(chatId: chatId, initialPrompt: initialPrompt);
+            return ChatScreen(chatId: chatId);
           },
         ),
       ],

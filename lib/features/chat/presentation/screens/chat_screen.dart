@@ -6,12 +6,10 @@ import '../../../../core/widgets/nexora_widgets.dart';
 /// Main chat screen
 class ChatScreen extends StatefulWidget {
   final String? chatId;
-  final String? initialPrompt;
 
   const ChatScreen({
     Key? key,
     this.chatId,
-    this.initialPrompt,
   }) : super(key: key);
 
   @override
@@ -26,9 +24,7 @@ class _ChatScreenState extends State<ChatScreen> {
   @override
   void initState() {
     super.initState();
-    _messageController = TextEditingController(
-      text: widget.initialPrompt,
-    );
+    _messageController = TextEditingController();
     
     // Mock messages for now
     _messages.addAll([
@@ -81,120 +77,75 @@ class _ChatScreenState extends State<ChatScreen> {
             Expanded(
               child: _messages.isEmpty
                   ? NexoraEmptyState(
-                      icon: Icons.chat_bubble_outline,
-                      title: 'Start a conversation',
-                      description: 'Ask anything about BVC Engineering College',
-                    )
+                icon: Icons.chat,
+                title: 'Start a conversation',
+                description: 'Send your first message to begin',
+              )
                   : ListView.builder(
-                      controller: _scrollController,
-                      padding: EdgeInsets.symmetric(
-                        horizontal: NexoraSpacing.lg,
-                        vertical: NexoraSpacing.md,
-                      ),
-                      itemCount: _messages.length,
-                      itemBuilder: (context, index) {
-                        return _buildMessageBubble(_messages[index]);
-                      },
-                    ),
+                controller: _scrollController,
+                padding: EdgeInsets.all(NexoraSpacing.lg),
+                itemCount: _messages.length,
+                itemBuilder: (context, index) {
+                  return _buildMessageBubble(_messages[index]);
+                },
+              ),
             ),
 
-            // Claude-style Chat Input Bar
+            // Message input area
             Container(
-              padding: EdgeInsets.only(
-                left: NexoraSpacing.md,
-                right: NexoraSpacing.md,
-                bottom: NexoraSpacing.md,
-                top: NexoraSpacing.xs,
-              ),
               decoration: BoxDecoration(
-                color: Color(NexoraColors.background),
-              ),
-              child: Container(
-                padding: EdgeInsets.symmetric(
-                  horizontal: NexoraSpacing.sm,
-                  vertical: 4,
-                ),
-                decoration: BoxDecoration(
-                  color: Color(NexoraColors.surface),
-                  borderRadius: BorderRadius.circular(28),
-                  border: Border.all(
-                    color: Color(NexoraColors.border),
-                    width: 1.5,
+                color: Color(NexoraColors.surface),
+                border: Border(
+                  top: BorderSide(
+                    color: Color(NexoraColors.divider),
                   ),
-                  boxShadow: [
-                    BoxShadow(
-                      color: Colors.black.withOpacity(0.04),
-                      blurRadius: 10,
-                      offset: Offset(0, 2),
-                    ),
-                  ],
                 ),
-                child: Row(
-                  crossAxisAlignment: CrossAxisAlignment.center,
-                  children: [
-                    // Attachment button
-                    IconButton(
-                      icon: Icon(
-                        Icons.add_circle_outline_rounded,
-                        color: Color(NexoraColors.textSecondary),
-                        size: 22,
+              ),
+              padding: EdgeInsets.all(NexoraSpacing.lg),
+              child: Row(
+                children: [
+                  // Text input
+                  Expanded(
+                    child: Container(
+                      decoration: BoxDecoration(
+                        color: Color(NexoraColors.inputBackground),
+                        borderRadius: BorderRadius.circular(NexoraSpacing.radiusMD),
+                        border: Border.all(
+                          color: Color(NexoraColors.border),
+                        ),
                       ),
-                      onPressed: () {
-                        // Attachment handler
-                      },
-                    ),
-
-                    // Text Input
-                    Expanded(
                       child: TextField(
                         controller: _messageController,
-                        style: TextStyle(
-                          fontSize: 15,
-                          color: Color(NexoraColors.text),
-                        ),
                         decoration: InputDecoration(
-                          hintText: 'Ask anything about BVC...',
-                          hintStyle: TextStyle(
-                            fontSize: 14,
-                            color: Color(NexoraColors.textMuted),
-                          ),
+                          hintText: 'Type your message...',
                           border: InputBorder.none,
-                          enabledBorder: InputBorder.none,
-                          focusedBorder: InputBorder.none,
                           contentPadding: EdgeInsets.symmetric(
-                            vertical: 10,
-                            horizontal: 4,
+                            horizontal: NexoraSpacing.lg,
+                            vertical: NexoraSpacing.md,
                           ),
-                          isDense: true,
                         ),
-                        minLines: 1,
-                        maxLines: 4,
+                        maxLines: null,
                         textInputAction: TextInputAction.newline,
                       ),
                     ),
+                  ),
+                  SizedBox(width: NexoraSpacing.md),
 
-                    SizedBox(width: 6),
-
-                    // Claude-style Send Button (Black Circle with Upward Arrow)
-                    GestureDetector(
-                      onTap: _sendMessage,
-                      child: Container(
-                        width: 36,
-                        height: 36,
-                        decoration: BoxDecoration(
-                          color: Color(NexoraColors.primary),
-                          shape: BoxShape.circle,
-                        ),
-                        child: Icon(
-                          Icons.arrow_upward_rounded,
-                          color: Color(NexoraColors.surface),
-                          size: 20,
-                        ),
-                      ),
+                  // Send button
+                  Container(
+                    decoration: BoxDecoration(
+                      color: Color(NexoraColors.primary),
+                      shape: BoxShape.circle,
                     ),
-                    SizedBox(width: 4),
-                  ],
-                ),
+                    child: IconButton(
+                      icon: Icon(
+                        Icons.send,
+                        color: Color(NexoraColors.surface),
+                      ),
+                      onPressed: _sendMessage,
+                    ),
+                  ),
+                ],
               ),
             ),
           ],

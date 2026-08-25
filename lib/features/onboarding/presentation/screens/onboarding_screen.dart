@@ -1,7 +1,9 @@
 import 'package:flutter/material.dart';
+import 'package:go_router/go_router.dart';
 import '../../../../core/theme/colors.dart';
 import '../../../../core/theme/spacing.dart';
 import '../../../../core/widgets/nexora_button.dart';
+import '../../../../app/router/app_router.dart';
 
 /// Onboarding screens
 class OnboardingScreen extends StatefulWidget {
@@ -45,6 +47,21 @@ class _OnboardingScreenState extends State<OnboardingScreen> {
     super.dispose();
   }
 
+  void _skipToLogin() {
+    context.go(RoutePaths.login);
+  }
+
+  void _onCtaPressed() {
+    if (_currentPage == _pages.length - 1) {
+      context.go(RoutePaths.login);
+    } else {
+      _pageController.nextPage(
+        duration: Duration(milliseconds: 300),
+        curve: Curves.easeInOut,
+      );
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
     return Scaffold(
@@ -58,9 +75,7 @@ class _OnboardingScreenState extends State<OnboardingScreen> {
               child: Padding(
                 padding: EdgeInsets.all(NexoraSpacing.lg),
                 child: TextButton(
-                  onPressed: () {
-                    // TODO: Navigate to next step
-                  },
+                  onPressed: _skipToLogin,
                   child: Text('Skip'),
                 ),
               ),
@@ -112,16 +127,7 @@ class _OnboardingScreenState extends State<OnboardingScreen> {
                     label: _currentPage == _pages.length - 1
                         ? 'Get Started'
                         : 'Continue',
-                    onPressed: () {
-                      if (_currentPage == _pages.length - 1) {
-                        // Navigate to login
-                      } else {
-                        _pageController.nextPage(
-                          duration: Duration(milliseconds: 300),
-                          curve: Curves.easeInOut,
-                        );
-                      }
-                    },
+                    onPressed: _onCtaPressed,
                     width: double.infinity,
                   ),
                 ],
