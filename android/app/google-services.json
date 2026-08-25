@@ -12,7 +12,20 @@
           "package_name": "com.bvcollege.nexora"
         }
       },
-      "oauth_client": [],
+      "oauth_client": [
+        {
+          "client_id": "1056749020398-ss06l45gm0c2bheo2vgre8l7fc0ojiqp.apps.googleusercontent.com",
+          "client_type": 1,
+          "android_info": {
+            "package_name": "com.bvcollege.nexora",
+            "certificate_hash": "39a87808a76fced59e60df4754385df4f5f86f47"
+          }
+        },
+        {
+          "client_id": "1056749020398-673a9ldv57g51vrdltv9on8k1ve5tf7l.apps.googleusercontent.com",
+          "client_type": 3
+        }
+      ],
       "api_key": [
         {
           "current_key": "AIzaSyBUmw8HgHrgh6o9qXB2-vVM4D_K1Q_Wm6o"
@@ -20,7 +33,19 @@
       ],
       "services": {
         "appinvite_service": {
-          "other_platform_oauth_client": []
+          "other_platform_oauth_client": [
+            {
+              "client_id": "1056749020398-673a9ldv57g51vrdltv9on8k1ve5tf7l.apps.googleusercontent.com",
+              "client_type": 3
+            },
+            {
+              "client_id": "1056749020398-a7tbjbl3q7ongl6kf0ip2imuth7hr3sr.apps.googleusercontent.com",
+              "client_type": 2,
+              "ios_info": {
+                "bundle_id": "com.example.nexora"
+              }
+            }
+          ]
         }
       }
     },
@@ -31,7 +56,12 @@
           "package_name": "com.example.nexora"
         }
       },
-      "oauth_client": [],
+      "oauth_client": [
+        {
+          "client_id": "1056749020398-673a9ldv57g51vrdltv9on8k1ve5tf7l.apps.googleusercontent.com",
+          "client_type": 3
+        }
+      ],
       "api_key": [
         {
           "current_key": "AIzaSyBUmw8HgHrgh6o9qXB2-vVM4D_K1Q_Wm6o"
@@ -39,7 +69,19 @@
       ],
       "services": {
         "appinvite_service": {
-          "other_platform_oauth_client": []
+          "other_platform_oauth_client": [
+            {
+              "client_id": "1056749020398-673a9ldv57g51vrdltv9on8k1ve5tf7l.apps.googleusercontent.com",
+              "client_type": 3
+            },
+            {
+              "client_id": "1056749020398-a7tbjbl3q7ongl6kf0ip2imuth7hr3sr.apps.googleusercontent.com",
+              "client_type": 2,
+              "ios_info": {
+                "bundle_id": "com.example.nexora"
+              }
+            }
+          ]
         }
       }
     }
