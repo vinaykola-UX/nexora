@@ -2,6 +2,8 @@ import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
 import '../../features/onboarding/presentation/screens/onboarding_screen.dart';
 import '../../features/authentication/presentation/screens/login_screen.dart';
+import '../../features/authentication/presentation/screens/signup_screen.dart';
+import '../../features/authentication/presentation/screens/verify_email_screen.dart';
 import '../../features/terms/presentation/screens/terms_screen.dart';
 import '../../features/chat/presentation/screens/start_chat_screen.dart';
 import '../../features/chat/presentation/screens/chat_screen.dart';
@@ -15,6 +17,8 @@ class RoutePaths {
   static const String splash = '/';
   static const String onboarding = '/onboarding';
   static const String login = '/login';
+  static const String signup = '/signup';
+  static const String verifyEmail = '/verify-email';
   static const String terms = '/terms';
   static const String startChat = '/start-chat';
   static const String chat = '/chat';
@@ -42,6 +46,21 @@ final GoRouter appRouter = GoRouter(
     GoRoute(
       path: RoutePaths.login,
       builder: (context, state) => LoginScreen(),
+    ),
+
+    // Authentication - Sign Up
+    GoRoute(
+      path: RoutePaths.signup,
+      builder: (context, state) => const SignupScreen(),
+    ),
+
+    // Authentication - Verify Email
+    GoRoute(
+      path: RoutePaths.verifyEmail,
+      builder: (context, state) {
+        final email = state.extra as String? ?? '';
+        return VerifyEmailScreen(email: email);
+      },
     ),
 
     // Terms & Privacy

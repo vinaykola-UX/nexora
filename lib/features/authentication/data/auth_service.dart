@@ -166,6 +166,227 @@ class AuthService {
     }
   }
 
+  // ---------------------------------------------------------------------------
+  // Email / Password Authentication
+  // ---------------------------------------------------------------------------
+
+  /// Sign up with email and password, then send a verification email.
+  ///
+  /// Returns the newly created [User]. Throws [NexoraAuthException] on failure.
+  Future<User> signUpWithEmailPassword(String email, String password) async {
+    try {
+      final UserCredential credential =
+          await _firebaseAuth.createUserWithEmailAndPassword(
+        email: email.trim(),
+        password: password,
+      );
+
+      final User? user = credential.user;
+      if (user == null) {
+        throw const NexoraAuthException(
+          'Failed to create account. Please try again.',
+          code: 'missing-user-info',
+        );
+      }
+
+      // Send verification email immediately after account creation
+      await user.sendEmailVerification();
+      debugPrint('[AuthService] Verification email sent to ${user.email}');
+      return user;
+    } on FirebaseAuthException catch (e) {
+      debugPrint('[AuthService] signUp FirebaseAuthException: ${e.code}');
+      throw _mapFirebaseSignUpError(e);
+    } on NexoraAuthException {
+      rethrow;
+    } catch (e) {
+      debugPrint('[AuthService] Unexpected signUp error: $e');
+      throw const NexoraAuthException(
+        'An unexpected error occurred during sign-up. Please try again.',
+        code: 'unknown',
+      );
+    }
+  }
+
+  /// Sign in with email and password.
+  ///
+  /// Returns the authenticated [User] — callers MUST check [User.emailVerified]
+  /// before granting access to the main app.
+  /// Throws [NexoraAuthException] on failure.
+  Future<User> signInWithEmailPassword(String email, String password) async {
+    try {
+      final UserCredential credential =
+          await _firebaseAuth.signInWithEmailAndPassword(
+        email: email.trim(),
+        password: password,
+      );
+
+      final User? user = credential.user;
+      if (user == null) {
+        throw const NexoraAuthException(
+          'Sign-in failed. Please try again.',
+          code: 'missing-user-info',
+        );
+      }
+
+      debugPrint('[AuthService] signIn success: ${user.email} (verified=${user.emailVerified})');
+      return user;
+    } on FirebaseAuthException catch (e) {
+      debugPrint('[AuthService] signIn FirebaseAuthException: ${e.code}');
+      throw _mapFirebaseSignInError(e);
+    } on NexoraAuthException {
+      rethrow;
+    } catch (e) {
+      debugPrint('[AuthService] Unexpected signIn error: $e');
+      throw const NexoraAuthException(
+        'An unexpected error occurred during sign-in. Please try again.',
+        code: 'unknown',
+      );
+    }
+  }
+
+  /// Send a password-reset email to [email].
+  ///
+  /// Throws [NexoraAuthException] on failure.
+  Future<void> sendPasswordResetEmail(String email) async {
+    try {
+      await _firebaseAuth.sendPasswordResetEmail(email: email.trim());
+      debugPrint('[AuthService] Password reset email sent to $email');
+    } on FirebaseAuthException catch (e) {
+      debugPrint('[AuthService] sendPasswordReset FirebaseAuthException: ${e.code}');
+      switch (e.code) {
+        case 'user-not-found':
+        case 'invalid-email':
+          throw const NexoraAuthException(
+            'No account found with that email address.',
+            code: 'user-not-found',
+          );
+        case 'network-request-failed':
+          throw const NexoraAuthException(
+            'Network error. Please check your internet connection and try again.',
+            code: 'network-error',
+          );
+        default:
+          throw NexoraAuthException(
+            e.message ?? 'Failed to send reset email. Please try again.',
+            code: e.code,
+          );
+      }
+    } catch (e) {
+      throw const NexoraAuthException(
+        'Failed to send reset email. Please try again.',
+        code: 'unknown',
+      );
+    }
+  }
+
+  /// Resend a verification email to the currently signed-in user.
+  ///
+  /// Throws [NexoraAuthException] if there is no signed-in user or on failure.
+  Future<void> resendVerificationEmail() async {
+    final user = _firebaseAuth.currentUser;
+    if (user == null) {
+      throw const NexoraAuthException(
+        'No signed-in user found. Please sign in again.',
+        code: 'no-user',
+      );
+    }
+    try {
+      await user.sendEmailVerification();
+      debugPrint('[AuthService] Verification email resent to ${user.email}');
+    } on FirebaseAuthException catch (e) {
+      debugPrint('[AuthService] resendVerification FirebaseAuthException: ${e.code}');
+      switch (e.code) {
+        case 'too-many-requests':
+          throw const NexoraAuthException(
+            'Too many requests. Please wait a moment before trying again.',
+            code: 'too-many-requests',
+          );
+        default:
+          throw NexoraAuthException(
+            e.message ?? 'Failed to resend verification email.',
+            code: e.code,
+          );
+      }
+    } catch (e) {
+      throw const NexoraAuthException(
+        'Failed to resend verification email. Please try again.',
+        code: 'unknown',
+      );
+    }
+  }
+
+  // ---------------------------------------------------------------------------
+  // Private helpers — Firebase error mapping
+  // ---------------------------------------------------------------------------
+
+  NexoraAuthException _mapFirebaseSignUpError(FirebaseAuthException e) {
+    switch (e.code) {
+      case 'email-already-in-use':
+        return const NexoraAuthException(
+          'An account with this email already exists. Try signing in instead.',
+          code: 'email-already-in-use',
+        );
+      case 'invalid-email':
+        return const NexoraAuthException(
+          'The email address is not valid.',
+          code: 'invalid-email',
+        );
+      case 'weak-password':
+        return const NexoraAuthException(
+          'Password is too weak. Use at least 6 characters.',
+          code: 'weak-password',
+        );
+      case 'network-request-failed':
+        return const NexoraAuthException(
+          'Network error. Please check your internet connection and try again.',
+          code: 'network-error',
+        );
+      default:
+        return NexoraAuthException(
+          e.message ?? 'Sign-up failed. Please try again.',
+          code: e.code,
+        );
+    }
+  }
+
+  NexoraAuthException _mapFirebaseSignInError(FirebaseAuthException e) {
+    switch (e.code) {
+      case 'user-not-found':
+      case 'wrong-password':
+      case 'invalid-credential':
+        // Intentionally vague — don't reveal whether the email exists
+        return const NexoraAuthException(
+          'Incorrect email or password. Please try again.',
+          code: 'invalid-credentials',
+        );
+      case 'invalid-email':
+        return const NexoraAuthException(
+          'The email address is not valid.',
+          code: 'invalid-email',
+        );
+      case 'user-disabled':
+        return const NexoraAuthException(
+          'This account has been disabled. Please contact support.',
+          code: 'user-disabled',
+        );
+      case 'too-many-requests':
+        return const NexoraAuthException(
+          'Too many failed attempts. Please wait a moment and try again.',
+          code: 'too-many-requests',
+        );
+      case 'network-request-failed':
+        return const NexoraAuthException(
+          'Network error. Please check your internet connection and try again.',
+          code: 'network-error',
+        );
+      default:
+        return NexoraAuthException(
+          e.message ?? 'Sign-in failed. Please try again.',
+          code: e.code,
+        );
+    }
+  }
+
   /// Sign out from both Firebase and Google
   Future<void> signOut() async {
     try {
