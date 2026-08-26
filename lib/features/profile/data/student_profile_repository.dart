@@ -97,19 +97,59 @@ class StudentProfileRepository {
       );
     }
 
+    // 2. Reload Auth user to ensure the token is fresh and emailVerified is current
+    final currentUser = FirebaseAuth.instance.currentUser;
+    if (currentUser == null) {
+      throw const NexoraProfileException(
+        'No authenticated user session found. Please sign in again.',
+        code: 'no-user',
+      );
+    }
+
     try {
-      final docRef = _studentsRef.doc(uid);
-      debugPrint('[StudentProfileRepository] Checking existing profile at students/$uid');
+      await currentUser.reload();
+    } catch (_) {
+      // Non-fatal: proceed even if reload fails (offline scenario)
+      debugPrint('[StudentProfileRepository] Warning: user.reload() failed — proceeding with cached auth state.');
+    }
+
+    // Re-fetch after reload to get the latest emailVerified state
+    final freshUser = FirebaseAuth.instance.currentUser;
+    if (freshUser == null) {
+      throw const NexoraProfileException(
+        'Authentication session expired. Please sign in again.',
+        code: 'session-expired',
+      );
+    }
+
+    debugPrint(
+      '[StudentProfileRepository] Pre-write Auth State:\n'
+      '  - UID           : ${freshUser.uid}\n'
+      '  - Email         : ${freshUser.email}\n'
+      '  - EmailVerified : ${freshUser.emailVerified}\n'
+      '  - Target Path   : students/${freshUser.uid}',
+    );
+
+    if (!freshUser.emailVerified) {
+      throw const NexoraProfileException(
+        'Your email is not verified. Please verify your email and try again.',
+        code: 'email-not-verified',
+      );
+    }
+
+    try {
+      final docRef = _studentsRef.doc(freshUser.uid);
+      debugPrint('[StudentProfileRepository] Checking existing profile at students/${freshUser.uid}');
       final existingDoc = await docRef.get();
 
       // If already complete, prevent modifying immutable fields
       if (existingDoc.exists && existingDoc.data()?['profileSetupCompleted'] == true) {
-        debugPrint('[StudentProfileRepository] Profile already completed for $uid at students/$uid');
+        debugPrint('[StudentProfileRepository] Profile already completed for ${freshUser.uid} at students/${freshUser.uid}');
         return StudentProfile.fromFirestore(existingDoc);
       }
 
       final profile = StudentProfile(
-        uid: uid,
+        uid: freshUser.uid,
         email: identity.email,
         rollNumber: identity.rollNumber,
         batchCode: identity.batchCode,
@@ -125,15 +165,19 @@ class StudentProfileRepository {
       );
 
       final mapData = profile.toMap(forUpdate: existingDoc.exists);
-      debugPrint('[StudentProfileRepository] Writing profile to students/$uid:\n$mapData');
+      debugPrint('[StudentProfileRepository] Writing profile to students/${freshUser.uid}:\n$mapData');
 
-      // Save to Firestore using set with merge to preserve existing data safely
-      await docRef.set(mapData, SetOptions(merge: true));
+      // Save to Firestore — use set (no merge) on first creation to satisfy security rule hasAll check
+      if (!existingDoc.exists) {
+        await docRef.set(mapData);
+      } else {
+        await docRef.set(mapData, SetOptions(merge: true));
+      }
 
-      debugPrint('[StudentProfileRepository] Successfully completed profile for ${profile.rollNumber} ($uid) at students/$uid');
+      debugPrint('[StudentProfileRepository] Successfully completed profile for ${profile.rollNumber} (${freshUser.uid}) at students/${freshUser.uid}');
       return profile;
     } on FirebaseException catch (e) {
-      final currentUser = FirebaseAuth.instance.currentUser;
+      final logUser = FirebaseAuth.instance.currentUser;
       debugPrint(
         '═══════════════════════════════════════════════════════════════════════\n'
         '[StudentProfileRepository] Firestore Write Error:\n'
@@ -141,14 +185,16 @@ class StudentProfileRepository {
         '  - Firebase Code  : ${e.code}\n'
         '  - Error Message  : ${e.message}\n'
         '  - Target Path    : students/$uid\n'
-        '  - Auth UID       : ${currentUser?.uid}\n'
-        '  - User Email     : ${currentUser?.email}\n'
-        '  - Email Verified : ${currentUser?.emailVerified}\n'
+        '  - Auth UID       : ${logUser?.uid}\n'
+        '  - User Email     : ${logUser?.email}\n'
+        '  - Email Verified : ${logUser?.emailVerified}\n'
         '═══════════════════════════════════════════════════════════════════════',
       );
       if (e.code == 'permission-denied') {
-        throw const NexoraProfileException(
-          'Unable to save profile due to database permissions. Please contact administrator.',
+        // In debug mode, include the code so we can see exactly what Firestore rejected
+        final detail = kDebugMode ? ' [code: permission-denied] — Deploy Firestore rules in Firebase Console.' : '';
+        throw NexoraProfileException(
+          'Unable to save profile: database rules rejected this request.$detail',
           code: 'permission-denied',
         );
       } else if (e.code == 'unavailable') {
@@ -156,9 +202,14 @@ class StudentProfileRepository {
           'Firestore service unavailable. Please check your internet connection.',
           code: 'unavailable',
         );
+      } else if (e.code == 'not-found') {
+        throw const NexoraProfileException(
+          'Firestore database not found. Please ensure the database is created in Firebase Console.',
+          code: 'not-found',
+        );
       }
       throw NexoraProfileException(
-        e.message ?? 'Failed to save student profile. Please try again.',
+        '${e.code}: ${e.message ?? 'Failed to save student profile. Please try again.'}',
         code: e.code,
       );
     } catch (e, stackTrace) {

@@ -2,9 +2,35 @@ rules_version = '2';
 
 service cloud.firestore {
   match /databases/{database}/documents {
+
     match /students/{userId} {
-      allow read, create, update: if request.auth != null
+      // Read: only the owner can read their own profile
+      allow read: if request.auth != null
         && request.auth.uid == userId;
+
+      // Create: only the authenticated owner can create their own profile.
+      // Required fields must all be present.
+      allow create: if request.auth != null
+        && request.auth.uid == userId
+        && request.resource.data.uid == userId
+        && request.resource.data.keys().hasAll([
+            'uid', 'email', 'rollNumber', 'batch',
+            'currentYear', 'branch', 'section', 'college'
+           ]);
+
+      // Update: allowed only by owner.
+      // Identity and class data (branch, section, uid, email, rollNumber) are permanently immutable.
+      allow update: if request.auth != null
+        && request.auth.uid == userId
+        && request.resource.data.uid == resource.data.uid
+        && request.resource.data.email == resource.data.email
+        && request.resource.data.rollNumber == resource.data.rollNumber
+        && request.resource.data.branch == resource.data.branch
+        && request.resource.data.section == resource.data.section;
+
+      // Delete: never allowed by students
+      allow delete: if false;
     }
+
   }
 }
