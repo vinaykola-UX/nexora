@@ -1,61 +1,89 @@
-import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
+
+import '../../../../app/router/app_router.dart';
 import '../../../../core/theme/colors.dart';
 import '../../../../core/theme/spacing.dart';
-import '../../../../app/router/app_router.dart';
 import '../../../authentication/data/auth_service.dart';
+import '../../data/student_profile_repository.dart';
 
-/// Profile screen matching Figma Mobile UI
-class ProfileScreen extends StatefulWidget {
+/// Profile screen displaying user details and settings
+class ProfileScreen extends ConsumerStatefulWidget {
   const ProfileScreen({Key? key}) : super(key: key);
 
   @override
-  State<ProfileScreen> createState() => _ProfileScreenState();
+  ConsumerState<ProfileScreen> createState() => _ProfileScreenState();
 }
 
-class _ProfileScreenState extends State<ProfileScreen> {
+class _ProfileScreenState extends ConsumerState<ProfileScreen> {
   bool _notificationsEnabled = true;
-  final AuthService _authService = AuthService();
 
-  void _showLogoutConfirmation() {
-    showDialog(
+  Future<void> _showLogoutConfirmation() async {
+    final confirmed = await showDialog<bool>(
       context: context,
       builder: (context) => AlertDialog(
         backgroundColor: const Color(NexoraColors.surface),
-        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
-        title: const Text(
-          'Log out',
-          style: TextStyle(fontWeight: FontWeight.bold),
+        shape: RoundedRectangleBorder(
+          borderRadius: BorderRadius.circular(20),
         ),
-        content: const Text('Are you sure you want to log out of your college account?'),
+        title: const Text(
+          'Logout',
+          style: TextStyle(
+            fontSize: 18,
+            fontWeight: FontWeight.bold,
+            color: Color(NexoraColors.text),
+          ),
+        ),
+        content: const Text(
+          'Are you sure you want to log out of Nexora AI?',
+          style: TextStyle(
+            fontSize: 14,
+            color: Color(NexoraColors.textSecondary),
+          ),
+        ),
+        actionsPadding: const EdgeInsets.symmetric(
+          horizontal: NexoraSpacing.lg,
+          vertical: NexoraSpacing.md,
+        ),
         actions: [
           TextButton(
-            onPressed: () => Navigator.pop(context),
+            onPressed: () => Navigator.pop(context, false),
             child: const Text(
               'Cancel',
-              style: TextStyle(color: Color(NexoraColors.textSecondary)),
-            ),
-          ),
-          TextButton(
-            onPressed: () async {
-              Navigator.pop(context);
-              await _authService.signOut();
-              if (mounted) {
-                context.go(RoutePaths.login);
-              }
-            },
-            child: const Text(
-              'Log out',
               style: TextStyle(
-                color: Color(NexoraColors.error),
-                fontWeight: FontWeight.bold,
+                color: Color(NexoraColors.textSecondary),
+                fontWeight: FontWeight.w600,
               ),
             ),
+          ),
+          ElevatedButton(
+            onPressed: () => Navigator.pop(context, true),
+            style: ElevatedButton.styleFrom(
+              backgroundColor: const Color(0xFFD32F2F),
+              foregroundColor: Colors.white,
+              shape: RoundedRectangleBorder(
+                borderRadius: BorderRadius.circular(100),
+              ),
+              padding: const EdgeInsets.symmetric(
+                horizontal: NexoraSpacing.lg,
+                vertical: NexoraSpacing.sm,
+              ),
+              elevation: 0,
+            ),
+            child: const Text('Logout'),
           ),
         ],
       ),
     );
+
+    if (confirmed == true && mounted) {
+      final authService = ref.read(authServiceProvider);
+      await authService.signOut();
+      if (mounted) {
+        context.go(RoutePaths.login);
+      }
+    }
   }
 
   void _showInfoDialog(String title, String content) {
@@ -63,12 +91,36 @@ class _ProfileScreenState extends State<ProfileScreen> {
       context: context,
       builder: (context) => AlertDialog(
         backgroundColor: const Color(NexoraColors.surface),
-        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
-        title: Text(title, style: const TextStyle(fontWeight: FontWeight.bold)),
-        content: Text(content),
+        shape: RoundedRectangleBorder(
+          borderRadius: BorderRadius.circular(20),
+        ),
+        title: Text(
+          title,
+          style: const TextStyle(
+            fontSize: 18,
+            fontWeight: FontWeight.bold,
+            color: Color(NexoraColors.text),
+          ),
+        ),
+        content: Text(
+          content,
+          style: const TextStyle(
+            fontSize: 14,
+            color: Color(NexoraColors.textSecondary),
+            height: 1.5,
+          ),
+        ),
         actions: [
-          TextButton(
+          ElevatedButton(
             onPressed: () => Navigator.pop(context),
+            style: ElevatedButton.styleFrom(
+              backgroundColor: const Color(0xFF171717),
+              foregroundColor: Colors.white,
+              shape: RoundedRectangleBorder(
+                borderRadius: BorderRadius.circular(100),
+              ),
+              elevation: 0,
+            ),
             child: const Text('OK'),
           ),
         ],
@@ -76,73 +128,57 @@ class _ProfileScreenState extends State<ProfileScreen> {
     );
   }
 
-  String _getInitials(String? name, String? email) {
-    if (name != null && name.trim().isNotEmpty) {
-      final parts = name.trim().split(RegExp(r'\s+'));
-      if (parts.length > 1) {
-        return (parts[0][0] + parts[1][0]).toUpperCase();
-      } else if (parts[0].isNotEmpty) {
-        return parts[0].substring(0, parts[0].length >= 2 ? 2 : 1).toUpperCase();
-      }
-    }
-    if (email != null && email.isNotEmpty) {
-      return email.substring(0, email.length >= 2 ? 2 : 1).toUpperCase();
-    }
-    return 'BVC';
-  }
-
   @override
   Widget build(BuildContext context) {
-    final user = FirebaseAuth.instance.currentUser;
-    final displayName = user?.displayName ?? 'BVC Student';
+    final user = ref.watch(currentUserProvider);
+    final profileAsync = ref.watch(currentStudentProfileProvider);
+
     final displayEmail = user?.email ?? 'student@bvcgroup.in';
-    final photoUrl = user?.photoURL;
-    final initials = _getInitials(user?.displayName, user?.email);
+    final initials = displayEmail.isNotEmpty
+        ? displayEmail.substring(0, displayEmail.length >= 2 ? 2 : 1).toUpperCase()
+        : 'ST';
+
+    final studentProfile = profileAsync.value;
+    final rollNumber = studentProfile?.rollNumber ?? (user?.email != null ? user!.email!.split('@').first.toUpperCase() : '—');
+    final academicYearLabel = studentProfile?.academicYearLabel ?? 'B.Tech Student';
+    final studentClass = studentProfile?.studentClass;
+    final section = studentProfile?.section;
 
     return Scaffold(
       backgroundColor: const Color(NexoraColors.background),
-      appBar: AppBar(
-        backgroundColor: const Color(NexoraColors.background),
-        elevation: 0,
-        scrolledUnderElevation: 0,
-        leading: IconButton(
-          icon: const Icon(Icons.arrow_back_ios_new, size: 20, color: Color(NexoraColors.text)),
-          onPressed: () => Navigator.maybePop(context),
-        ),
-        title: const Text(
-          'Profile',
-          style: TextStyle(
-            fontSize: 20,
-            fontWeight: FontWeight.bold,
-            color: Color(NexoraColors.text),
-          ),
-        ),
-        centerTitle: false,
-      ),
       body: SafeArea(
         child: SingleChildScrollView(
           padding: const EdgeInsets.symmetric(
             horizontal: NexoraSpacing.xl,
-            vertical: NexoraSpacing.md,
+            vertical: NexoraSpacing.lg,
           ),
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              const SizedBox(height: NexoraSpacing.xs),
-
-              // "MANAGE ACCOUNT" Subheader
-              const Text(
-                'MANAGE ACCOUNT',
-                style: TextStyle(
-                  fontSize: 12,
-                  fontWeight: FontWeight.bold,
-                  letterSpacing: 1.2,
-                  color: Color(NexoraColors.textMuted),
-                ),
-              ),
               const SizedBox(height: NexoraSpacing.md),
 
-              // User Info Card per Figma
+              // Title Header
+              const Text(
+                'Profile',
+                style: TextStyle(
+                  fontSize: 32,
+                  fontWeight: FontWeight.bold,
+                  color: Color(NexoraColors.text),
+                  letterSpacing: -0.5,
+                ),
+              ),
+              const SizedBox(height: NexoraSpacing.xs),
+              const Text(
+                'Student credentials & settings',
+                style: TextStyle(
+                  fontSize: 15,
+                  color: Color(NexoraColors.textSecondary),
+                  fontWeight: FontWeight.w400,
+                ),
+              ),
+              const SizedBox(height: NexoraSpacing.xl),
+
+              // User Info Card matching Figma Warm Light
               Container(
                 padding: const EdgeInsets.all(NexoraSpacing.lg),
                 decoration: BoxDecoration(
@@ -152,42 +188,27 @@ class _ProfileScreenState extends State<ProfileScreen> {
                     color: const Color(NexoraColors.border).withOpacity(0.8),
                     width: 1,
                   ),
-                  boxShadow: [
-                    BoxShadow(
-                      color: Colors.black.withOpacity(0.02),
-                      blurRadius: 10,
-                      offset: const Offset(0, 2),
-                    ),
-                  ],
                 ),
                 child: Row(
                   children: [
-                    // Circular Avatar Placeholder (Tan/Beige Circle per Figma)
+                    // Avatar Initials
                     Container(
-                      width: 60,
-                      height: 60,
-                      decoration: BoxDecoration(
-                        color: const Color(0xFFD4C5B3), // Warm tan beige
+                      width: 58,
+                      height: 58,
+                      decoration: const BoxDecoration(
+                        color: Color(0xFFFFD580),
                         shape: BoxShape.circle,
-                        image: photoUrl != null
-                            ? DecorationImage(
-                                image: NetworkImage(photoUrl),
-                                fit: BoxFit.cover,
-                              )
-                            : null,
                       ),
-                      child: photoUrl == null
-                          ? Center(
-                              child: Text(
-                                initials,
-                                style: const TextStyle(
-                                  fontSize: 20,
-                                  fontWeight: FontWeight.bold,
-                                  color: Color(0xFF4A3B2C),
-                                ),
-                              ),
-                            )
-                          : null,
+                      child: Center(
+                        child: Text(
+                          initials,
+                          style: const TextStyle(
+                            fontSize: 20,
+                            fontWeight: FontWeight.bold,
+                            color: Color(0xFF4A3B2C),
+                          ),
+                        ),
+                      ),
                     ),
                     const SizedBox(width: NexoraSpacing.lg),
 
@@ -197,7 +218,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
                         crossAxisAlignment: CrossAxisAlignment.start,
                         children: [
                           Text(
-                            displayName,
+                            rollNumber,
                             style: const TextStyle(
                               fontSize: 18,
                               fontWeight: FontWeight.bold,
@@ -214,24 +235,48 @@ class _ProfileScreenState extends State<ProfileScreen> {
                           ),
                           const SizedBox(height: 6),
 
-                          // Student Tag Badge
-                          Container(
-                            padding: const EdgeInsets.symmetric(
-                              horizontal: 8,
-                              vertical: 3,
-                            ),
-                            decoration: BoxDecoration(
-                              color: const Color(0xFFE8F5E9),
-                              borderRadius: BorderRadius.circular(6),
-                            ),
-                            child: const Text(
-                              'Student',
-                              style: TextStyle(
-                                fontSize: 11,
-                                fontWeight: FontWeight.w600,
-                                color: Color(0xFF2E7D32),
+                          // Badges Row
+                          Row(
+                            children: [
+                              Container(
+                                padding: const EdgeInsets.symmetric(
+                                  horizontal: 8,
+                                  vertical: 3,
+                                ),
+                                decoration: BoxDecoration(
+                                  color: const Color(0xFFE8F5E9),
+                                  borderRadius: BorderRadius.circular(6),
+                                ),
+                                child: const Text(
+                                  'Student',
+                                  style: TextStyle(
+                                    fontSize: 11,
+                                    fontWeight: FontWeight.w600,
+                                    color: Color(0xFF2E7D32),
+                                  ),
+                                ),
                               ),
-                            ),
+                              const SizedBox(width: 6),
+                              Container(
+                                padding: const EdgeInsets.symmetric(
+                                  horizontal: 8,
+                                  vertical: 3,
+                                ),
+                                decoration: BoxDecoration(
+                                  color: const Color(NexoraColors.background),
+                                  borderRadius: BorderRadius.circular(6),
+                                  border: Border.all(color: const Color(NexoraColors.border)),
+                                ),
+                                child: Text(
+                                  academicYearLabel,
+                                  style: const TextStyle(
+                                    fontSize: 11,
+                                    fontWeight: FontWeight.w600,
+                                    color: Color(NexoraColors.textSecondary),
+                                  ),
+                                ),
+                              ),
+                            ],
                           ),
                         ],
                       ),
@@ -239,9 +284,50 @@ class _ProfileScreenState extends State<ProfileScreen> {
                   ],
                 ),
               ),
-              const SizedBox(height: NexoraSpacing.xxl),
+              const SizedBox(height: NexoraSpacing.lg),
 
-              // Menu Settings Rows matching Figma
+              // Academic Details Card (Read-Only)
+              if (studentProfile != null) ...[
+                Container(
+                  padding: const EdgeInsets.all(NexoraSpacing.lg),
+                  decoration: BoxDecoration(
+                    color: const Color(NexoraColors.surface),
+                    borderRadius: BorderRadius.circular(20),
+                    border: Border.all(
+                      color: const Color(NexoraColors.border).withOpacity(0.8),
+                      width: 1,
+                    ),
+                  ),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      const Text(
+                        'Academic Information',
+                        style: TextStyle(
+                          fontSize: 15,
+                          fontWeight: FontWeight.bold,
+                          color: Color(NexoraColors.text),
+                        ),
+                      ),
+                      const Divider(color: Color(NexoraColors.divider), height: 20),
+                      _buildDetailRow('Roll Number', studentProfile.rollNumber),
+                      const SizedBox(height: 8),
+                      _buildDetailRow('Batch', '${studentProfile.batchCode} Batch'),
+                      const SizedBox(height: 8),
+                      _buildDetailRow('Academic Year', studentProfile.academicYearLabel),
+                      const SizedBox(height: 8),
+                      _buildDetailRow('Class / Branch', studentClass ?? '—'),
+                      const SizedBox(height: 8),
+                      _buildDetailRow('Section', section ?? '—'),
+                      const SizedBox(height: 8),
+                      _buildDetailRow('College', studentProfile.college),
+                    ],
+                  ),
+                ),
+                const SizedBox(height: NexoraSpacing.xl),
+              ],
+
+              // Menu Settings Rows
               _buildMenuSection([
                 _buildMenuItem(
                   title: 'Change password',
@@ -263,7 +349,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
                   icon: Icons.notifications_none_outlined,
                   trailing: Switch(
                     value: _notificationsEnabled,
-                    activeColor: const Color(NexoraColors.primary),
+                    activeThumbColor: const Color(NexoraColors.primary),
                     onChanged: (val) {
                       setState(() {
                         _notificationsEnabled = val;
@@ -302,7 +388,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
               ]),
               const SizedBox(height: NexoraSpacing.xxl),
 
-              // Logout Action in Red per Figma
+              // Logout Action
               Center(
                 child: TextButton.icon(
                   onPressed: _showLogoutConfirmation,
@@ -332,6 +418,29 @@ class _ProfileScreenState extends State<ProfileScreen> {
           ),
         ),
       ),
+    );
+  }
+
+  Widget _buildDetailRow(String label, String value) {
+    return Row(
+      mainAxisAlignment: MainAxisAlignment.spaceBetween,
+      children: [
+        Text(
+          label,
+          style: const TextStyle(
+            fontSize: 13,
+            color: Color(NexoraColors.textSecondary),
+          ),
+        ),
+        Text(
+          value,
+          style: const TextStyle(
+            fontSize: 13,
+            fontWeight: FontWeight.w600,
+            color: Color(NexoraColors.text),
+          ),
+        ),
+      ],
     );
   }
 

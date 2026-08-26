@@ -1,10 +1,13 @@
+import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
+
+import '../../../../app/router/app_router.dart';
 import '../../../../core/theme/colors.dart';
 import '../../../../core/theme/spacing.dart';
 import '../../../../core/widgets/nexora_button.dart';
 import '../../../../core/widgets/nexora_sparkle_icon.dart';
-import '../../../../app/router/app_router.dart';
+import '../../../profile/data/student_profile_repository.dart';
 
 /// Terms and Privacy screen matching Figma Mobile UI
 class TermsScreen extends StatefulWidget {
@@ -15,10 +18,24 @@ class TermsScreen extends StatefulWidget {
 }
 
 class _TermsScreenState extends State<TermsScreen> {
-  bool _hasAgreed = true;
+  final bool _hasAgreed = true;
+  final StudentProfileRepository _profileRepository = StudentProfileRepository();
 
-  void _onContinue() {
-    context.go(RoutePaths.startChat);
+  Future<void> _onContinue() async {
+    final user = FirebaseAuth.instance.currentUser;
+    if (user != null) {
+      try {
+        final isComplete = await _profileRepository.isProfileComplete(user.uid);
+        if (!mounted) return;
+        if (isComplete) {
+          context.go(RoutePaths.startChat);
+        } else {
+          context.go(RoutePaths.classSetup);
+        }
+        return;
+      } catch (_) {}
+    }
+    if (mounted) context.go(RoutePaths.startChat);
   }
 
   void _showTermsDialog(String title, String content) {
@@ -182,13 +199,13 @@ class _TermsScreenState extends State<TermsScreen> {
               const Spacer(),
 
               // Agreement Note
-              Center(
+              const Center(
                 child: Text(
                   'By continuing you agree to our Terms and Privacy Policy',
                   textAlign: TextAlign.center,
                   style: TextStyle(
                     fontSize: 12,
-                    color: const Color(NexoraColors.textMuted),
+                    color: Color(NexoraColors.textMuted),
                     height: 1.4,
                   ),
                 ),

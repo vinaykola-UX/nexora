@@ -4,6 +4,7 @@ import '../../features/onboarding/presentation/screens/onboarding_screen.dart';
 import '../../features/authentication/presentation/screens/login_screen.dart';
 import '../../features/authentication/presentation/screens/signup_screen.dart';
 import '../../features/authentication/presentation/screens/verify_email_screen.dart';
+import '../../features/profile/presentation/screens/class_setup_screen.dart';
 import '../../features/terms/presentation/screens/terms_screen.dart';
 import '../../features/chat/presentation/screens/start_chat_screen.dart';
 import '../../features/chat/presentation/screens/chat_screen.dart';
@@ -19,6 +20,7 @@ class RoutePaths {
   static const String login = '/login';
   static const String signup = '/signup';
   static const String verifyEmail = '/verify-email';
+  static const String classSetup = '/class-setup';
   static const String terms = '/terms';
   static const String startChat = '/start-chat';
   static const String chat = '/chat';
@@ -33,19 +35,19 @@ final GoRouter appRouter = GoRouter(
     // Splash Screen
     GoRoute(
       path: RoutePaths.splash,
-      builder: (context, state) => SplashScreen(),
+      builder: (context, state) => const SplashScreen(),
     ),
 
     // Onboarding
     GoRoute(
       path: RoutePaths.onboarding,
-      builder: (context, state) => OnboardingScreen(),
+      builder: (context, state) => const OnboardingScreen(),
     ),
 
     // Authentication - Login
     GoRoute(
       path: RoutePaths.login,
-      builder: (context, state) => LoginScreen(),
+      builder: (context, state) => const LoginScreen(),
     ),
 
     // Authentication - Sign Up
@@ -63,16 +65,22 @@ final GoRouter appRouter = GoRouter(
       },
     ),
 
+    // Student Onboarding - One-Time Class & Section Setup
+    GoRoute(
+      path: RoutePaths.classSetup,
+      builder: (context, state) => const ClassSetupScreen(),
+    ),
+
     // Terms & Privacy
     GoRoute(
       path: RoutePaths.terms,
-      builder: (context, state) => TermsScreen(),
+      builder: (context, state) => const TermsScreen(),
     ),
 
     // Chat - Start (topic selection)
     GoRoute(
       path: RoutePaths.startChat,
-      builder: (context, state) => StartChatScreen(),
+      builder: (context, state) => const StartChatScreen(),
     ),
 
     // Chat - Main
@@ -98,22 +106,22 @@ final GoRouter appRouter = GoRouter(
     // Profile
     GoRoute(
       path: RoutePaths.profile,
-      builder: (context, state) => ProfileScreen(),
+      builder: (context, state) => const ProfileScreen(),
     ),
   ],
 
   // Error page
   errorBuilder: (context, state) => Scaffold(
-    appBar: AppBar(title: Text('Error')),
+    appBar: AppBar(title: const Text('Error')),
     body: Center(
       child: Column(
         mainAxisAlignment: MainAxisAlignment.center,
         children: [
-          Text('Page not found'),
-          SizedBox(height: 16),
+          const Text('Page not found'),
+          const SizedBox(height: 16),
           ElevatedButton(
             onPressed: () => context.go(RoutePaths.splash),
-            child: Text('Go Home'),
+            child: const Text('Go Home'),
           ),
         ],
       ),
@@ -130,21 +138,21 @@ final GoRouter appRouter = GoRouter(
 class NavigationObserver extends NavigatorObserver {
   @override
   void didPush(Route route, Route? previousRoute) {
-    print('NavigationObserver: Pushed ${route.settings.name}');
+    debugPrint('NavigationObserver: Pushed ${route.settings.name}');
   }
 
   @override
   void didPop(Route route, Route? previousRoute) {
-    print('NavigationObserver: Popped ${route.settings.name}');
+    debugPrint('NavigationObserver: Popped ${route.settings.name}');
   }
 
   @override
   void didRemove(Route route, Route? previousRoute) {
-    print('NavigationObserver: Removed ${route.settings.name}');
+    debugPrint('NavigationObserver: Removed ${route.settings.name}');
   }
 
   @override
   void didReplace({Route? newRoute, Route? oldRoute}) {
-    print('NavigationObserver: Replaced ${oldRoute?.settings.name} with ${newRoute?.settings.name}');
+    debugPrint('NavigationObserver: Replaced ${oldRoute?.settings.name} with ${newRoute?.settings.name}');
   }
 }

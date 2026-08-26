@@ -1,11 +1,12 @@
 import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
+
+import '../../../../app/router/app_router.dart';
 import '../../../../core/theme/colors.dart';
 import '../../../../core/theme/spacing.dart';
 import '../../../../core/widgets/nexora_sparkle_icon.dart';
-import '../../../../app/router/app_router.dart';
-
 import '../../../authentication/data/auth_service.dart';
+import '../../../profile/data/student_profile_repository.dart';
 
 /// Splash screen - shown during app initialization
 class SplashScreen extends StatefulWidget {
@@ -20,6 +21,7 @@ class _SplashScreenState extends State<SplashScreen> with SingleTickerProviderSt
   late Animation<double> _scaleAnimation;
   late Animation<double> _fadeAnimation;
   final AuthService _authService = AuthService();
+  final StudentProfileRepository _profileRepository = StudentProfileRepository();
 
   @override
   void initState() {
@@ -51,8 +53,20 @@ class _SplashScreenState extends State<SplashScreen> with SingleTickerProviderSt
     await Future.delayed(const Duration(seconds: 2));
     if (!mounted) return;
 
-    if (_authService.isAuthenticatedAndValid) {
-      context.go(RoutePaths.startChat);
+    final user = _authService.currentUser;
+    if (user != null && _authService.isAuthenticatedAndValid && user.emailVerified) {
+      try {
+        final isComplete = await _profileRepository.isProfileComplete(user.uid);
+        if (!mounted) return;
+
+        if (isComplete) {
+          context.go(RoutePaths.startChat);
+        } else {
+          context.go(RoutePaths.classSetup);
+        }
+      } catch (_) {
+        if (mounted) context.go(RoutePaths.startChat);
+      }
     } else {
       context.go(RoutePaths.onboarding);
     }

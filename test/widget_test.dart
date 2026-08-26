@@ -1,10 +1,3 @@
-// Basic smoke test for the Nexora app.
-//
-// The previous version was still the default Flutter counter-app boilerplate
-// (referenced MyApp and counter UI, neither of which exist in Nexora), so
-// flutter analyze/flutter test failed on it. This mirrors the real bootstrap
-// in main.dart (NexoraApp wrapped in ProviderScope) and checks it mounts.
-
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -19,7 +12,7 @@ void main() {
         child: NexoraApp(),
       ),
     );
-    await tester.pump();
+    await tester.pump(const Duration(seconds: 3));
 
     expect(find.byType(MaterialApp), findsOneWidget);
   });

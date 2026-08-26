@@ -20,23 +20,39 @@ class NexoraAuthException implements Exception {
 
 /// Firebase Authentication & Google Sign-In Service
 class AuthService {
-  final FirebaseAuth _firebaseAuth;
-  final GoogleSignIn _googleSignIn;
+  final FirebaseAuth? _injectedAuth;
+  final GoogleSignIn? _injectedGoogleSignIn;
 
   AuthService({
     FirebaseAuth? firebaseAuth,
     GoogleSignIn? googleSignIn,
-  })  : _firebaseAuth = firebaseAuth ?? FirebaseAuth.instance,
-        _googleSignIn = googleSignIn ?? GoogleSignIn(
-          scopes: const ['email', 'profile'],
-          serverClientId: '1056749020398-673a9ldv57g51vrdltv9on8k1ve5tf7l.apps.googleusercontent.com',
-        );
+  })  : _injectedAuth = firebaseAuth,
+        _injectedGoogleSignIn = googleSignIn;
+
+  FirebaseAuth get _firebaseAuth => _injectedAuth ?? FirebaseAuth.instance;
+
+  GoogleSignIn get _googleSignIn => _injectedGoogleSignIn ?? GoogleSignIn(
+        scopes: const ['email', 'profile'],
+        serverClientId: '1056749020398-673a9ldv57g51vrdltv9on8k1ve5tf7l.apps.googleusercontent.com',
+      );
 
   /// Stream of authentication state changes
-  Stream<User?> get authStateChanges => _firebaseAuth.authStateChanges();
+  Stream<User?> get authStateChanges {
+    try {
+      return _firebaseAuth.authStateChanges();
+    } catch (_) {
+      return const Stream.empty();
+    }
+  }
 
   /// Current authenticated Firebase user
-  User? get currentUser => _firebaseAuth.currentUser;
+  User? get currentUser {
+    try {
+      return _firebaseAuth.currentUser;
+    } catch (_) {
+      return null;
+    }
+  }
 
   /// Check if a given email belongs strictly to the allowed domain (@bvcgroup.in)
   static bool isAllowedDomain(String? email) {

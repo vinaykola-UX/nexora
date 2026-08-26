@@ -1,10 +1,12 @@
 import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
+
+import '../../../../app/router/app_router.dart';
 import '../../../../core/theme/colors.dart';
 import '../../../../core/theme/spacing.dart';
 import '../../../../core/widgets/nexora_button.dart';
 import '../../../../core/widgets/nexora_textfield.dart';
-import '../../../../app/router/app_router.dart';
+import '../../../profile/data/student_profile_repository.dart';
 import '../../data/auth_service.dart';
 
 /// Login screen — supports both email/password and Google Sign-In.
@@ -24,6 +26,7 @@ class _LoginScreenState extends State<LoginScreen> {
   final _emailFocus = FocusNode();
 
   final AuthService _authService = AuthService();
+  final StudentProfileRepository _profileRepository = StudentProfileRepository();
 
   bool _isEmailLoading = false;
   bool _isGoogleLoading = false;
@@ -94,8 +97,15 @@ class _LoginScreenState extends State<LoginScreen> {
         return;
       }
 
-      // Email verified — proceed to Terms/app
-      context.go(RoutePaths.terms);
+      // Check whether one-time profile setup was completed
+      final isComplete = await _profileRepository.isProfileComplete(user.uid);
+      if (!mounted) return;
+
+      if (isComplete) {
+        context.go(RoutePaths.terms);
+      } else {
+        context.go(RoutePaths.classSetup);
+      }
     } on NexoraAuthException catch (e) {
       if (mounted) _showError(e.message);
     } catch (e) {
@@ -152,8 +162,14 @@ class _LoginScreenState extends State<LoginScreen> {
       if (!mounted) return;
 
       if (user != null) {
-        // Successful login with valid @bvcgroup.in domain
-        context.go(RoutePaths.terms);
+        final isComplete = await _profileRepository.isProfileComplete(user.uid);
+        if (!mounted) return;
+
+        if (isComplete) {
+          context.go(RoutePaths.terms);
+        } else {
+          context.go(RoutePaths.classSetup);
+        }
       }
       // If user is null, user cancelled Google Sign-In dialog
     } on NexoraAuthException catch (e) {

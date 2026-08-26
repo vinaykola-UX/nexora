@@ -4,10 +4,11 @@ import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
 
+import '../../../../app/router/app_router.dart';
 import '../../../../core/theme/colors.dart';
 import '../../../../core/theme/spacing.dart';
 import '../../../../core/widgets/nexora_button.dart';
-import '../../../../app/router/app_router.dart';
+import '../../../profile/data/student_profile_repository.dart';
 import '../../data/auth_service.dart';
 
 /// Verify-Email screen — shown after sign-up (or login with unverified account).
@@ -27,6 +28,7 @@ class VerifyEmailScreen extends StatefulWidget {
 
 class _VerifyEmailScreenState extends State<VerifyEmailScreen> {
   final AuthService _authService = AuthService();
+  final StudentProfileRepository _profileRepository = StudentProfileRepository();
 
   // Resend cooldown
   static const int _cooldownSeconds = 60;
@@ -121,8 +123,15 @@ class _VerifyEmailScreenState extends State<VerifyEmailScreen> {
       if (!mounted) return;
 
       if (refreshedUser != null && refreshedUser.emailVerified) {
-        // Verified — proceed to Terms screen
-        context.go(RoutePaths.terms);
+        // Check whether profile setup is completed
+        final isComplete = await _profileRepository.isProfileComplete(refreshedUser.uid);
+        if (!mounted) return;
+
+        if (isComplete) {
+          context.go(RoutePaths.terms);
+        } else {
+          context.go(RoutePaths.classSetup);
+        }
       } else {
         setState(() {
           _notVerifiedError =

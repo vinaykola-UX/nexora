@@ -1,0 +1,33 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+    match /users/{userId} {
+      // Allow user to read their own profile
+      allow read: if request.auth != null && request.auth.uid == userId;
+
+      // Allow initial creation/setup of the student's profile
+      allow create: if request.auth != null && request.auth.uid == userId
+        && request.resource.data.uid == request.auth.uid
+        && request.resource.data.role == 'student'
+        && request.resource.data.email == request.auth.token.email
+        && request.resource.data.profileSetupCompleted is bool;
+
+      // Allow update ONLY IF profileSetupCompleted was not true, or preserve immutable fields once setup
+      allow update: if request.auth != null && request.auth.uid == userId
+        // If profile was already completed, identity & class & section must NOT be modified
+        && (!resource.data.profileSetupCompleted
+            || (request.resource.data.uid == resource.data.uid
+                && request.resource.data.email == resource.data.email
+                && request.resource.data.rollNumber == resource.data.rollNumber
+                && request.resource.data.batchCode == resource.data.batchCode
+                && request.resource.data.academicYear == resource.data.academicYear
+                && request.resource.data.academicYearLabel == resource.data.academicYearLabel
+                && request.resource.data.class == resource.data.class
+                && request.resource.data.section == resource.data.section
+                && request.resource.data.profileSetupCompleted == true));
+
+      // Disallow deletes by students
+      allow delete: if false;
+    }
+  }
+}
