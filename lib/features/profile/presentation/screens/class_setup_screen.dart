@@ -1,13 +1,13 @@
-﻿import 'package:firebase_auth/firebase_auth.dart';
+import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
 
-import 'package:nexora/app/router/app_router.dart';
-import 'package:nexora/core/constants/student_identity_helper.dart';
-import 'package:nexora/core/theme/colors.dart';
-import 'package:nexora/core/theme/spacing.dart';
-import 'package:nexora/core/widgets/nexora_button.dart';
-import 'package:nexora/features/profile/data/student_profile_repository.dart';
+import '../../../../app/router/app_router.dart';
+import '../../../../core/constants/student_identity_helper.dart';
+import '../../../../core/theme/colors.dart';
+import '../../../../core/theme/spacing.dart';
+import '../../../../core/widgets/nexora_button.dart';
+import '../../data/student_profile_repository.dart';
 
 /// One-time Class and Section setup screen.
 /// Automatically extracts Roll Number, Batch, and Academic Year from the student email.

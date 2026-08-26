@@ -1,4 +1,4 @@
-﻿import 'package:flutter/material.dart';
+import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
@@ -139,7 +139,7 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
         : 'ST';
 
     final studentProfile = profileAsync.value;
-    final rollNumber = studentProfile?.rollNumber ?? (user?.email != null ? user!.email!.split('@').first.toUpperCase() : '�');
+    final rollNumber = studentProfile?.rollNumber ?? (user?.email != null ? user!.email!.split('@').first.toUpperCase() : '—');
     final academicYearLabel = studentProfile?.academicYearLabel ?? 'B.Tech Student';
     final studentClass = studentProfile?.studentClass;
     final section = studentProfile?.section;
@@ -316,9 +316,9 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
                       const SizedBox(height: 8),
                       _buildDetailRow('Academic Year', studentProfile.academicYearLabel),
                       const SizedBox(height: 8),
-                      _buildDetailRow('Class / Branch', studentClass ?? '�'),
+                      _buildDetailRow('Class / Branch', studentClass ?? '—'),
                       const SizedBox(height: 8),
-                      _buildDetailRow('Section', section ?? '�'),
+                      _buildDetailRow('Section', section ?? '—'),
                       const SizedBox(height: 8),
                       _buildDetailRow('College', studentProfile.college),
                     ],

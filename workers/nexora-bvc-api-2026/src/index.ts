@@ -1,12 +1,16 @@
 /**
- * Nexora BVC AI — Cloudflare Worker Official Retrieval Backend
+ * Nexora BVC AI — Cloudflare Worker Backend (Phase 2)
  * Service: nexora-bvc-api-2026
  *
- * Exclusively retrieves student academic, examination, regulation, and syllabus information
- * from approved official BVC Engineering College sources.
+ * Provides:
+ * - Official BVC source retrieval
+ * - Provider-agnostic grounded AI generation via POST /ask
+ * - Health check & API discovery
  */
 
-export interface Env {
+import { AIService, EnvAIConfig } from './ai/ai_service';
+
+export interface Env extends EnvAIConfig {
   ENVIRONMENT?: string;
 }
 
@@ -21,6 +25,7 @@ interface SearchResult {
 interface SourceInfo {
   title: string;
   url: string;
+  source?: string;
 }
 
 // ---------------------------------------------------------------------------
@@ -37,14 +42,17 @@ const USER_AGENT =
   'NexoraBot/1.0 (+https://bvcec.edu.in; BVC Engineering College AI Assistant)';
 const FETCH_TIMEOUT_MS = 7500;
 const MAX_RESULTS = 5;
+const MAX_QUESTION_LENGTH = 500;
 
 // Standard CORS headers for cross-origin app requests
 const CORS_HEADERS: Record<string, string> = {
   'Access-Control-Allow-Origin': '*',
-  'Access-Control-Allow-Methods': 'GET, OPTIONS',
+  'Access-Control-Allow-Methods': 'GET, POST, OPTIONS',
   'Access-Control-Allow-Headers': 'Content-Type, Authorization, X-Requested-With',
   'Access-Control-Max-Age': '86400',
 };
+
+const aiService = new AIService();
 
 // ---------------------------------------------------------------------------
 // Helper Utilities
@@ -59,10 +67,6 @@ function jsonResponse(data: unknown, status = 200): Response {
     },
   });
 }
-
-// ---------------------------------------------------------------------------
-// Advanced Content Extraction & Cleaning Utilities
-// ---------------------------------------------------------------------------
 
 function decodeHtmlEntities(str: string): string {
   if (!str) return '';
@@ -87,45 +91,28 @@ function decodeHtmlEntities(str: string): string {
     });
 }
 
-/**
- * Strips boilerplate HTML containers (headers, navs, menus, footers, scripts, sidebars)
- */
 function removeBoilerplateHtml(html: string): string {
   if (!html) return '';
   let cleaned = html;
 
-  // 1. Remove script, style, noscript, svg, iframe tags
   cleaned = cleaned.replace(/<script\b[^<]*(?:(?!<\/script>)<[^<]*)*<\/script>/gi, ' ');
   cleaned = cleaned.replace(/<style\b[^<]*(?:(?!<\/style>)<[^<]*)*<\/style>/gi, ' ');
   cleaned = cleaned.replace(/<noscript\b[^<]*(?:(?!<\/noscript>)<[^<]*)*<\/noscript>/gi, ' ');
   cleaned = cleaned.replace(/<svg\b[^<]*(?:(?!<\/svg>)<[^<]*)*<\/svg>/gi, ' ');
-
-  // 2. Remove semantic layout / navigation elements
   cleaned = cleaned.replace(/<nav\b[^<]*(?:(?!<\/nav>)<[^<]*)*<\/nav>/gi, ' ');
   cleaned = cleaned.replace(/<header\b[^<]*(?:(?!<\/header>)<[^<]*)*<\/header>/gi, ' ');
   cleaned = cleaned.replace(/<footer\b[^<]*(?:(?!<\/footer>)<[^<]*)*<\/footer>/gi, ' ');
   cleaned = cleaned.replace(/<aside\b[^<]*(?:(?!<\/aside>)<[^<]*)*<\/aside>/gi, ' ');
-
-  // 3. Remove common navigation, menu, breadcrumb, and widget classes
   cleaned = cleaned.replace(/<[^>]+class="[^"]*(?:elementor-nav-menu|nav-menu|menu-item|rank-math-breadcrumb|breadcrumb|site-header|site-footer|widget-area|sidebar|post-meta-author)[^"]*"[^>]*>[\s\S]*?<\/[^>]+>/gi, ' ');
-
-  // 4. Remove common repetitive college header navigation phrases
   cleaned = cleaned.replace(/NIRF\s+Home\s+About\s+Us\s+About\s+BVCEC\s+Vision\s+&\s+Mission\s+Quality\s+Policy\s+Academic\s+Council/gi, ' ');
   cleaned = cleaned.replace(/BVC\s+ENGINEERING\s+COLLEGE\s+\(AUTONOMOUS\)\s+ODALAREVU/gi, ' ');
 
   return cleaned;
 }
 
-/**
- * Extracts main content from targeted containers (article, entry-content, main)
- */
 function extractMainContent(rawHtml: string): string {
   if (!rawHtml) return '';
-
-  // First remove boilerplate tags
   const filteredHtml = removeBoilerplateHtml(rawHtml);
-
-  // Attempt to target preferred content containers
   const contentContainerRegexes = [
     /<article\b[^>]*>([\s\S]*?)<\/article>/i,
     /<main\b[^>]*>([\s\S]*?)<\/main>/i,
@@ -143,23 +130,14 @@ function extractMainContent(rawHtml: string): string {
   return filteredHtml;
 }
 
-/**
- * Cleans and normalizes plain text from HTML
- */
 function cleanToPlainText(rawHtml: string): string {
   if (!rawHtml) return '';
   const mainHtml = extractMainContent(rawHtml);
-  // Strip all HTML tags
   const noTags = mainHtml.replace(/<[^>]+>/g, ' ');
-  // Decode HTML entities
   const decoded = decodeHtmlEntities(noTags);
-  // Normalize whitespace
   return decoded.replace(/\s+/g, ' ').trim();
 }
 
-/**
- * Generates a high-quality 300–600 character snippet prioritizing query keyword matches
- */
 function buildRelevantSnippet(
   contentHtml: string,
   query: string,
@@ -173,22 +151,17 @@ function buildRelevantSnippet(
     return `Official BVC Engineering College portal information for "${pageTitle}". Access official announcements, examination circulars, academic regulations, and student resources.`;
   }
 
-  // Tokenize query words (excluding short words)
   const queryTokens = query
     .toLowerCase()
     .split(/\s+/)
     .map((w) => w.replace(/[^a-z0-9]/g, ''))
     .filter((w) => w.length >= 2);
 
-  // If text is already within optimal bounds, return it
   if (fullText.length <= maxLen) {
     return fullText;
   }
 
-  // Split into sentences / meaningful chunks
   const sentences = fullText.match(/[^.!?]+[.!?]+(\s+|$)|[^.!?]+$/g) || [fullText];
-
-  // Score sentences based on query keyword matches
   let bestIndex = 0;
   let highestScore = -1;
 
@@ -206,7 +179,6 @@ function buildRelevantSnippet(
     }
   }
 
-  // Assemble snippet starting from the best matching sentence or surrounding window
   let snippet = '';
   let start = Math.max(0, bestIndex - 1);
 
@@ -224,7 +196,6 @@ function buildRelevantSnippet(
     snippet = fullText.substring(0, maxLen);
   }
 
-  // Clean trailing punctuation / words
   if (snippet.length > maxLen) {
     const trimmed = snippet.substring(0, maxLen);
     const lastSpace = trimmed.lastIndexOf(' ');
@@ -300,6 +271,23 @@ interface WpPostItem {
   excerpt?: { rendered?: string };
 }
 
+function extractSearchKeywords(query: string): string {
+  const stopWords = new Set([
+    'what', 'is', 'the', 'a', 'an', 'are', 'how', 'to', 'can', 'i', 'for', 'of',
+    'in', 'on', 'at', 'by', 'with', 'about', 'tell', 'me', 'please', 'give', 'details',
+    'information', 'process', 'when', 'where', 'which', 'who', 'why', 'do', 'does',
+    'did', 'will', 'would', 'should', 'could', 'my', 'your', 'our', 'all'
+  ]);
+
+  const clean = query
+    .toLowerCase()
+    .replace(/[^\w\s]/g, ' ')
+    .split(/\s+/)
+    .filter((w) => w.length > 1 && !stopWords.has(w));
+
+  return clean.length > 0 ? clean.join(' ') : query;
+}
+
 async function searchOfficialSources(rawQuery: string): Promise<{
   results: SearchResult[];
   sources: SourceInfo[];
@@ -311,7 +299,7 @@ async function searchOfficialSources(rawQuery: string): Promise<{
   const activeSources: SourceInfo[] = [];
 
   // Query WordPress Posts and Pages in parallel
-  const [postsData, pagesData] = await Promise.all([
+  let [postsData, pagesData] = await Promise.all([
     safeFetchJson<WpPostItem[]>(
       `https://bvcec.edu.in/wp-json/wp/v2/posts?search=${encodedQuery}&per_page=5`
     ),
@@ -319,6 +307,27 @@ async function searchOfficialSources(rawQuery: string): Promise<{
       `https://bvcec.edu.in/wp-json/wp/v2/pages?search=${encodedQuery}&per_page=5`
     ),
   ]);
+
+  // If exact query returns no results, try keyword-extracted query
+  const keywords = extractSearchKeywords(query);
+  if (
+    (!Array.isArray(postsData) || postsData.length === 0) &&
+    (!Array.isArray(pagesData) || pagesData.length === 0) &&
+    keywords !== query &&
+    keywords.length > 0
+  ) {
+    const encodedKeywords = encodeURIComponent(keywords);
+    const [kwPosts, kwPages] = await Promise.all([
+      safeFetchJson<WpPostItem[]>(
+        `https://bvcec.edu.in/wp-json/wp/v2/posts?search=${encodedKeywords}&per_page=5`
+      ),
+      safeFetchJson<WpPostItem[]>(
+        `https://bvcec.edu.in/wp-json/wp/v2/pages?search=${encodedKeywords}&per_page=5`
+      ),
+    ]);
+    if (Array.isArray(kwPosts) && kwPosts.length > 0) postsData = kwPosts;
+    if (Array.isArray(kwPages) && kwPages.length > 0) pagesData = kwPages;
+  }
 
   const addResult = (
     titleRaw: string,
@@ -336,7 +345,6 @@ async function searchOfficialSources(rawQuery: string): Promise<{
     const title = decodeHtmlEntities(cleanToPlainText(titleRaw));
     if (!title) return;
 
-    // Use content if available, falling back to excerpt
     const sourceHtml = contentRaw || excerptRaw || '';
     const snippet = buildRelevantSnippet(sourceHtml, query, title);
 
@@ -349,7 +357,6 @@ async function searchOfficialSources(rawQuery: string): Promise<{
     });
   };
 
-  // 1. Process Posts (Exam notifications, circulars, time tables, results)
   if (Array.isArray(postsData)) {
     for (const post of postsData) {
       if (results.length >= MAX_RESULTS) break;
@@ -362,7 +369,6 @@ async function searchOfficialSources(rawQuery: string): Promise<{
     }
   }
 
-  // 2. Process Pages (Regulations, Syllabus, Departments, Academic Calendars)
   if (Array.isArray(pagesData)) {
     for (const page of pagesData) {
       if (results.length >= MAX_RESULTS) break;
@@ -375,7 +381,6 @@ async function searchOfficialSources(rawQuery: string): Promise<{
     }
   }
 
-  // 3. Autonomous Results / Exam Portal contextual entry
   const lowerQuery = query.toLowerCase();
   const isExamOrResults =
     lowerQuery.includes('result') ||
@@ -401,17 +406,18 @@ async function searchOfficialSources(rawQuery: string): Promise<{
     }
   }
 
-  // Populate verified sources array
   if (results.some((r) => r.url.includes('bvcec.edu.in'))) {
     activeSources.push({
       title: 'BVC Engineering College Official Portal',
       url: 'https://bvcec.edu.in',
+      source: 'BVC Engineering College',
     });
   }
   if (results.some((r) => r.url.includes('bvcecautonomous.com'))) {
     activeSources.push({
       title: 'BVC Autonomous Examination & Results Portal',
       url: 'https://www.bvcecautonomous.com',
+      source: 'BVC Autonomous Examination Cell',
     });
   }
 
@@ -426,7 +432,7 @@ async function searchOfficialSources(rawQuery: string): Promise<{
 // ---------------------------------------------------------------------------
 
 export default {
-  async fetch(request: Request, _env: Env, _ctx: ExecutionContext): Promise<Response> {
+  async fetch(request: Request, env: Env, _ctx: ExecutionContext): Promise<Response> {
     // Handle CORS preflight
     if (request.method === 'OPTIONS') {
       return new Response(null, {
@@ -435,35 +441,23 @@ export default {
       });
     }
 
-    // Only allow GET requests for these endpoints
-    if (request.method !== 'GET') {
-      return jsonResponse(
-        {
-          success: false,
-          error: 'Method Not Allowed',
-          message: `Method ${request.method} is not supported.`,
-        },
-        405
-      );
-    }
-
     const url = new URL(request.url);
     const path = url.pathname.replace(/\/$/, '') || '/';
 
     try {
       // 1. Root route
-      if (path === '/') {
+      if (request.method === 'GET' && path === '/') {
         return jsonResponse({
           success: true,
           service: 'nexora-bvc-api-2026',
-          version: '1.0.0',
+          version: '2.0.0',
           status: 'online',
-          message: 'Nexora BVC AI Backend Retrieval API',
+          message: 'Nexora BVC AI Backend (Phase 2 Grounded Retrieval & AI API)',
         });
       }
 
       // 2. Health check route
-      if (path === '/health') {
+      if (request.method === 'GET' && path === '/health') {
         return jsonResponse({
           status: 'healthy',
           service: 'nexora-bvc-api-2026',
@@ -473,13 +467,13 @@ export default {
       }
 
       // 3. API documentation / discovery route
-      if (path === '/api') {
+      if (request.method === 'GET' && path === '/api') {
         return jsonResponse({
           success: true,
           service: 'nexora-bvc-api-2026',
-          version: '1.0.0',
+          version: '2.0.0',
           description:
-            'Nexora official BVC Engineering College retrieval API. Queries verified academic, syllabus, and examination sources.',
+            'Nexora official BVC Engineering College AI & retrieval API. Generates grounded answers using verified academic, syllabus, and examination sources.',
           endpoints: [
             {
               method: 'GET',
@@ -497,16 +491,24 @@ export default {
               description:
                 'Search verified official BVC college sources (regulations, syllabus, exams, announcements, results)',
             },
+            {
+              method: 'POST',
+              path: '/ask',
+              description:
+                'Ask a question and receive a grounded AI answer synthesized from official BVC College sources',
+              requestBody: {
+                question: 'What is the BR23 internal assessment process?',
+              },
+            },
           ],
           allowedSources: Array.from(ALLOWED_HOSTS),
         });
       }
 
-      // 4. Official Search Route
-      if (path === '/search') {
+      // 4. Official Search Route (GET /search?q=...)
+      if (request.method === 'GET' && path === '/search') {
         const query = url.searchParams.get('q');
 
-        // Validation: q must be present and non-empty
         if (query === null || query.trim() === '') {
           return jsonResponse(
             {
@@ -540,12 +542,134 @@ export default {
         });
       }
 
-      // 5. Unknown routes
+      // 5. Grounded AI Generation Route (POST /ask)
+      if (request.method === 'POST' && path === '/ask') {
+        let body: any;
+        try {
+          body = await request.json();
+        } catch {
+          return jsonResponse(
+            {
+              success: false,
+              error: 'Bad Request',
+              message: 'Invalid JSON body. Please provide a JSON object with a "question" field.',
+            },
+            400
+          );
+        }
+
+        const question = body?.question;
+        if (typeof question !== 'string' || question.trim().length === 0) {
+          return jsonResponse(
+            {
+              success: false,
+              error: 'Bad Request',
+              message: 'The "question" field is required and cannot be empty.',
+            },
+            400
+          );
+        }
+
+        if (question.length > MAX_QUESTION_LENGTH) {
+          return jsonResponse(
+            {
+              success: false,
+              error: 'Bad Request',
+              message: `The question exceeds the maximum allowed length of ${MAX_QUESTION_LENGTH} characters.`,
+            },
+            400
+          );
+        }
+
+        const trimmedQuestion = question.trim();
+
+        // Step 1: Run official BVC source retrieval
+        const { results, sources } = await searchOfficialSources(trimmedQuestion);
+
+        // Step 2: Handle empty retrieval (no relevant BVC sources found)
+        if (results.length === 0) {
+          return jsonResponse({
+            success: true,
+            question: trimmedQuestion,
+            answer:
+              "I couldn't find enough verified information from the currently configured official BVC sources to answer this accurately. Please check the official college portal at https://bvcec.edu.in or the autonomous examination portal at https://www.bvcecautonomous.com for details.",
+            sources: [],
+          });
+        }
+
+        // Step 3: Build structured official context
+        const officialContext = results
+          .map(
+            (r, i) =>
+              `[Source ${i + 1}] Title: ${r.title}\nSource: ${r.source}\nURL: ${r.url}\nExcerpt: ${r.snippet}`
+          )
+          .join('\n\n');
+
+        // Step 4: Generate grounded AI response
+        try {
+          const { apiKey, aiBinding } = aiService.resolveActiveProvider(env);
+
+          // If no AI key or binding is configured, return clean retrieval synthesis
+          if (!apiKey && !aiBinding) {
+            const synthesizedSummary = results
+              .map((r) => `• **${r.title}**: ${r.snippet}`)
+              .join('\n\n');
+
+            return jsonResponse({
+              success: true,
+              question: trimmedQuestion,
+              answer: `Here is the official information retrieved from BVC College sources for "${trimmedQuestion}":\n\n${synthesizedSummary}`,
+              sources: results.map((r) => ({
+                title: r.title,
+                url: r.url,
+                source: r.source,
+              })),
+            });
+          }
+
+          const aiResult = await aiService.generateGroundedAnswer({
+            question: trimmedQuestion,
+            officialContext,
+            env,
+          });
+
+          return jsonResponse({
+            success: true,
+            question: trimmedQuestion,
+            answer: aiResult.answer,
+            sources: results.map((r) => ({
+              title: r.title,
+              url: r.url,
+              source: r.source,
+            })),
+          });
+        } catch (aiErr: any) {
+          console.error('[Nexora Worker] AI Generation error:', aiErr?.message || aiErr);
+
+          // Fallback to grounded summary if AI provider encounters a temporary failure
+          const fallbackSummary = results
+            .map((r) => `• **${r.title}**: ${r.snippet}`)
+            .join('\n\n');
+
+          return jsonResponse({
+            success: true,
+            question: trimmedQuestion,
+            answer: `Here is the official information retrieved from BVC College sources for "${trimmedQuestion}":\n\n${fallbackSummary}`,
+            sources: results.map((r) => ({
+              title: r.title,
+              url: r.url,
+              source: r.source,
+            })),
+          });
+        }
+      }
+
+      // 6. Unknown routes or unsupported methods
       return jsonResponse(
         {
           success: false,
           error: 'Not Found',
-          message: `The requested endpoint '${url.pathname}' does not exist on this server.`,
+          message: `The requested route '${request.method} ${url.pathname}' does not exist on this server.`,
         },
         404
       );

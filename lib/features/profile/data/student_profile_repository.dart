@@ -3,9 +3,9 @@ import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/foundation.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
-import 'package:nexora/core/constants/student_identity_helper.dart';
-import 'package:nexora/models/student_profile_model.dart';
-import 'package:nexora/features/authentication/data/auth_service.dart';
+import '../../../core/constants/student_identity_helper.dart';
+import '../../../models/student_profile_model.dart';
+import '../../authentication/data/auth_service.dart';
 
 /// Exception thrown when a student profile operation fails
 class NexoraProfileException implements Exception {

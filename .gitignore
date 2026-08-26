@@ -127,3 +127,5 @@ Thumbs.db
 build/
 dist/
 release/
+.wrangler/
+**/.wrangler/
