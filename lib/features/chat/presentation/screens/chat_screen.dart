@@ -1,11 +1,15 @@
 import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
+import 'package:url_launcher/url_launcher.dart';
+
 import '../../../../core/theme/colors.dart';
 import '../../../../core/theme/spacing.dart';
 import '../../../../app/router/app_router.dart';
+import '../../../../models/search_response_model.dart';
+import '../../../../services/nexora_api_service.dart';
 import '../widgets/history_drawer.dart';
 
-/// Main chat screen matching Figma Mobile UI
+/// Main chat screen displaying real-time official BVC College retrieval results
 class ChatScreen extends StatefulWidget {
   final String? chatId;
   final String? initialPrompt;
@@ -22,16 +26,18 @@ class ChatScreen extends StatefulWidget {
 
 class _ChatScreenState extends State<ChatScreen> {
   final GlobalKey<ScaffoldState> _scaffoldKey = GlobalKey<ScaffoldState>();
+  final NexoraApiService _apiService = NexoraApiService();
   late TextEditingController _messageController;
   final ScrollController _scrollController = ScrollController();
   final List<_ChatMessage> _messages = [];
   bool _isTyping = false;
 
   final List<String> _suggestionChips = [
-    'Academic regulations 2023',
-    'Placement preparation guide',
-    'Semester exam schedule',
-    'Library timing & book borrowing rules',
+    'BR23 exam notification',
+    'internal assessment BR23',
+    'exam fee last date',
+    'Academic calendars',
+    'Syllabus',
   ];
 
   @override
@@ -42,7 +48,7 @@ class _ChatScreenState extends State<ChatScreen> {
     // Initial greeting from Nexora AI
     _messages.add(
       _ChatMessage(
-        text: 'Hello! How can I help you today?',
+        text: 'Hello! I am Nexora, your official BVC College Assistant.\nAsk me about examinations, regulations (BR23), syllabus, circulars, fee dates, or college announcements.',
         isUser: false,
         timestamp: DateTime.now(),
       ),
@@ -60,12 +66,13 @@ class _ChatScreenState extends State<ChatScreen> {
   void dispose() {
     _messageController.dispose();
     _scrollController.dispose();
+    _apiService.dispose();
     super.dispose();
   }
 
-  void _handleSendMessage(String text) {
+  Future<void> _handleSendMessage(String text) async {
     final query = text.trim();
-    if (query.isEmpty) return;
+    if (query.isEmpty || _isTyping) return;
 
     setState(() {
       _messages.add(
@@ -81,37 +88,63 @@ class _ChatScreenState extends State<ChatScreen> {
 
     _scrollToBottom();
 
-    // Simulate College AI response
-    Future.delayed(const Duration(milliseconds: 900), () {
-      if (mounted) {
-        String responseText;
-        if (query.toLowerCase().contains('regulation') || query.toLowerCase().contains('attendance')) {
-          responseText =
-              'At BVC Engineering College, students are required to maintain a minimum of 75% attendance in each semester to be eligible for university end-examinations. Condonation is permitted between 65% and 75% upon genuine medical grounds with principal approval.';
-        } else if (query.toLowerCase().contains('placement') || query.toLowerCase().contains('recruit')) {
-          responseText =
-              'BVC placement cell conducts CRT training starting in the 3rd year. Major recruiters include TCS, Infosys, Wipro, Cognizant, and Tech Mahindra, with packages up to 8.5 LPA.';
-        } else if (query.toLowerCase().contains('library') || query.toLowerCase().contains('timing')) {
-          responseText =
-              'The Central Library is open on all working days from 8:30 AM to 6:00 PM. Digital library facilities with DELNET and IEEE access are available on the 2nd floor.';
-        } else {
-          responseText =
-              'Here is the information from BVC College knowledge base regarding "$query". You can ask follow-up questions or request specific department guidelines.';
-        }
+    try {
+      final response = await _apiService.searchOfficialSources(query);
 
-        setState(() {
-          _isTyping = false;
+      if (!mounted) return;
+
+      setState(() {
+        _isTyping = false;
+        if (response.success && response.results.isNotEmpty) {
           _messages.add(
             _ChatMessage(
-              text: responseText,
+              text: 'Found ${response.results.length} official update${response.results.length > 1 ? 's' : ''} from BVC College sources for "$query":',
               isUser: false,
               timestamp: DateTime.now(),
+              searchResponse: response,
             ),
           );
-        });
-        _scrollToBottom();
-      }
-    });
+        } else if (response.success && response.results.isEmpty) {
+          _messages.add(
+            _ChatMessage(
+              text: response.message ??
+                  'No matching circulars or notifications were found on the official college website for "$query". You can try rephrasing your search or check the autonomous portal.',
+              isUser: false,
+              timestamp: DateTime.now(),
+              searchResponse: response,
+            ),
+          );
+        } else {
+          // Error from retrieval service
+          _messages.add(
+            _ChatMessage(
+              text: response.error ??
+                  'Unable to retrieve official information. Please check your connection and try again.',
+              isUser: false,
+              timestamp: DateTime.now(),
+              isError: true,
+              retryQuery: query,
+            ),
+          );
+        }
+      });
+    } catch (e) {
+      if (!mounted) return;
+      setState(() {
+        _isTyping = false;
+        _messages.add(
+          _ChatMessage(
+            text: 'An unexpected error occurred while connecting to the college retrieval system. Please try again.',
+            isUser: false,
+            timestamp: DateTime.now(),
+            isError: true,
+            retryQuery: query,
+          ),
+        );
+      });
+    }
+
+    _scrollToBottom();
   }
 
   void _scrollToBottom() {
@@ -131,12 +164,33 @@ class _ChatScreenState extends State<ChatScreen> {
       _messages.clear();
       _messages.add(
         _ChatMessage(
-          text: 'Hello! How can I help you today?',
+          text: 'Hello! I am Nexora, your official BVC College Assistant.\nAsk me about examinations, regulations (BR23), syllabus, circulars, fee dates, or college announcements.',
           isUser: false,
           timestamp: DateTime.now(),
         ),
       );
     });
+  }
+
+  Future<void> _openOfficialUrl(String url) async {
+    try {
+      final uri = Uri.parse(url);
+      if (await canLaunchUrl(uri)) {
+        await launchUrl(uri, mode: LaunchMode.externalApplication);
+      } else {
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(content: Text('Could not open link: $url')),
+          );
+        }
+      }
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('Error opening link: $e')),
+        );
+      }
+    }
   }
 
   @override
@@ -265,7 +319,7 @@ class _ChatScreenState extends State<ChatScreen> {
                       ),
                     ),
 
-                    // Black Circular Send Button
+                    // Send Button
                     Container(
                       width: 42,
                       height: 42,
@@ -293,53 +347,305 @@ class _ChatScreenState extends State<ChatScreen> {
   }
 
   Widget _buildMessageBubble(_ChatMessage message) {
+    if (message.isUser) {
+      return Padding(
+        padding: const EdgeInsets.only(bottom: NexoraSpacing.md),
+        child: Align(
+          alignment: Alignment.centerRight,
+          child: Container(
+            constraints: BoxConstraints(
+              maxWidth: MediaQuery.of(context).size.width * 0.82,
+            ),
+            decoration: const BoxDecoration(
+              color: Color(0xFF1E1E1E), // Dark black pill for user message
+              borderRadius: BorderRadius.only(
+                topLeft: Radius.circular(18),
+                topRight: Radius.circular(18),
+                bottomLeft: Radius.circular(18),
+                bottomRight: Radius.circular(4),
+              ),
+            ),
+            padding: const EdgeInsets.symmetric(
+              horizontal: NexoraSpacing.lg,
+              vertical: NexoraSpacing.md,
+            ),
+            child: Text(
+              message.text,
+              style: const TextStyle(
+                fontSize: 14.5,
+                height: 1.45,
+                color: Colors.white,
+              ),
+            ),
+          ),
+        ),
+      );
+    }
+
+    // AI Message (with optional rich official search results)
+    final results = message.searchResponse?.results ?? [];
+
     return Padding(
-      padding: const EdgeInsets.only(bottom: NexoraSpacing.md),
+      padding: const EdgeInsets.only(bottom: NexoraSpacing.lg),
       child: Align(
-        alignment: message.isUser ? Alignment.centerRight : Alignment.centerLeft,
+        alignment: Alignment.centerLeft,
         child: Container(
           constraints: BoxConstraints(
-            maxWidth: MediaQuery.of(context).size.width * 0.82,
+            maxWidth: MediaQuery.of(context).size.width * 0.90,
           ),
           decoration: BoxDecoration(
-            color: message.isUser
-                ? const Color(0xFF1E1E1E) // Dark black pill for user message
-                : const Color(NexoraColors.surface), // Clean white surface for AI
-            borderRadius: BorderRadius.only(
-              topLeft: const Radius.circular(18),
-              topRight: const Radius.circular(18),
-              bottomLeft: Radius.circular(message.isUser ? 18 : 4),
-              bottomRight: Radius.circular(message.isUser ? 4 : 18),
+            color: const Color(NexoraColors.surface),
+            borderRadius: const BorderRadius.only(
+              topLeft: Radius.circular(18),
+              topRight: Radius.circular(18),
+              bottomLeft: Radius.circular(4),
+              bottomRight: Radius.circular(18),
             ),
-            border: message.isUser
-                ? null
-                : Border.all(
-                    color: const Color(NexoraColors.border).withOpacity(0.8),
-                    width: 1,
-                  ),
+            border: Border.all(
+              color: message.isError
+                  ? const Color(NexoraColors.error).withOpacity(0.4)
+                  : const Color(NexoraColors.border).withOpacity(0.8),
+              width: 1,
+            ),
             boxShadow: [
               BoxShadow(
-                color: Colors.black.withOpacity(message.isUser ? 0.06 : 0.02),
+                color: Colors.black.withOpacity(0.02),
                 blurRadius: 8,
                 offset: const Offset(0, 2),
               ),
             ],
           ),
-          padding: const EdgeInsets.symmetric(
-            horizontal: NexoraSpacing.lg,
-            vertical: NexoraSpacing.md,
-          ),
-          child: Text(
-            message.text,
-            style: TextStyle(
-              fontSize: 14.5,
-              height: 1.45,
-              color: message.isUser
-                  ? Colors.white
-                  : const Color(NexoraColors.text),
-            ),
+          padding: const EdgeInsets.all(NexoraSpacing.lg),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              // AI Header / Intro text
+              Row(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Container(
+                    padding: const EdgeInsets.all(4),
+                    decoration: BoxDecoration(
+                      color: message.isError
+                          ? const Color(NexoraColors.errorLight)
+                          : const Color(NexoraColors.primary).withOpacity(0.12),
+                      shape: BoxShape.circle,
+                    ),
+                    child: Icon(
+                      message.isError
+                          ? Icons.error_outline
+                          : Icons.auto_awesome,
+                      color: message.isError
+                          ? const Color(NexoraColors.error)
+                          : const Color(NexoraColors.primary),
+                      size: 16,
+                    ),
+                  ),
+                  const SizedBox(width: NexoraSpacing.sm),
+                  Expanded(
+                    child: Text(
+                      message.text,
+                      style: TextStyle(
+                        fontSize: 14.5,
+                        height: 1.45,
+                        fontWeight: results.isNotEmpty ? FontWeight.w600 : FontWeight.normal,
+                        color: message.isError
+                            ? const Color(NexoraColors.error)
+                            : const Color(NexoraColors.text),
+                      ),
+                    ),
+                  ),
+                ],
+              ),
+
+              // Retry Button if error
+              if (message.isError && message.retryQuery != null) ...[
+                const SizedBox(height: NexoraSpacing.md),
+                OutlinedButton.icon(
+                  onPressed: () => _handleSendMessage(message.retryQuery!),
+                  icon: const Icon(Icons.refresh, size: 16),
+                  label: const Text('Retry Search'),
+                  style: OutlinedButton.styleFrom(
+                    foregroundColor: const Color(NexoraColors.primary),
+                    side: const BorderSide(color: Color(NexoraColors.primary)),
+                    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
+                  ),
+                ),
+              ],
+
+              // Official Search Results List
+              if (results.isNotEmpty) ...[
+                const SizedBox(height: NexoraSpacing.md),
+                ListView.separated(
+                  shrinkWrap: true,
+                  physics: const NeverScrollableScrollPhysics(),
+                  itemCount: results.length,
+                  separatorBuilder: (_, __) => const SizedBox(height: NexoraSpacing.md),
+                  itemBuilder: (context, rIndex) {
+                    final item = results[rIndex];
+                    return _buildSearchResultCard(item);
+                  },
+                ),
+              ],
+
+              // Sources footer reference
+              if (message.searchResponse != null &&
+                  message.searchResponse!.sources.isNotEmpty) ...[
+                const SizedBox(height: NexoraSpacing.lg),
+                const Divider(height: 1),
+                const SizedBox(height: NexoraSpacing.sm),
+                Row(
+                  children: [
+                    const Icon(Icons.shield_outlined, size: 14, color: Color(NexoraColors.textMuted)),
+                    const SizedBox(width: 4),
+                    const Text(
+                      'Verified Official Sources: ',
+                      style: TextStyle(
+                        fontSize: 11,
+                        fontWeight: FontWeight.w600,
+                        color: Color(NexoraColors.textMuted),
+                      ),
+                    ),
+                    Expanded(
+                      child: Text(
+                        message.searchResponse!.sources.map((s) => s.title).join(' • '),
+                        style: const TextStyle(
+                          fontSize: 11,
+                          color: Color(NexoraColors.textSecondary),
+                        ),
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                      ),
+                    ),
+                  ],
+                ),
+              ],
+            ],
           ),
         ),
+      ),
+    );
+  }
+
+  Widget _buildSearchResultCard(SearchResultItem item) {
+    return Container(
+      decoration: BoxDecoration(
+        color: const Color(0xFFFAF8F3), // Warm light container
+        borderRadius: BorderRadius.circular(14),
+        border: Border.all(
+          color: const Color(NexoraColors.border),
+          width: 1,
+        ),
+      ),
+      padding: const EdgeInsets.all(NexoraSpacing.md),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          // Title & Official Icon
+          Row(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              const Icon(
+                Icons.article_outlined,
+                size: 18,
+                color: Color(NexoraColors.primary),
+              ),
+              const SizedBox(width: NexoraSpacing.xs),
+              Expanded(
+                child: Text(
+                  item.title,
+                  style: const TextStyle(
+                    fontSize: 14,
+                    fontWeight: FontWeight.bold,
+                    color: Color(NexoraColors.text),
+                    height: 1.3,
+                  ),
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: NexoraSpacing.xs),
+
+          // Snippet
+          Text(
+            item.snippet,
+            style: const TextStyle(
+              fontSize: 13,
+              color: Color(NexoraColors.textSecondary),
+              height: 1.45,
+            ),
+          ),
+          const SizedBox(height: NexoraSpacing.sm),
+
+          // Source and Date / Link Row
+          Row(
+            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+            children: [
+              // Source & Date Badge
+              Flexible(
+                child: Row(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    Container(
+                      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
+                      decoration: BoxDecoration(
+                        color: const Color(0xFFE8E5DD),
+                        borderRadius: BorderRadius.circular(6),
+                      ),
+                      child: Text(
+                        item.source,
+                        style: const TextStyle(
+                          fontSize: 10.5,
+                          fontWeight: FontWeight.w600,
+                          color: Color(NexoraColors.text),
+                        ),
+                      ),
+                    ),
+                    if (item.publishedDate != null) ...[
+                      const SizedBox(width: 6),
+                      Text(
+                        item.publishedDate!,
+                        style: const TextStyle(
+                          fontSize: 11,
+                          color: Color(NexoraColors.textMuted),
+                        ),
+                      ),
+                    ],
+                  ],
+                ),
+              ),
+
+              // Clickable link button
+              if (item.url.isNotEmpty)
+                InkWell(
+                  onTap: () => _openOfficialUrl(item.url),
+                  borderRadius: BorderRadius.circular(8),
+                  child: Padding(
+                    padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 4),
+                    child: Row(
+                      mainAxisSize: MainAxisSize.min,
+                      children: const [
+                        Text(
+                          'Open Page',
+                          style: TextStyle(
+                            fontSize: 12,
+                            fontWeight: FontWeight.bold,
+                            color: Color(NexoraColors.primary),
+                          ),
+                        ),
+                        SizedBox(width: 2),
+                        Icon(
+                          Icons.open_in_new_rounded,
+                          size: 13,
+                          color: Color(NexoraColors.primary),
+                        ),
+                      ],
+                    ),
+                  ),
+                ),
+            ],
+          ),
+        ],
       ),
     );
   }
@@ -351,7 +657,7 @@ class _ChatScreenState extends State<ChatScreen> {
         const Padding(
           padding: EdgeInsets.symmetric(vertical: NexoraSpacing.xs),
           child: Text(
-            'Suggestions',
+            'Official BVC Topics',
             style: TextStyle(
               fontSize: 12,
               fontWeight: FontWeight.w600,
@@ -416,7 +722,7 @@ class _ChatScreenState extends State<ChatScreen> {
               ),
               SizedBox(width: NexoraSpacing.sm),
               Text(
-                'Nexora is typing...',
+                'Retrieving official college information...',
                 style: TextStyle(
                   fontSize: 13,
                   color: Color(NexoraColors.textSecondary),
@@ -434,10 +740,16 @@ class _ChatMessage {
   final String text;
   final bool isUser;
   final DateTime timestamp;
+  final NexoraSearchResponse? searchResponse;
+  final bool isError;
+  final String? retryQuery;
 
   _ChatMessage({
     required this.text,
     required this.isUser,
     required this.timestamp,
+    this.searchResponse,
+    this.isError = false,
+    this.retryQuery,
   });
 }
