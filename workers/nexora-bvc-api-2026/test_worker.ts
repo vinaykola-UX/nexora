@@ -9,9 +9,10 @@ async function runTests() {
     { name: '1. Health Check (GET /health)', url: 'http://localhost:8787/health' },
     { name: '2. API Discovery (GET /api)', url: 'http://localhost:8787/api' },
     { name: '3. Official Search BR23 (GET /search?q=BR23)', url: 'http://localhost:8787/search?q=BR23' },
-    { name: '4. Official Search Exam Fee (GET /search?q=exam%20fee%20last%20date)', url: 'http://localhost:8787/search?q=exam%20fee%20last%20date' },
-    { name: '5. Empty Query Validation (GET /search?q=)', url: 'http://localhost:8787/search?q=' },
-    { name: '6. Unknown Route 404 (GET /unknown-route)', url: 'http://localhost:8787/unknown-route' }
+    { name: '4. Official Search Internal Assessment (GET /search?q=internal%20assessment%20BR23)', url: 'http://localhost:8787/search?q=internal%20assessment%20BR23' },
+    { name: '5. Official Search Exam Fee (GET /search?q=exam%20fee%20last%20date)', url: 'http://localhost:8787/search?q=exam%20fee%20last%20date' },
+    { name: '6. Empty Query Validation (GET /search?q=)', url: 'http://localhost:8787/search?q=' },
+    { name: '7. Unknown Route 404 (GET /unknown-route)', url: 'http://localhost:8787/unknown-route' }
   ];
 
   for (const tc of testCases) {

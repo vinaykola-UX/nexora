@@ -60,6 +60,10 @@ function jsonResponse(data: unknown, status = 200): Response {
   });
 }
 
+// ---------------------------------------------------------------------------
+// Advanced Content Extraction & Cleaning Utilities
+// ---------------------------------------------------------------------------
+
 function decodeHtmlEntities(str: string): string {
   if (!str) return '';
   return str
@@ -75,6 +79,7 @@ function decodeHtmlEntities(str: string): string {
     .replace(/&gt;/g, '>')
     .replace(/&quot;/g, '"')
     .replace(/&#039;/g, "'")
+    .replace(/&#39;/g, "'")
     .replace(/&nbsp;/g, ' ')
     .replace(/&#\d+;/g, (match) => {
       const num = parseInt(match.replace(/&#|;/g, ''), 10);
@@ -82,26 +87,151 @@ function decodeHtmlEntities(str: string): string {
     });
 }
 
-function cleanText(rawHtml: string): string {
+/**
+ * Strips boilerplate HTML containers (headers, navs, menus, footers, scripts, sidebars)
+ */
+function removeBoilerplateHtml(html: string): string {
+  if (!html) return '';
+  let cleaned = html;
+
+  // 1. Remove script, style, noscript, svg, iframe tags
+  cleaned = cleaned.replace(/<script\b[^<]*(?:(?!<\/script>)<[^<]*)*<\/script>/gi, ' ');
+  cleaned = cleaned.replace(/<style\b[^<]*(?:(?!<\/style>)<[^<]*)*<\/style>/gi, ' ');
+  cleaned = cleaned.replace(/<noscript\b[^<]*(?:(?!<\/noscript>)<[^<]*)*<\/noscript>/gi, ' ');
+  cleaned = cleaned.replace(/<svg\b[^<]*(?:(?!<\/svg>)<[^<]*)*<\/svg>/gi, ' ');
+
+  // 2. Remove semantic layout / navigation elements
+  cleaned = cleaned.replace(/<nav\b[^<]*(?:(?!<\/nav>)<[^<]*)*<\/nav>/gi, ' ');
+  cleaned = cleaned.replace(/<header\b[^<]*(?:(?!<\/header>)<[^<]*)*<\/header>/gi, ' ');
+  cleaned = cleaned.replace(/<footer\b[^<]*(?:(?!<\/footer>)<[^<]*)*<\/footer>/gi, ' ');
+  cleaned = cleaned.replace(/<aside\b[^<]*(?:(?!<\/aside>)<[^<]*)*<\/aside>/gi, ' ');
+
+  // 3. Remove common navigation, menu, breadcrumb, and widget classes
+  cleaned = cleaned.replace(/<[^>]+class="[^"]*(?:elementor-nav-menu|nav-menu|menu-item|rank-math-breadcrumb|breadcrumb|site-header|site-footer|widget-area|sidebar|post-meta-author)[^"]*"[^>]*>[\s\S]*?<\/[^>]+>/gi, ' ');
+
+  // 4. Remove common repetitive college header navigation phrases
+  cleaned = cleaned.replace(/NIRF\s+Home\s+About\s+Us\s+About\s+BVCEC\s+Vision\s+&\s+Mission\s+Quality\s+Policy\s+Academic\s+Council/gi, ' ');
+  cleaned = cleaned.replace(/BVC\s+ENGINEERING\s+COLLEGE\s+\(AUTONOMOUS\)\s+ODALAREVU/gi, ' ');
+
+  return cleaned;
+}
+
+/**
+ * Extracts main content from targeted containers (article, entry-content, main)
+ */
+function extractMainContent(rawHtml: string): string {
   if (!rawHtml) return '';
-  // Remove script and style tags and their contents
-  const noScript = rawHtml.replace(/<script\b[^<]*(?:(?!<\/script>)<[^<]*)*<\/script>/gi, '');
-  const noStyle = noScript.replace(/<style\b[^<]*(?:(?!<\/style>)<[^<]*)*<\/style>/gi, '');
-  // Strip all remaining HTML tags
-  const noTags = noStyle.replace(/<[^>]+>/g, ' ');
+
+  // First remove boilerplate tags
+  const filteredHtml = removeBoilerplateHtml(rawHtml);
+
+  // Attempt to target preferred content containers
+  const contentContainerRegexes = [
+    /<article\b[^>]*>([\s\S]*?)<\/article>/i,
+    /<main\b[^>]*>([\s\S]*?)<\/main>/i,
+    /<div[^>]+class="[^"]*(?:entry-content|post-content|article-content|main-content)[^"]*"[^>]*>([\s\S]*?)<\/div>/i,
+    /<div[^>]+class="[^"]*elementor-widget-text-editor[^"]*"[^>]*>([\s\S]*?)<\/div>/i,
+  ];
+
+  for (const regex of contentContainerRegexes) {
+    const match = filteredHtml.match(regex);
+    if (match && match[1] && match[1].replace(/<[^>]+>/g, '').trim().length > 30) {
+      return match[1];
+    }
+  }
+
+  return filteredHtml;
+}
+
+/**
+ * Cleans and normalizes plain text from HTML
+ */
+function cleanToPlainText(rawHtml: string): string {
+  if (!rawHtml) return '';
+  const mainHtml = extractMainContent(rawHtml);
+  // Strip all HTML tags
+  const noTags = mainHtml.replace(/<[^>]+>/g, ' ');
   // Decode HTML entities
   const decoded = decodeHtmlEntities(noTags);
   // Normalize whitespace
   return decoded.replace(/\s+/g, ' ').trim();
 }
 
-function truncateSnippet(text: string, maxLength = 220): string {
-  if (!text) return '';
-  const clean = cleanText(text);
-  if (clean.length <= maxLength) return clean;
-  const truncated = clean.substring(0, maxLength);
-  const lastSpace = truncated.lastIndexOf(' ');
-  return (lastSpace > 50 ? truncated.substring(0, lastSpace) : truncated) + '...';
+/**
+ * Generates a high-quality 300–600 character snippet prioritizing query keyword matches
+ */
+function buildRelevantSnippet(
+  contentHtml: string,
+  query: string,
+  pageTitle: string,
+  minLen = 300,
+  maxLen = 600
+): string {
+  const fullText = cleanToPlainText(contentHtml);
+
+  if (!fullText || fullText.length < 25) {
+    return `Official BVC Engineering College portal information for "${pageTitle}". Access official announcements, examination circulars, academic regulations, and student resources.`;
+  }
+
+  // Tokenize query words (excluding short words)
+  const queryTokens = query
+    .toLowerCase()
+    .split(/\s+/)
+    .map((w) => w.replace(/[^a-z0-9]/g, ''))
+    .filter((w) => w.length >= 2);
+
+  // If text is already within optimal bounds, return it
+  if (fullText.length <= maxLen) {
+    return fullText;
+  }
+
+  // Split into sentences / meaningful chunks
+  const sentences = fullText.match(/[^.!?]+[.!?]+(\s+|$)|[^.!?]+$/g) || [fullText];
+
+  // Score sentences based on query keyword matches
+  let bestIndex = 0;
+  let highestScore = -1;
+
+  for (let i = 0; i < sentences.length; i++) {
+    const sLower = sentences[i].toLowerCase();
+    let score = 0;
+    for (const token of queryTokens) {
+      if (sLower.includes(token)) {
+        score += 2;
+      }
+    }
+    if (score > highestScore) {
+      highestScore = score;
+      bestIndex = i;
+    }
+  }
+
+  // Assemble snippet starting from the best matching sentence or surrounding window
+  let snippet = '';
+  let start = Math.max(0, bestIndex - 1);
+
+  for (let i = start; i < sentences.length; i++) {
+    const nextSentence = sentences[i].trim();
+    if (!nextSentence) continue;
+
+    if (snippet.length + nextSentence.length > maxLen && snippet.length >= minLen) {
+      break;
+    }
+    snippet += (snippet.length > 0 ? ' ' : '') + nextSentence;
+  }
+
+  if (!snippet || snippet.length < 50) {
+    snippet = fullText.substring(0, maxLen);
+  }
+
+  // Clean trailing punctuation / words
+  if (snippet.length > maxLen) {
+    const trimmed = snippet.substring(0, maxLen);
+    const lastSpace = trimmed.lastIndexOf(' ');
+    snippet = (lastSpace > 100 ? trimmed.substring(0, lastSpace) : trimmed) + '...';
+  }
+
+  return snippet.trim();
 }
 
 function isValidOfficialUrl(urlStr: string): boolean {
@@ -194,6 +324,7 @@ async function searchOfficialSources(rawQuery: string): Promise<{
     titleRaw: string,
     urlRaw: string,
     contentRaw: string,
+    excerptRaw: string,
     dateRaw: string | null,
     sourceName: string
   ) => {
@@ -202,19 +333,18 @@ async function searchOfficialSources(rawQuery: string): Promise<{
     if (seenUrls.has(cleanUrl)) return;
     seenUrls.add(cleanUrl);
 
-    const title = decodeHtmlEntities(cleanText(titleRaw));
+    const title = decodeHtmlEntities(cleanToPlainText(titleRaw));
     if (!title) return;
 
-    let snippet = cleanText(contentRaw);
-    if (!snippet || snippet.length < 15) {
-      snippet = `Official BVC Engineering College portal information for "${title}".`;
-    }
+    // Use content if available, falling back to excerpt
+    const sourceHtml = contentRaw || excerptRaw || '';
+    const snippet = buildRelevantSnippet(sourceHtml, query, title);
 
     results.push({
       title,
       url: urlRaw,
       source: sourceName,
-      snippet: truncateSnippet(snippet),
+      snippet,
       publishedDate: formatDate(dateRaw),
     });
   };
@@ -225,9 +355,10 @@ async function searchOfficialSources(rawQuery: string): Promise<{
       if (results.length >= MAX_RESULTS) break;
       const title = post.title?.rendered || '';
       const url = post.link || '';
-      const snippet = post.excerpt?.rendered || post.content?.rendered || '';
+      const content = post.content?.rendered || '';
+      const excerpt = post.excerpt?.rendered || '';
       const date = post.date || null;
-      addResult(title, url, snippet, date, 'BVC Engineering College');
+      addResult(title, url, content, excerpt, date, 'BVC Engineering College');
     }
   }
 
@@ -237,9 +368,10 @@ async function searchOfficialSources(rawQuery: string): Promise<{
       if (results.length >= MAX_RESULTS) break;
       const title = page.title?.rendered || '';
       const url = page.link || '';
-      const snippet = page.excerpt?.rendered || page.content?.rendered || '';
+      const content = page.content?.rendered || '';
+      const excerpt = page.excerpt?.rendered || '';
       const date = page.date || null;
-      addResult(title, url, snippet, date, 'BVC Engineering College');
+      addResult(title, url, content, excerpt, date, 'BVC Engineering College');
     }
   }
 
@@ -251,6 +383,7 @@ async function searchOfficialSources(rawQuery: string): Promise<{
     lowerQuery.includes('autonomous') ||
     lowerQuery.includes('hall ticket') ||
     lowerQuery.includes('revaluation') ||
+    lowerQuery.includes('fee') ||
     lowerQuery.includes('grade');
 
   if (isExamOrResults && results.length < MAX_RESULTS) {
@@ -262,7 +395,7 @@ async function searchOfficialSources(rawQuery: string): Promise<{
         url: autonomousUrl,
         source: 'BVC Autonomous Examination Cell',
         snippet:
-          'Official autonomous examinations portal for BVC Engineering College students. Check end examination results, supplementary schedules, student logins, and academic grade sheets.',
+          'Official autonomous examinations portal for BVC Engineering College students. Access end examination fee schedules, last date notifications, results, student logins, and academic grade sheets directly from the Examination Cell.',
         publishedDate: null,
       });
     }
