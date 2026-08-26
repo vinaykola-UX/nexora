@@ -5,6 +5,7 @@ import 'package:url_launcher/url_launcher.dart';
 
 import '../../../../core/theme/colors.dart';
 import '../../../../core/theme/spacing.dart';
+import '../../../../core/widgets/copy_message_button.dart';
 import '../../../../app/router/app_router.dart';
 import '../../../../models/search_response_model.dart';
 import '../../../../services/nexora_api_service.dart';
@@ -285,6 +286,22 @@ class _ChatScreenState extends State<ChatScreen> {
         );
       }
     }
+  }
+
+  String _getCopyableText(_ChatMessage message) {
+    final buffer = StringBuffer(message.text);
+    if (message.searchResponse != null && message.searchResponse!.results.isNotEmpty) {
+      for (final r in message.searchResponse!.results) {
+        buffer.writeln('\n\n• ${r.title}');
+        if (r.snippet.isNotEmpty) {
+          buffer.writeln(r.snippet);
+        }
+        if (r.url.isNotEmpty) {
+          buffer.writeln(r.url);
+        }
+      }
+    }
+    return buffer.toString().trim();
   }
 
   @override
@@ -621,6 +638,17 @@ class _ChatScreenState extends State<ChatScreen> {
                       ),
                     ),
                   ],
+                ),
+              ],
+
+              // Message Actions Footer (Copy Button)
+              if (!message.isError && message.text.isNotEmpty) ...[
+                const SizedBox(height: NexoraSpacing.sm),
+                Align(
+                  alignment: Alignment.centerRight,
+                  child: CopyMessageButton(
+                    text: _getCopyableText(message),
+                  ),
                 ),
               ],
             ],
