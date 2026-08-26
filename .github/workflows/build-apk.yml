@@ -62,7 +62,7 @@ jobs:
         run: |
           flutter create \
             --platforms=android \
-            --org com.bvccollege \
+            --org com.bvcollege \
             --project-name nexora \
             .
 
