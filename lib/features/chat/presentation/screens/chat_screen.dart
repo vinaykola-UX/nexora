@@ -1,3 +1,4 @@
+import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
 import 'package:url_launcher/url_launcher.dart';
@@ -7,9 +8,10 @@ import '../../../../core/theme/spacing.dart';
 import '../../../../app/router/app_router.dart';
 import '../../../../models/search_response_model.dart';
 import '../../../../services/nexora_api_service.dart';
+import '../../data/chat_repository.dart';
 import '../widgets/history_drawer.dart';
 
-/// Main chat screen displaying real-time official BVC College retrieval results
+/// Main chat screen displaying real-time official BVC College retrieval results with persistent history
 class ChatScreen extends StatefulWidget {
   final String? chatId;
   final String? initialPrompt;
@@ -27,10 +29,14 @@ class ChatScreen extends StatefulWidget {
 class _ChatScreenState extends State<ChatScreen> {
   final GlobalKey<ScaffoldState> _scaffoldKey = GlobalKey<ScaffoldState>();
   final NexoraApiService _apiService = NexoraApiService();
+  final ChatRepository _chatRepository = ChatRepository();
+
   late TextEditingController _messageController;
   final ScrollController _scrollController = ScrollController();
   final List<_ChatMessage> _messages = [];
   bool _isTyping = false;
+  bool _isLoadingHistory = false;
+  String? _currentConversationId;
 
   final List<String> _suggestionChips = [
     'BR23 exam notification',
@@ -44,8 +50,22 @@ class _ChatScreenState extends State<ChatScreen> {
   void initState() {
     super.initState();
     _messageController = TextEditingController();
+    _currentConversationId = widget.chatId;
 
-    // Initial greeting from Nexora AI
+    if (widget.chatId != null && widget.chatId!.isNotEmpty) {
+      _loadExistingConversation(widget.chatId!);
+    } else {
+      _showInitialGreeting();
+      if (widget.initialPrompt != null && widget.initialPrompt!.isNotEmpty) {
+        WidgetsBinding.instance.addPostFrameCallback((_) {
+          _handleSendMessage(widget.initialPrompt!);
+        });
+      }
+    }
+  }
+
+  void _showInitialGreeting() {
+    _messages.clear();
     _messages.add(
       _ChatMessage(
         text: 'Hello! I am Nexora, your official BVC College Assistant.\nAsk me about examinations, regulations (BR23), syllabus, circulars, fee dates, or college announcements.',
@@ -53,12 +73,47 @@ class _ChatScreenState extends State<ChatScreen> {
         timestamp: DateTime.now(),
       ),
     );
+  }
 
-    // If an initial prompt was passed from StartChatScreen
-    if (widget.initialPrompt != null && widget.initialPrompt!.isNotEmpty) {
-      WidgetsBinding.instance.addPostFrameCallback((_) {
-        _handleSendMessage(widget.initialPrompt!);
-      });
+  Future<void> _loadExistingConversation(String conversationId) async {
+    final user = FirebaseAuth.instance.currentUser;
+    if (user == null) {
+      _showInitialGreeting();
+      return;
+    }
+
+    setState(() {
+      _isLoadingHistory = true;
+      _currentConversationId = conversationId;
+      _messages.clear();
+    });
+
+    try {
+      final persistedMessages = await _chatRepository.getMessages(user.uid, conversationId);
+      if (!mounted) return;
+
+      if (persistedMessages.isEmpty) {
+        _showInitialGreeting();
+      } else {
+        setState(() {
+          _messages.addAll(persistedMessages.map((m) => _ChatMessage(
+                text: m.text,
+                isUser: m.isUser,
+                timestamp: m.timestamp,
+                searchResponse: m.searchResponse,
+                isError: m.isError,
+                retryQuery: m.retryQuery,
+              )));
+        });
+      }
+    } catch (e) {
+      debugPrint('[ChatScreen] Error loading conversation history: $e');
+      if (mounted) _showInitialGreeting();
+    } finally {
+      if (mounted) {
+        setState(() => _isLoadingHistory = false);
+        _scrollToBottom();
+      }
     }
   }
 
@@ -74,12 +129,29 @@ class _ChatScreenState extends State<ChatScreen> {
     final query = text.trim();
     if (query.isEmpty || _isTyping) return;
 
+    final user = FirebaseAuth.instance.currentUser;
+    final uid = user?.uid ?? '';
+
+    // Create conversation in Firestore if it doesn't exist yet
+    if (_currentConversationId == null && uid.isNotEmpty) {
+      try {
+        _currentConversationId = await _chatRepository.createConversation(
+          uid,
+          title: query.length > 35 ? '${query.substring(0, 35)}...' : query,
+        );
+      } catch (e) {
+        debugPrint('[ChatScreen] Failed to create conversation: $e');
+      }
+    }
+
+    final userMsgTime = DateTime.now();
+
     setState(() {
       _messages.add(
         _ChatMessage(
           text: query,
           isUser: true,
-          timestamp: DateTime.now(),
+          timestamp: userMsgTime,
         ),
       );
       _messageController.clear();
@@ -88,60 +160,90 @@ class _ChatScreenState extends State<ChatScreen> {
 
     _scrollToBottom();
 
+    // Persist user message to Firestore
+    if (uid.isNotEmpty && _currentConversationId != null) {
+      _chatRepository.saveMessage(
+        uid,
+        _currentConversationId!,
+        text: query,
+        isUser: true,
+      );
+    }
+
     try {
       final response = await _apiService.searchOfficialSources(query);
 
       if (!mounted) return;
 
+      String aiText;
+      bool isError = false;
+      NexoraSearchResponse? parsedResponse;
+
+      if (response.success && response.results.isNotEmpty) {
+        aiText = 'Found ${response.results.length} official update${response.results.length > 1 ? 's' : ''} from BVC College sources for "$query":';
+        parsedResponse = response;
+      } else if (response.success && response.results.isEmpty) {
+        aiText = response.message ??
+            'No matching circulars or notifications were found on the official college website for "$query". You can try rephrasing your search or check the autonomous portal.';
+        parsedResponse = response;
+      } else {
+        aiText = response.error ??
+            'Unable to retrieve official information. Please check your connection and try again.';
+        isError = true;
+      }
+
+      final aiMsg = _ChatMessage(
+        text: aiText,
+        isUser: false,
+        timestamp: DateTime.now(),
+        searchResponse: parsedResponse,
+        isError: isError,
+        retryQuery: isError ? query : null,
+      );
+
       setState(() {
         _isTyping = false;
-        if (response.success && response.results.isNotEmpty) {
-          _messages.add(
-            _ChatMessage(
-              text: 'Found ${response.results.length} official update${response.results.length > 1 ? 's' : ''} from BVC College sources for "$query":',
-              isUser: false,
-              timestamp: DateTime.now(),
-              searchResponse: response,
-            ),
-          );
-        } else if (response.success && response.results.isEmpty) {
-          _messages.add(
-            _ChatMessage(
-              text: response.message ??
-                  'No matching circulars or notifications were found on the official college website for "$query". You can try rephrasing your search or check the autonomous portal.',
-              isUser: false,
-              timestamp: DateTime.now(),
-              searchResponse: response,
-            ),
-          );
-        } else {
-          // Error from retrieval service
-          _messages.add(
-            _ChatMessage(
-              text: response.error ??
-                  'Unable to retrieve official information. Please check your connection and try again.',
-              isUser: false,
-              timestamp: DateTime.now(),
-              isError: true,
-              retryQuery: query,
-            ),
-          );
-        }
+        _messages.add(aiMsg);
       });
+
+      // Persist AI response to Firestore
+      if (uid.isNotEmpty && _currentConversationId != null) {
+        _chatRepository.saveMessage(
+          uid,
+          _currentConversationId!,
+          text: aiText,
+          isUser: false,
+          searchResponse: parsedResponse,
+          isError: isError,
+          retryQuery: isError ? query : null,
+        );
+      }
     } catch (e) {
       if (!mounted) return;
+      final errorText = 'An unexpected error occurred while connecting to the college retrieval system. Please try again.';
+      final aiMsg = _ChatMessage(
+        text: errorText,
+        isUser: false,
+        timestamp: DateTime.now(),
+        isError: true,
+        retryQuery: query,
+      );
+
       setState(() {
         _isTyping = false;
-        _messages.add(
-          _ChatMessage(
-            text: 'An unexpected error occurred while connecting to the college retrieval system. Please try again.',
-            isUser: false,
-            timestamp: DateTime.now(),
-            isError: true,
-            retryQuery: query,
-          ),
-        );
+        _messages.add(aiMsg);
       });
+
+      if (uid.isNotEmpty && _currentConversationId != null) {
+        _chatRepository.saveMessage(
+          uid,
+          _currentConversationId!,
+          text: errorText,
+          isUser: false,
+          isError: true,
+          retryQuery: query,
+        );
+      }
     }
 
     _scrollToBottom();
@@ -161,14 +263,8 @@ class _ChatScreenState extends State<ChatScreen> {
 
   void _startNewChat() {
     setState(() {
-      _messages.clear();
-      _messages.add(
-        _ChatMessage(
-          text: 'Hello! I am Nexora, your official BVC College Assistant.\nAsk me about examinations, regulations (BR23), syllabus, circulars, fee dates, or college announcements.',
-          isUser: false,
-          timestamp: DateTime.now(),
-        ),
-      );
+      _currentConversationId = null;
+      _showInitialGreeting();
     });
   }
 
@@ -199,8 +295,8 @@ class _ChatScreenState extends State<ChatScreen> {
       key: _scaffoldKey,
       backgroundColor: const Color(NexoraColors.background),
       drawer: HistoryDrawer(
-        onSelectChat: (title) {
-          _handleSendMessage(title);
+        onSelectConversation: (convId, title) {
+          _loadExistingConversation(convId);
         },
         onNewChat: _startNewChat,
       ),
@@ -238,6 +334,14 @@ class _ChatScreenState extends State<ChatScreen> {
       body: SafeArea(
         child: Column(
           children: [
+            // Loading indicator for history
+            if (_isLoadingHistory)
+              const LinearProgressIndicator(
+                backgroundColor: Color(NexoraColors.background),
+                valueColor: AlwaysStoppedAnimation<Color>(Color(0xFF171717)),
+                minHeight: 2,
+              ),
+
             // Messages Area
             Expanded(
               child: ListView.builder(
@@ -253,13 +357,13 @@ class _ChatScreenState extends State<ChatScreen> {
                   }
 
                   final message = _messages[index];
-                  final isFirstAiGreeting = index == 0 && !message.isUser;
+                  final isFirstAiGreeting = index == 0 && !message.isUser && _messages.length == 1;
 
                   return Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
                       _buildMessageBubble(message),
-                      if (isFirstAiGreeting && _messages.length == 1) ...[
+                      if (isFirstAiGreeting) ...[
                         const SizedBox(height: NexoraSpacing.md),
                         _buildSuggestionChips(),
                       ],
@@ -530,7 +634,7 @@ class _ChatScreenState extends State<ChatScreen> {
   Widget _buildSearchResultCard(SearchResultItem item) {
     return Container(
       decoration: BoxDecoration(
-        color: const Color(0xFFFAF8F3), // Warm light container
+        color: const Color(NexoraColors.surface),
         borderRadius: BorderRadius.circular(14),
         border: Border.all(
           color: const Color(NexoraColors.border),
@@ -589,7 +693,7 @@ class _ChatScreenState extends State<ChatScreen> {
                     Container(
                       padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
                       decoration: BoxDecoration(
-                        color: const Color(0xFFE8E5DD),
+                        color: const Color(NexoraColors.gray2),
                         borderRadius: BorderRadius.circular(6),
                       ),
                       child: Text(

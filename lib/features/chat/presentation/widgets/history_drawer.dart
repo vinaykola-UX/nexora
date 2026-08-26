@@ -1,16 +1,18 @@
+import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
 import '../../../../core/theme/colors.dart';
 import '../../../../core/theme/spacing.dart';
 import '../../../../core/widgets/nexora_button.dart';
+import '../../data/chat_repository.dart';
 
-/// History Drawer matching Figma Mobile UI
+/// History Drawer displaying genuine persistent user conversations from Firestore
 class HistoryDrawer extends StatefulWidget {
-  final Function(String title)? onSelectChat;
+  final Function(String conversationId, String title)? onSelectConversation;
   final VoidCallback? onNewChat;
 
   const HistoryDrawer({
     Key? key,
-    this.onSelectChat,
+    this.onSelectConversation,
     this.onNewChat,
   }) : super(key: key);
 
@@ -19,28 +21,20 @@ class HistoryDrawer extends StatefulWidget {
 }
 
 class _HistoryDrawerState extends State<HistoryDrawer> {
-  final List<String> _pinnedChats = [
-    'BVC academic rules & credits',
-    'Placement stats 2024',
-    'Class timetable 3-1 CSE',
-  ];
+  final ChatRepository _chatRepository = ChatRepository();
 
-  final List<String> _recentChats = [
-    'Semester exams schedule',
-    'BVC bus timings & routes',
-    'Fee structure query',
-    'Campus recruitment training (CRT)',
-    'Library digital resources access',
-  ];
-
-  void _showChatActionsModal(BuildContext context, String chatTitle, bool isPinned) {
+  void _showChatActionsModal(
+    BuildContext context,
+    ChatConversation conversation,
+    String uid,
+  ) {
     showModalBottomSheet(
       context: context,
       backgroundColor: const Color(NexoraColors.surface),
       shape: const RoundedRectangleBorder(
         borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
       ),
-      builder: (context) => SafeArea(
+      builder: (modalContext) => SafeArea(
         child: Padding(
           padding: const EdgeInsets.symmetric(
             horizontal: NexoraSpacing.xl,
@@ -84,21 +78,17 @@ class _HistoryDrawerState extends State<HistoryDrawer> {
               // Pin / Unpin
               ListTile(
                 leading: Icon(
-                  isPinned ? Icons.push_pin_outlined : Icons.push_pin,
+                  conversation.isPinned ? Icons.push_pin_outlined : Icons.push_pin,
                   color: const Color(NexoraColors.text),
                 ),
-                title: Text(isPinned ? 'Unpin chat' : 'Pin to top'),
-                onTap: () {
-                  Navigator.pop(context);
-                  setState(() {
-                    if (isPinned) {
-                      _pinnedChats.remove(chatTitle);
-                      _recentChats.insert(0, chatTitle);
-                    } else {
-                      _recentChats.remove(chatTitle);
-                      _pinnedChats.insert(0, chatTitle);
-                    }
-                  });
+                title: Text(conversation.isPinned ? 'Unpin chat' : 'Pin to top'),
+                onTap: () async {
+                  Navigator.pop(modalContext);
+                  await _chatRepository.togglePinConversation(
+                    uid,
+                    conversation.id,
+                    !conversation.isPinned,
+                  );
                 },
                 contentPadding: EdgeInsets.zero,
               ),
@@ -111,8 +101,8 @@ class _HistoryDrawerState extends State<HistoryDrawer> {
                 ),
                 title: const Text('Rename'),
                 onTap: () {
-                  Navigator.pop(context);
-                  _showRenameDialog(context, chatTitle);
+                  Navigator.pop(modalContext);
+                  _showRenameDialog(context, conversation, uid);
                 },
                 contentPadding: EdgeInsets.zero,
               ),
@@ -128,11 +118,8 @@ class _HistoryDrawerState extends State<HistoryDrawer> {
                   style: TextStyle(color: Color(NexoraColors.error)),
                 ),
                 onTap: () {
-                  Navigator.pop(context);
-                  setState(() {
-                    _pinnedChats.remove(chatTitle);
-                    _recentChats.remove(chatTitle);
-                  });
+                  Navigator.pop(modalContext);
+                  _showDeleteConfirmDialog(context, conversation, uid);
                 },
                 contentPadding: EdgeInsets.zero,
               ),
@@ -143,11 +130,91 @@ class _HistoryDrawerState extends State<HistoryDrawer> {
     );
   }
 
-  void _showRenameDialog(BuildContext context, String oldTitle) {
-    final controller = TextEditingController(text: oldTitle);
+  void _showDeleteConfirmDialog(
+    BuildContext context,
+    ChatConversation conversation,
+    String uid,
+  ) {
     showDialog(
       context: context,
-      builder: (context) => AlertDialog(
+      builder: (dialogContext) => AlertDialog(
+        backgroundColor: const Color(NexoraColors.surface),
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
+        title: const Text(
+          'Delete Chat?',
+          style: TextStyle(
+            fontSize: 18,
+            fontWeight: FontWeight.bold,
+            color: Color(NexoraColors.text),
+          ),
+        ),
+        content: Text(
+          'Are you sure you want to permanently delete "${conversation.title}"? This cannot be undone.',
+          style: const TextStyle(
+            fontSize: 14,
+            color: Color(NexoraColors.textSecondary),
+          ),
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(dialogContext),
+            child: const Text(
+              'Cancel',
+              style: TextStyle(color: Color(NexoraColors.textSecondary)),
+            ),
+          ),
+          ElevatedButton(
+            onPressed: () async {
+              Navigator.pop(dialogContext);
+              try {
+                await _chatRepository.deleteConversation(uid, conversation.id);
+                if (mounted) {
+                  ScaffoldMessenger.of(context).showSnackBar(
+                    SnackBar(
+                      content: const Text('Conversation deleted'),
+                      behavior: SnackBarBehavior.floating,
+                      shape: RoundedRectangleBorder(
+                        borderRadius: BorderRadius.circular(12),
+                      ),
+                    ),
+                  );
+                }
+              } catch (e) {
+                if (mounted) {
+                  ScaffoldMessenger.of(context).showSnackBar(
+                    SnackBar(
+                      content: Text('Failed to delete conversation: $e'),
+                      backgroundColor: const Color(NexoraColors.error),
+                    ),
+                  );
+                }
+              }
+            },
+            style: ElevatedButton.styleFrom(
+              backgroundColor: const Color(NexoraColors.error),
+              foregroundColor: Colors.white,
+              shape: RoundedRectangleBorder(
+                borderRadius: BorderRadius.circular(100),
+              ),
+            ),
+            child: const Text('Delete'),
+          ),
+        ],
+      ),
+    );
+  }
+
+  void _showRenameDialog(
+    BuildContext context,
+    ChatConversation conversation,
+    String uid,
+  ) {
+    final controller = TextEditingController(text: conversation.title);
+    showDialog(
+      context: context,
+      builder: (dialogContext) => AlertDialog(
+        backgroundColor: const Color(NexoraColors.surface),
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
         title: const Text('Rename Chat'),
         content: TextField(
           controller: controller,
@@ -158,21 +225,18 @@ class _HistoryDrawerState extends State<HistoryDrawer> {
         ),
         actions: [
           TextButton(
-            onPressed: () => Navigator.pop(context),
+            onPressed: () => Navigator.pop(dialogContext),
             child: const Text('Cancel'),
           ),
           TextButton(
-            onPressed: () {
+            onPressed: () async {
               final newText = controller.text.trim();
               if (newText.isNotEmpty) {
-                setState(() {
-                  final pIdx = _pinnedChats.indexOf(oldTitle);
-                  if (pIdx != -1) _pinnedChats[pIdx] = newText;
-                  final rIdx = _recentChats.indexOf(oldTitle);
-                  if (rIdx != -1) _recentChats[rIdx] = newText;
-                });
+                await _chatRepository.renameConversation(uid, conversation.id, newText);
               }
-              Navigator.pop(context);
+              if (dialogContext.mounted) {
+                Navigator.pop(dialogContext);
+              }
             },
             child: const Text('Save'),
           ),
@@ -183,6 +247,9 @@ class _HistoryDrawerState extends State<HistoryDrawer> {
 
   @override
   Widget build(BuildContext context) {
+    final user = FirebaseAuth.instance.currentUser;
+    final uid = user?.uid ?? '';
+
     return Drawer(
       backgroundColor: const Color(NexoraColors.background),
       child: SafeArea(
@@ -212,30 +279,65 @@ class _HistoryDrawerState extends State<HistoryDrawer> {
             ),
             const Divider(color: Color(NexoraColors.divider), height: 1),
 
-            // Chat Lists (Pinned & Recent)
+            // Persistent Chat List Stream
             Expanded(
-              child: ListView(
-                padding: const EdgeInsets.symmetric(
-                  horizontal: NexoraSpacing.md,
-                  vertical: NexoraSpacing.md,
-                ),
-                children: [
-                  // PINNED Section
-                  if (_pinnedChats.isNotEmpty) ...[
-                    _buildSectionHeader('PINNED'),
-                    ..._pinnedChats.map(
-                      (title) => _buildChatItem(title, isPinned: true),
-                    ),
-                    const SizedBox(height: NexoraSpacing.lg),
-                  ],
+              child: uid.isEmpty
+                  ? _buildEmptyState('Please sign in to view your chat history.')
+                  : StreamBuilder<List<ChatConversation>>(
+                      stream: _chatRepository.streamConversations(uid),
+                      builder: (context, snapshot) {
+                        if (snapshot.connectionState == ConnectionState.waiting &&
+                            !snapshot.hasData) {
+                          return const Center(
+                            child: SizedBox(
+                              width: 24,
+                              height: 24,
+                              child: CircularProgressIndicator(
+                                strokeWidth: 2,
+                                valueColor: AlwaysStoppedAnimation<Color>(
+                                  Color(0xFF171717),
+                                ),
+                              ),
+                            ),
+                          );
+                        }
 
-                  // RECENT Section
-                  _buildSectionHeader('RECENT'),
-                  ..._recentChats.map(
-                    (title) => _buildChatItem(title, isPinned: false),
-                  ),
-                ],
-              ),
+                        final conversations = snapshot.data ?? [];
+                        if (conversations.isEmpty) {
+                          return _buildEmptyState(
+                            'No conversations yet.\nAsk a question to start saving your chat history.',
+                          );
+                        }
+
+                        final pinned = conversations.where((c) => c.isPinned).toList();
+                        final recent = conversations.where((c) => !c.isPinned).toList();
+
+                        return ListView(
+                          padding: const EdgeInsets.symmetric(
+                            horizontal: NexoraSpacing.md,
+                            vertical: NexoraSpacing.md,
+                          ),
+                          children: [
+                            // PINNED Section
+                            if (pinned.isNotEmpty) ...[
+                              _buildSectionHeader('PINNED'),
+                              ...pinned.map(
+                                (conv) => _buildChatItem(conv, uid, isPinned: true),
+                              ),
+                              const SizedBox(height: NexoraSpacing.lg),
+                            ],
+
+                            // RECENT Section
+                            if (recent.isNotEmpty) ...[
+                              _buildSectionHeader('RECENT'),
+                              ...recent.map(
+                                (conv) => _buildChatItem(conv, uid, isPinned: false),
+                              ),
+                            ],
+                          ],
+                        );
+                      },
+                    ),
             ),
 
             // Bottom Docked "+ New Chat" Button
@@ -272,6 +374,34 @@ class _HistoryDrawerState extends State<HistoryDrawer> {
     );
   }
 
+  Widget _buildEmptyState(String message) {
+    return Center(
+      child: Padding(
+        padding: const EdgeInsets.all(NexoraSpacing.xl),
+        child: Column(
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: [
+            const Icon(
+              Icons.chat_bubble_outline_rounded,
+              size: 40,
+              color: Color(NexoraColors.textMuted),
+            ),
+            const SizedBox(height: NexoraSpacing.md),
+            Text(
+              message,
+              textAlign: TextAlign.center,
+              style: const TextStyle(
+                fontSize: 13,
+                color: Color(NexoraColors.textSecondary),
+                height: 1.4,
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
   Widget _buildSectionHeader(String title) {
     return Padding(
       padding: const EdgeInsets.symmetric(
@@ -290,7 +420,11 @@ class _HistoryDrawerState extends State<HistoryDrawer> {
     );
   }
 
-  Widget _buildChatItem(String title, {required bool isPinned}) {
+  Widget _buildChatItem(
+    ChatConversation conversation,
+    String uid, {
+    required bool isPinned,
+  }) {
     return Container(
       margin: const EdgeInsets.only(bottom: NexoraSpacing.xs),
       decoration: BoxDecoration(
@@ -311,11 +445,11 @@ class _HistoryDrawerState extends State<HistoryDrawer> {
           isPinned ? Icons.push_pin_rounded : Icons.chat_bubble_outline_rounded,
           size: 18,
           color: isPinned
-              ? const Color(NexoraColors.primaryDark)
+              ? const Color(0xFF171717)
               : const Color(NexoraColors.textSecondary),
         ),
         title: Text(
-          title,
+          conversation.title,
           style: const TextStyle(
             fontSize: 14,
             fontWeight: FontWeight.w500,
@@ -324,17 +458,28 @@ class _HistoryDrawerState extends State<HistoryDrawer> {
           maxLines: 1,
           overflow: TextOverflow.ellipsis,
         ),
+        subtitle: conversation.lastMessage != null
+            ? Text(
+                conversation.lastMessage!,
+                style: const TextStyle(
+                  fontSize: 11.5,
+                  color: Color(NexoraColors.textMuted),
+                ),
+                maxLines: 1,
+                overflow: TextOverflow.ellipsis,
+              )
+            : null,
         trailing: IconButton(
           icon: const Icon(
             Icons.more_horiz,
             size: 18,
             color: Color(NexoraColors.textMuted),
           ),
-          onPressed: () => _showChatActionsModal(context, title, isPinned),
+          onPressed: () => _showChatActionsModal(context, conversation, uid),
         ),
         onTap: () {
           Navigator.pop(context);
-          widget.onSelectChat?.call(title);
+          widget.onSelectConversation?.call(conversation.id, conversation.title);
         },
       ),
     );

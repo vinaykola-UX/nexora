@@ -8,7 +8,8 @@ import '../../../../core/widgets/nexora_sparkle_icon.dart';
 import '../../../authentication/data/auth_service.dart';
 import '../../../profile/data/student_profile_repository.dart';
 
-/// Splash screen - shown during app initialization
+/// Splash screen - shown only during Firebase initialization.
+/// Navigates as soon as auth state is known — no artificial delays.
 class SplashScreen extends StatefulWidget {
   const SplashScreen({Key? key}) : super(key: key);
 
@@ -16,22 +17,27 @@ class SplashScreen extends StatefulWidget {
   State<SplashScreen> createState() => _SplashScreenState();
 }
 
-class _SplashScreenState extends State<SplashScreen> with SingleTickerProviderStateMixin {
+class _SplashScreenState extends State<SplashScreen>
+    with SingleTickerProviderStateMixin {
   late AnimationController _controller;
   late Animation<double> _scaleAnimation;
   late Animation<double> _fadeAnimation;
+
   final AuthService _authService = AuthService();
-  final StudentProfileRepository _profileRepository = StudentProfileRepository();
+  final StudentProfileRepository _profileRepository =
+      StudentProfileRepository();
 
   @override
   void initState() {
     super.initState();
+
+    // Short logo entry animation (600ms) — no blocking delay
     _controller = AnimationController(
       vsync: this,
-      duration: const Duration(milliseconds: 1200),
+      duration: const Duration(milliseconds: 600),
     );
 
-    _scaleAnimation = Tween<double>(begin: 0.85, end: 1.0).animate(
+    _scaleAnimation = Tween<double>(begin: 0.88, end: 1.0).animate(
       CurvedAnimation(parent: _controller, curve: Curves.easeOutCubic),
     );
 
@@ -40,6 +46,8 @@ class _SplashScreenState extends State<SplashScreen> with SingleTickerProviderSt
     );
 
     _controller.forward();
+
+    // Navigate as soon as auth check is done — no arbitrary wait
     _navigateNext();
   }
 
@@ -50,25 +58,31 @@ class _SplashScreenState extends State<SplashScreen> with SingleTickerProviderSt
   }
 
   Future<void> _navigateNext() async {
-    await Future.delayed(const Duration(seconds: 2));
+    // Only wait for the minimal animation so the logo is visible briefly
+    await Future.delayed(const Duration(milliseconds: 600));
     if (!mounted) return;
 
     final user = _authService.currentUser;
-    if (user != null && _authService.isAuthenticatedAndValid && user.emailVerified) {
-      try {
-        final isComplete = await _profileRepository.isProfileComplete(user.uid);
-        if (!mounted) return;
 
-        if (isComplete) {
-          context.go(RoutePaths.startChat);
-        } else {
-          context.go(RoutePaths.classSetup);
-        }
-      } catch (_) {
-        if (mounted) context.go(RoutePaths.startChat);
+    // Not logged in → onboarding/login
+    if (user == null || !_authService.isAuthenticatedAndValid || !user.emailVerified) {
+      if (mounted) context.go(RoutePaths.onboarding);
+      return;
+    }
+
+    // Logged in → check profile completion (non-blocking Firestore read)
+    try {
+      final isComplete = await _profileRepository.isProfileComplete(user.uid);
+      if (!mounted) return;
+
+      if (isComplete) {
+        context.go(RoutePaths.startChat);
+      } else {
+        context.go(RoutePaths.classSetup);
       }
-    } else {
-      context.go(RoutePaths.onboarding);
+    } catch (_) {
+      // On Firestore error, send to main screen and let the app handle gracefully
+      if (mounted) context.go(RoutePaths.startChat);
     }
   }
 

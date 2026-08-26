@@ -1,4 +1,4 @@
-import 'package:flutter/material.dart';
+ï»¿import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
@@ -139,7 +139,7 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
         : 'ST';
 
     final studentProfile = profileAsync.value;
-    final rollNumber = studentProfile?.rollNumber ?? (user?.email != null ? user!.email!.split('@').first.toUpperCase() : '—');
+    final rollNumber = studentProfile?.rollNumber ?? (user?.email != null ? user!.email!.split('@').first.toUpperCase() : 'ï¿½');
     final academicYearLabel = studentProfile?.academicYearLabel ?? 'B.Tech Student';
     final studentClass = studentProfile?.studentClass;
     final section = studentProfile?.section;
@@ -196,7 +196,7 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
                       width: 58,
                       height: 58,
                       decoration: const BoxDecoration(
-                        color: Color(0xFFFFD580),
+                        color: Color(NexoraColors.primary),
                         shape: BoxShape.circle,
                       ),
                       child: Center(
@@ -205,7 +205,7 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
                           style: const TextStyle(
                             fontSize: 20,
                             fontWeight: FontWeight.bold,
-                            color: Color(0xFF4A3B2C),
+                            color: Colors.white,
                           ),
                         ),
                       ),
@@ -316,9 +316,9 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
                       const SizedBox(height: 8),
                       _buildDetailRow('Academic Year', studentProfile.academicYearLabel),
                       const SizedBox(height: 8),
-                      _buildDetailRow('Class / Branch', studentClass ?? '—'),
+                      _buildDetailRow('Class / Branch', studentClass ?? 'ï¿½'),
                       const SizedBox(height: 8),
-                      _buildDetailRow('Section', section ?? '—'),
+                      _buildDetailRow('Section', section ?? 'ï¿½'),
                       const SizedBox(height: 8),
                       _buildDetailRow('College', studentProfile.college),
                     ],
@@ -518,3 +518,4 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
     );
   }
 }
+

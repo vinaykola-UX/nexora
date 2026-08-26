@@ -1,4 +1,4 @@
-import 'package:firebase_auth/firebase_auth.dart';
+ï»¿import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
 
@@ -79,7 +79,7 @@ class _ClassSetupScreenState extends State<ClassSetupScreen> {
         shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
         title: const Row(
           children: [
-            Icon(Icons.warning_amber_rounded, color: Color(NexoraColors.warning), size: 28),
+            Icon(Icons.info_outline, color: Color(NexoraColors.primary), size: 28),
             SizedBox(width: NexoraSpacing.sm),
             Text(
               'Confirm Details',
@@ -366,11 +366,11 @@ class _ClassSetupScreenState extends State<ClassSetupScreen> {
                       ],
                     ),
                     const Divider(color: Color(NexoraColors.divider), height: 20),
-                    _buildIdentityDetailRow('Roll Number', _identity?.rollNumber ?? '—'),
+                    _buildIdentityDetailRow('Roll Number', _identity?.rollNumber ?? 'ï¿½'),
                     const SizedBox(height: 8),
-                    _buildIdentityDetailRow('Batch', '${_identity?.batchCode ?? '—'} Batch'),
+                    _buildIdentityDetailRow('Batch', '${_identity?.batchCode ?? 'ï¿½'} Batch'),
                     const SizedBox(height: 8),
-                    _buildIdentityDetailRow('Current Year', _identity?.academicYearLabel ?? '—'),
+                    _buildIdentityDetailRow('Current Year', _identity?.academicYearLabel ?? 'ï¿½'),
                     const SizedBox(height: 8),
                     _buildIdentityDetailRow('College', _identity?.college ?? 'BVC Engineering College'),
                   ],
@@ -426,7 +426,7 @@ class _ClassSetupScreenState extends State<ClassSetupScreen> {
                       return DropdownMenuItem<String>(
                         value: branch.code,
                         child: Text(
-                          '${branch.code} — ${branch.name}',
+                          '${branch.code} ï¿½ ${branch.name}',
                           style: const TextStyle(
                             fontSize: 14,
                             fontWeight: FontWeight.w500,
@@ -585,3 +585,4 @@ class _ClassSetupScreenState extends State<ClassSetupScreen> {
     );
   }
 }
+
