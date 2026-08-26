@@ -38,6 +38,11 @@ class _ChatScreenState extends State<ChatScreen> {
   bool _isLoadingHistory = false;
   String? _currentConversationId;
 
+  String get _currentUid {
+    final user = FirebaseAuth.instance.currentUser;
+    return (user != null && user.uid.isNotEmpty) ? user.uid : 'guest_student';
+  }
+
   final List<String> _suggestionChips = [
     'BR23 exam notification',
     'internal assessment BR23',
@@ -76,12 +81,6 @@ class _ChatScreenState extends State<ChatScreen> {
   }
 
   Future<void> _loadExistingConversation(String conversationId) async {
-    final user = FirebaseAuth.instance.currentUser;
-    if (user == null) {
-      _showInitialGreeting();
-      return;
-    }
-
     setState(() {
       _isLoadingHistory = true;
       _currentConversationId = conversationId;
@@ -89,7 +88,7 @@ class _ChatScreenState extends State<ChatScreen> {
     });
 
     try {
-      final persistedMessages = await _chatRepository.getMessages(user.uid, conversationId);
+      final persistedMessages = await _chatRepository.getMessages(_currentUid, conversationId);
       if (!mounted) return;
 
       if (persistedMessages.isEmpty) {
@@ -129,11 +128,10 @@ class _ChatScreenState extends State<ChatScreen> {
     final query = text.trim();
     if (query.isEmpty || _isTyping) return;
 
-    final user = FirebaseAuth.instance.currentUser;
-    final uid = user?.uid ?? '';
+    final uid = _currentUid;
 
-    // Create conversation in Firestore if it doesn't exist yet
-    if (_currentConversationId == null && uid.isNotEmpty) {
+    // Create conversation if it doesn't exist yet
+    if (_currentConversationId == null) {
       try {
         _currentConversationId = await _chatRepository.createConversation(
           uid,
@@ -160,9 +158,9 @@ class _ChatScreenState extends State<ChatScreen> {
 
     _scrollToBottom();
 
-    // Persist user message to Firestore
-    if (uid.isNotEmpty && _currentConversationId != null) {
-      _chatRepository.saveMessage(
+    // Persist user message immediately
+    if (_currentConversationId != null) {
+      await _chatRepository.saveMessage(
         uid,
         _currentConversationId!,
         text: query,
@@ -206,9 +204,9 @@ class _ChatScreenState extends State<ChatScreen> {
         _messages.add(aiMsg);
       });
 
-      // Persist AI response to Firestore
-      if (uid.isNotEmpty && _currentConversationId != null) {
-        _chatRepository.saveMessage(
+      // Persist AI response
+      if (_currentConversationId != null) {
+        await _chatRepository.saveMessage(
           uid,
           _currentConversationId!,
           text: aiText,
@@ -234,8 +232,8 @@ class _ChatScreenState extends State<ChatScreen> {
         _messages.add(aiMsg);
       });
 
-      if (uid.isNotEmpty && _currentConversationId != null) {
-        _chatRepository.saveMessage(
+      if (_currentConversationId != null) {
+        await _chatRepository.saveMessage(
           uid,
           _currentConversationId!,
           text: errorText,
@@ -306,6 +304,7 @@ class _ChatScreenState extends State<ChatScreen> {
         scrolledUnderElevation: 0,
         leading: IconButton(
           icon: const Icon(Icons.menu_rounded, color: Color(NexoraColors.text), size: 26),
+          tooltip: 'Chat History',
           onPressed: () => _scaffoldKey.currentState?.openDrawer(),
         ),
         title: const Text(

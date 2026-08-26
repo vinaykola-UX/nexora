@@ -5,17 +5,30 @@ import '../../../../core/theme/spacing.dart';
 import '../../../../core/widgets/nexora_button.dart';
 import '../../../../core/widgets/nexora_sparkle_icon.dart';
 import '../../../../app/router/app_router.dart';
+import '../widgets/history_drawer.dart';
 
 /// Start Chat screen matching Figma Mobile UI ("How can I help you today?")
-class StartChatScreen extends StatelessWidget {
+/// Includes drawer access to view and resume persistent chat history
+class StartChatScreen extends StatefulWidget {
   const StartChatScreen({Key? key}) : super(key: key);
 
-  void _navigateToChat(BuildContext context, [String? initialPrompt]) {
+  @override
+  State<StartChatScreen> createState() => _StartChatScreenState();
+}
+
+class _StartChatScreenState extends State<StartChatScreen> {
+  final GlobalKey<ScaffoldState> _scaffoldKey = GlobalKey<ScaffoldState>();
+
+  void _navigateToChat([String? initialPrompt]) {
     if (initialPrompt != null) {
-      context.go(RoutePaths.chat, extra: initialPrompt);
+      context.push(RoutePaths.chat, extra: initialPrompt);
     } else {
-      context.go(RoutePaths.chat);
+      context.push(RoutePaths.chat);
     }
+  }
+
+  void _navigateToExistingChat(String conversationId, String title) {
+    context.push('${RoutePaths.chat}/$conversationId');
   }
 
   @override
@@ -48,11 +61,25 @@ class StartChatScreen extends StatelessWidget {
     ];
 
     return Scaffold(
+      key: _scaffoldKey,
       backgroundColor: const Color(NexoraColors.background),
+      drawer: HistoryDrawer(
+        onSelectConversation: (convId, title) {
+          _navigateToExistingChat(convId, title);
+        },
+        onNewChat: () {
+          _navigateToChat();
+        },
+      ),
       appBar: AppBar(
         backgroundColor: const Color(NexoraColors.background),
         elevation: 0,
         scrolledUnderElevation: 0,
+        leading: IconButton(
+          icon: const Icon(Icons.menu_rounded, color: Color(NexoraColors.text), size: 26),
+          tooltip: 'Chat History',
+          onPressed: () => _scaffoldKey.currentState?.openDrawer(),
+        ),
         centerTitle: false,
         title: const Text(
           'Nexora AI',
@@ -65,6 +92,7 @@ class StartChatScreen extends StatelessWidget {
         actions: [
           IconButton(
             icon: const Icon(Icons.person_outline, color: Color(NexoraColors.text)),
+            tooltip: 'Profile',
             onPressed: () => context.push(RoutePaths.profile),
           ),
           const SizedBox(width: NexoraSpacing.sm),
@@ -128,7 +156,7 @@ class StartChatScreen extends StatelessWidget {
                   itemBuilder: (context, index) {
                     final item = topics[index];
                     return GestureDetector(
-                      onTap: () => _navigateToChat(context, item['prompt'] as String),
+                      onTap: () => _navigateToChat(item['prompt'] as String),
                       child: Container(
                         padding: const EdgeInsets.all(NexoraSpacing.lg),
                         decoration: BoxDecoration(
@@ -205,7 +233,7 @@ class StartChatScreen extends StatelessWidget {
                 padding: const EdgeInsets.only(top: NexoraSpacing.md, bottom: NexoraSpacing.sm),
                 child: NexoraButton(
                   label: 'Start Chat',
-                  onPressed: () => _navigateToChat(context),
+                  onPressed: () => _navigateToChat(),
                   width: double.infinity,
                   height: 54,
                   backgroundColor: const Color(0xFF171717),

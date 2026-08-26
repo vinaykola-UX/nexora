@@ -5,7 +5,7 @@ import '../../../../core/theme/spacing.dart';
 import '../../../../core/widgets/nexora_button.dart';
 import '../../data/chat_repository.dart';
 
-/// History Drawer displaying genuine persistent user conversations from Firestore
+/// History Drawer displaying genuine persistent user conversations from Firestore & local storage
 class HistoryDrawer extends StatefulWidget {
   final Function(String conversationId, String title)? onSelectConversation;
   final VoidCallback? onNewChat;
@@ -22,6 +22,11 @@ class HistoryDrawer extends StatefulWidget {
 
 class _HistoryDrawerState extends State<HistoryDrawer> {
   final ChatRepository _chatRepository = ChatRepository();
+
+  String get _currentUid {
+    final user = FirebaseAuth.instance.currentUser;
+    return (user != null && user.uid.isNotEmpty) ? user.uid : 'guest_student';
+  }
 
   void _showChatActionsModal(
     BuildContext context,
@@ -247,8 +252,7 @@ class _HistoryDrawerState extends State<HistoryDrawer> {
 
   @override
   Widget build(BuildContext context) {
-    final user = FirebaseAuth.instance.currentUser;
-    final uid = user?.uid ?? '';
+    final uid = _currentUid;
 
     return Drawer(
       backgroundColor: const Color(NexoraColors.background),
@@ -281,63 +285,61 @@ class _HistoryDrawerState extends State<HistoryDrawer> {
 
             // Persistent Chat List Stream
             Expanded(
-              child: uid.isEmpty
-                  ? _buildEmptyState('Please sign in to view your chat history.')
-                  : StreamBuilder<List<ChatConversation>>(
-                      stream: _chatRepository.streamConversations(uid),
-                      builder: (context, snapshot) {
-                        if (snapshot.connectionState == ConnectionState.waiting &&
-                            !snapshot.hasData) {
-                          return const Center(
-                            child: SizedBox(
-                              width: 24,
-                              height: 24,
-                              child: CircularProgressIndicator(
-                                strokeWidth: 2,
-                                valueColor: AlwaysStoppedAnimation<Color>(
-                                  Color(0xFF171717),
-                                ),
-                              ),
-                            ),
-                          );
-                        }
-
-                        final conversations = snapshot.data ?? [];
-                        if (conversations.isEmpty) {
-                          return _buildEmptyState(
-                            'No conversations yet.\nAsk a question to start saving your chat history.',
-                          );
-                        }
-
-                        final pinned = conversations.where((c) => c.isPinned).toList();
-                        final recent = conversations.where((c) => !c.isPinned).toList();
-
-                        return ListView(
-                          padding: const EdgeInsets.symmetric(
-                            horizontal: NexoraSpacing.md,
-                            vertical: NexoraSpacing.md,
+              child: StreamBuilder<List<ChatConversation>>(
+                stream: _chatRepository.streamConversations(uid),
+                builder: (context, snapshot) {
+                  if (snapshot.connectionState == ConnectionState.waiting &&
+                      !snapshot.hasData) {
+                    return const Center(
+                      child: SizedBox(
+                        width: 24,
+                        height: 24,
+                        child: CircularProgressIndicator(
+                          strokeWidth: 2,
+                          valueColor: AlwaysStoppedAnimation<Color>(
+                            Color(0xFF171717),
                           ),
-                          children: [
-                            // PINNED Section
-                            if (pinned.isNotEmpty) ...[
-                              _buildSectionHeader('PINNED'),
-                              ...pinned.map(
-                                (conv) => _buildChatItem(conv, uid, isPinned: true),
-                              ),
-                              const SizedBox(height: NexoraSpacing.lg),
-                            ],
+                        ),
+                      ),
+                    );
+                  }
 
-                            // RECENT Section
-                            if (recent.isNotEmpty) ...[
-                              _buildSectionHeader('RECENT'),
-                              ...recent.map(
-                                (conv) => _buildChatItem(conv, uid, isPinned: false),
-                              ),
-                            ],
-                          ],
-                        );
-                      },
+                  final conversations = snapshot.data ?? [];
+                  if (conversations.isEmpty) {
+                    return _buildEmptyState(
+                      'No conversations yet.\nAsk a question to start saving your chat history.',
+                    );
+                  }
+
+                  final pinned = conversations.where((c) => c.isPinned).toList();
+                  final recent = conversations.where((c) => !c.isPinned).toList();
+
+                  return ListView(
+                    padding: const EdgeInsets.symmetric(
+                      horizontal: NexoraSpacing.md,
+                      vertical: NexoraSpacing.md,
                     ),
+                    children: [
+                      // PINNED Section
+                      if (pinned.isNotEmpty) ...[
+                        _buildSectionHeader('PINNED'),
+                        ...pinned.map(
+                          (conv) => _buildChatItem(conv, uid, isPinned: true),
+                        ),
+                        const SizedBox(height: NexoraSpacing.lg),
+                      ],
+
+                      // RECENT Section
+                      if (recent.isNotEmpty) ...[
+                        _buildSectionHeader('RECENT'),
+                        ...recent.map(
+                          (conv) => _buildChatItem(conv, uid, isPinned: false),
+                        ),
+                      ],
+                    ],
+                  );
+                },
+              ),
             ),
 
             // Bottom Docked "+ New Chat" Button
