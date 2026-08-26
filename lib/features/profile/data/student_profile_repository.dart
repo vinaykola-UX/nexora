@@ -1,4 +1,5 @@
 import 'package:cloud_firestore/cloud_firestore.dart';
+import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/foundation.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
@@ -17,7 +18,7 @@ class NexoraProfileException implements Exception {
   String toString() => message;
 }
 
-/// Repository responsible for reading and writing student profiles in Firestore (`users/{uid}`)
+/// Repository responsible for reading and writing student profiles in Firestore (`students/{uid}`)
 class StudentProfileRepository {
   final FirebaseFirestore? _injectedFirestore;
 
@@ -26,20 +27,28 @@ class StudentProfileRepository {
 
   FirebaseFirestore get _firestore => _injectedFirestore ?? FirebaseFirestore.instance;
 
-  CollectionReference<Map<String, dynamic>> get _usersRef =>
-      _firestore.collection('users');
+  CollectionReference<Map<String, dynamic>> get _studentsRef =>
+      _firestore.collection('students');
 
   /// Retrieve the [StudentProfile] for a given [uid].
   /// Returns `null` if the document does not exist.
   Future<StudentProfile?> getProfile(String uid) async {
     try {
-      final doc = await _usersRef.doc(uid).get();
+      debugPrint('[StudentProfileRepository] Loading profile from students/$uid');
+      final doc = await _studentsRef.doc(uid).get();
       if (!doc.exists || doc.data() == null) {
+        debugPrint('[StudentProfileRepository] No profile found at students/$uid');
         return null;
       }
       return StudentProfile.fromFirestore(doc);
     } on FirebaseException catch (e) {
-      debugPrint('[StudentProfileRepository] getProfile FirebaseException: ${e.code} - ${e.message}');
+      debugPrint(
+        '[StudentProfileRepository] getProfile FirebaseException:\n'
+        '  - Type: ${e.runtimeType}\n'
+        '  - Code: ${e.code}\n'
+        '  - Message: ${e.message}\n'
+        '  - Path: students/$uid',
+      );
       throw NexoraProfileException(
         'Unable to load your profile. Please check your connection.',
         code: e.code,
@@ -64,7 +73,8 @@ class StudentProfileRepository {
   }
 
   /// Complete one-time profile setup with class and section.
-  /// Automatically extracts identity from [email], merges into Firestore, and marks profileSetupCompleted = true.
+  /// Automatically extracts identity from [email], merges into Firestore `students/{uid}`,
+  /// and marks profileSetupCompleted = true.
   Future<StudentProfile> completeProfileSetup({
     required String uid,
     required String email,
@@ -82,18 +92,19 @@ class StudentProfileRepository {
 
     if (studentClass.trim().isEmpty || section.trim().isEmpty) {
       throw const NexoraProfileException(
-        'Please select both Class and Section to proceed.',
+        'Please select both Class/Branch and Section to proceed.',
         code: 'missing-class-section',
       );
     }
 
     try {
-      final docRef = _usersRef.doc(uid);
+      final docRef = _studentsRef.doc(uid);
+      debugPrint('[StudentProfileRepository] Checking existing profile at students/$uid');
       final existingDoc = await docRef.get();
 
       // If already complete, prevent modifying immutable fields
       if (existingDoc.exists && existingDoc.data()?['profileSetupCompleted'] == true) {
-        debugPrint('[StudentProfileRepository] Profile already completed for $uid');
+        debugPrint('[StudentProfileRepository] Profile already completed for $uid at students/$uid');
         return StudentProfile.fromFirestore(existingDoc);
       }
 
@@ -113,16 +124,31 @@ class StudentProfileRepository {
         updatedAt: DateTime.now(),
       );
 
-      // Save to Firestore using set with merge to preserve existing data safely
-      await docRef.set(profile.toMap(forUpdate: existingDoc.exists), SetOptions(merge: true));
+      final mapData = profile.toMap(forUpdate: existingDoc.exists);
+      debugPrint('[StudentProfileRepository] Writing profile to students/$uid:\n$mapData');
 
-      debugPrint('[StudentProfileRepository] Successfully completed profile for ${profile.rollNumber} ($uid)');
+      // Save to Firestore using set with merge to preserve existing data safely
+      await docRef.set(mapData, SetOptions(merge: true));
+
+      debugPrint('[StudentProfileRepository] Successfully completed profile for ${profile.rollNumber} ($uid) at students/$uid');
       return profile;
     } on FirebaseException catch (e) {
-      debugPrint('[StudentProfileRepository] saveProfile FirebaseException: ${e.code} - ${e.message}');
+      final currentUser = FirebaseAuth.instance.currentUser;
+      debugPrint(
+        '═══════════════════════════════════════════════════════════════════════\n'
+        '[StudentProfileRepository] Firestore Write Error:\n'
+        '  - Exception Type : ${e.runtimeType}\n'
+        '  - Firebase Code  : ${e.code}\n'
+        '  - Error Message  : ${e.message}\n'
+        '  - Target Path    : students/$uid\n'
+        '  - Auth UID       : ${currentUser?.uid}\n'
+        '  - User Email     : ${currentUser?.email}\n'
+        '  - Email Verified : ${currentUser?.emailVerified}\n'
+        '═══════════════════════════════════════════════════════════════════════',
+      );
       if (e.code == 'permission-denied') {
         throw const NexoraProfileException(
-          'Permission denied. Please ensure you are logged in with your verified BVC account.',
+          'Unable to save profile due to database permissions. Please contact administrator.',
           code: 'permission-denied',
         );
       } else if (e.code == 'unavailable') {
@@ -135,8 +161,8 @@ class StudentProfileRepository {
         e.message ?? 'Failed to save student profile. Please try again.',
         code: e.code,
       );
-    } catch (e) {
-      debugPrint('[StudentProfileRepository] Unexpected saveProfile error: $e');
+    } catch (e, stackTrace) {
+      debugPrint('[StudentProfileRepository] Unexpected saveProfile error: $e\n$stackTrace');
       throw const NexoraProfileException(
         'An unexpected error occurred while saving your profile. Please try again.',
         code: 'unknown',

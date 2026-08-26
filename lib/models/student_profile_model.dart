@@ -1,7 +1,7 @@
 import 'package:cloud_firestore/cloud_firestore.dart';
 import '../core/constants/app_constants.dart';
 
-/// Student profile model representing documents stored at `users/{uid}` in Cloud Firestore
+/// Student profile model representing documents stored at `students/{uid}` in Cloud Firestore
 class StudentProfile {
   final String uid;
   final String email;
@@ -47,16 +47,20 @@ class StudentProfile {
       return null;
     }
 
+    final branchVal = data['branch'] as String? ?? data['class'] as String? ?? '';
+    final currentYearVal = data['currentYear'] as String? ?? data['academicYearLabel'] as String? ?? '';
+    final batchVal = data['batch'] as String? ?? data['batchCode'] as String? ?? '';
+
     return StudentProfile(
       uid: data['uid'] as String? ?? uid,
       email: (data['email'] as String? ?? '').toLowerCase(),
       rollNumber: (data['rollNumber'] as String? ?? '').toUpperCase(),
-      batchCode: data['batchCode'] as String? ?? '',
+      batchCode: batchVal,
       academicYear: data['academicYear'] is int
           ? data['academicYear'] as int
           : int.tryParse(data['academicYear']?.toString() ?? '0') ?? 0,
-      academicYearLabel: data['academicYearLabel'] as String? ?? '',
-      studentClass: data['class'] as String? ?? '',
+      academicYearLabel: currentYearVal,
+      studentClass: branchVal,
       section: data['section'] as String? ?? '',
       role: data['role'] as String? ?? 'student',
       college: data['college'] as String? ?? AppConstants.collegeName,
@@ -66,15 +70,16 @@ class StudentProfile {
     );
   }
 
-  /// Convert to Firestore-compatible Map
+  /// Convert to Firestore-compatible Map matching students/{uid} schema
   Map<String, dynamic> toMap({bool forUpdate = false}) {
     final map = <String, dynamic>{
       'uid': uid,
       'email': email.toLowerCase(),
       'rollNumber': rollNumber.toUpperCase(),
-      'batchCode': batchCode,
+      'batch': batchCode,
+      'currentYear': academicYearLabel,
       'academicYear': academicYear,
-      'academicYearLabel': academicYearLabel,
+      'branch': studentClass,
       'class': studentClass,
       'section': section,
       'role': role,
@@ -126,6 +131,6 @@ class StudentProfile {
 
   @override
   String toString() {
-    return 'StudentProfile(uid: $uid, roll: $rollNumber, class: $studentClass, section: $section, completed: $profileSetupCompleted)';
+    return 'StudentProfile(uid: $uid, roll: $rollNumber, branch: $studentClass, section: $section, completed: $profileSetupCompleted)';
   }
 }
