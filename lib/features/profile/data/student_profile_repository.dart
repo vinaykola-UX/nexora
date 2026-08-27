@@ -25,7 +25,8 @@ class StudentProfileRepository {
   StudentProfileRepository({FirebaseFirestore? firestore})
       : _injectedFirestore = firestore;
 
-  FirebaseFirestore get _firestore => _injectedFirestore ?? FirebaseFirestore.instance;
+  FirebaseFirestore get _firestore =>
+      _injectedFirestore ?? FirebaseFirestore.instance;
 
   CollectionReference<Map<String, dynamic>> get _studentsRef =>
       _firestore.collection('students');
@@ -34,10 +35,12 @@ class StudentProfileRepository {
   /// Returns `null` if the document does not exist.
   Future<StudentProfile?> getProfile(String uid) async {
     try {
-      debugPrint('[StudentProfileRepository] Loading profile from students/$uid');
+      debugPrint(
+          '[StudentProfileRepository] Loading profile from students/$uid');
       final doc = await _studentsRef.doc(uid).get();
       if (!doc.exists || doc.data() == null) {
-        debugPrint('[StudentProfileRepository] No profile found at students/$uid');
+        debugPrint(
+            '[StudentProfileRepository] No profile found at students/$uid');
         return null;
       }
       return StudentProfile.fromFirestore(doc);
@@ -110,7 +113,8 @@ class StudentProfileRepository {
       await currentUser.reload();
     } catch (_) {
       // Non-fatal: proceed even if reload fails (offline scenario)
-      debugPrint('[StudentProfileRepository] Warning: user.reload() failed — proceeding with cached auth state.');
+      debugPrint(
+          '[StudentProfileRepository] Warning: user.reload() failed — proceeding with cached auth state.');
     }
 
     // Re-fetch after reload to get the latest emailVerified state
@@ -139,12 +143,15 @@ class StudentProfileRepository {
 
     try {
       final docRef = _studentsRef.doc(freshUser.uid);
-      debugPrint('[StudentProfileRepository] Checking existing profile at students/${freshUser.uid}');
+      debugPrint(
+          '[StudentProfileRepository] Checking existing profile at students/${freshUser.uid}');
       final existingDoc = await docRef.get();
 
       // If already complete, prevent modifying immutable fields
-      if (existingDoc.exists && existingDoc.data()?['profileSetupCompleted'] == true) {
-        debugPrint('[StudentProfileRepository] Profile already completed for ${freshUser.uid} at students/${freshUser.uid}');
+      if (existingDoc.exists &&
+          existingDoc.data()?['profileSetupCompleted'] == true) {
+        debugPrint(
+            '[StudentProfileRepository] Profile already completed for ${freshUser.uid} at students/${freshUser.uid}');
         return StudentProfile.fromFirestore(existingDoc);
       }
 
@@ -165,7 +172,8 @@ class StudentProfileRepository {
       );
 
       final mapData = profile.toMap(forUpdate: existingDoc.exists);
-      debugPrint('[StudentProfileRepository] Writing profile to students/${freshUser.uid}:\n$mapData');
+      debugPrint(
+          '[StudentProfileRepository] Writing profile to students/${freshUser.uid}:\n$mapData');
 
       // Save to Firestore — use set (no merge) on first creation to satisfy security rule hasAll check
       if (!existingDoc.exists) {
@@ -174,7 +182,8 @@ class StudentProfileRepository {
         await docRef.set(mapData, SetOptions(merge: true));
       }
 
-      debugPrint('[StudentProfileRepository] Successfully completed profile for ${profile.rollNumber} (${freshUser.uid}) at students/${freshUser.uid}');
+      debugPrint(
+          '[StudentProfileRepository] Successfully completed profile for ${profile.rollNumber} (${freshUser.uid}) at students/${freshUser.uid}');
       return profile;
     } on FirebaseException catch (e) {
       final logUser = FirebaseAuth.instance.currentUser;
@@ -192,7 +201,9 @@ class StudentProfileRepository {
       );
       if (e.code == 'permission-denied') {
         // In debug mode, include the code so we can see exactly what Firestore rejected
-        final detail = kDebugMode ? ' [code: permission-denied] — Deploy Firestore rules in Firebase Console.' : '';
+        final detail = kDebugMode
+            ? ' [code: permission-denied] — Deploy Firestore rules in Firebase Console.'
+            : '';
         throw NexoraProfileException(
           'Unable to save profile: database rules rejected this request.$detail',
           code: 'permission-denied',
@@ -213,7 +224,8 @@ class StudentProfileRepository {
         code: e.code,
       );
     } catch (e, stackTrace) {
-      debugPrint('[StudentProfileRepository] Unexpected saveProfile error: $e\n$stackTrace');
+      debugPrint(
+          '[StudentProfileRepository] Unexpected saveProfile error: $e\n$stackTrace');
       throw const NexoraProfileException(
         'An unexpected error occurred while saving your profile. Please try again.',
         code: 'unknown',
@@ -226,12 +238,14 @@ class StudentProfileRepository {
 // Riverpod Providers
 // ---------------------------------------------------------------------------
 
-final studentProfileRepositoryProvider = Provider<StudentProfileRepository>((ref) {
+final studentProfileRepositoryProvider =
+    Provider<StudentProfileRepository>((ref) {
   return StudentProfileRepository();
 });
 
 /// Future provider to fetch the current student profile
-final currentStudentProfileProvider = FutureProvider<StudentProfile?>((ref) async {
+final currentStudentProfileProvider =
+    FutureProvider<StudentProfile?>((ref) async {
   final repository = ref.watch(studentProfileRepositoryProvider);
   final authState = ref.watch(authStateProvider).value;
   if (authState == null) return null;

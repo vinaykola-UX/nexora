@@ -4,7 +4,9 @@ import 'package:nexora/models/student_profile_model.dart';
 
 void main() {
   group('StudentIdentityHelper Tests', () {
-    test('TEST 1: Standard email 25221a0568@bvcgroup.in extracts correct roll number and 2nd B.Tech', () {
+    test(
+        'TEST 1: Standard email 25221a0568@bvcgroup.in extracts correct roll number and 2nd B.Tech',
+        () {
       const email = '25221a0568@bvcgroup.in';
       expect(StudentIdentityHelper.isValidStudentEmail(email), isTrue);
 
@@ -17,7 +19,9 @@ void main() {
       expect(identity.email, '25221a0568@bvcgroup.in');
     });
 
-    test('TEST 2: Variable length roll number 25221a607@bvcgroup.in is accepted and preserved', () {
+    test(
+        'TEST 2: Variable length roll number 25221a607@bvcgroup.in is accepted and preserved',
+        () {
       const email = '25221a607@bvcgroup.in';
       expect(StudentIdentityHelper.isValidStudentEmail(email), isTrue);
 
@@ -29,7 +33,9 @@ void main() {
       expect(identity.academicYearLabel, '2nd B.Tech');
     });
 
-    test('TEST 3: Digits-only local part 25221356@bvcgroup.in is accepted without requiring letters', () {
+    test(
+        'TEST 3: Digits-only local part 25221356@bvcgroup.in is accepted without requiring letters',
+        () {
       const email = '25221356@bvcgroup.in';
       expect(StudentIdentityHelper.isValidStudentEmail(email), isTrue);
 
@@ -77,7 +83,9 @@ void main() {
       expect(identity.academicYearLabel, '4th B.Tech');
     });
 
-    test('TEST 7: Returning student profile with profileSetupCompleted: true is complete', () {
+    test(
+        'TEST 7: Returning student profile with profileSetupCompleted: true is complete',
+        () {
       final profile = StudentProfile(
         uid: 'user_123',
         email: '25221a0568@bvcgroup.in',
@@ -134,7 +142,19 @@ void main() {
     test('All 9 official BVC engineering branches are present', () {
       expect(kBvcBranches.length, 9);
       final codes = kBvcBranches.map((b) => b.code).toList();
-      expect(codes, containsAll(['CSE', 'CSM', 'CAD', 'AIM', 'ECE', 'IT', 'EEE', 'MECH', 'CIVIL']));
+      expect(
+          codes,
+          containsAll([
+            'CSE',
+            'CSM',
+            'CAD',
+            'AIM',
+            'ECE',
+            'IT',
+            'EEE',
+            'MECH',
+            'CIVIL'
+          ]));
     });
   });
 }

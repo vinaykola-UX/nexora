@@ -1,4 +1,4 @@
-﻿import 'app_constants.dart';
+import 'app_constants.dart';
 
 /// Representation of a BVC Engineering branch/class
 class BvcBranch {
@@ -16,7 +16,8 @@ class BvcBranch {
 /// Official built-in list of branches offered at BVC Engineering College
 const List<BvcBranch> kBvcBranches = [
   BvcBranch(code: 'CSE', name: 'Computer Science & Engineering'),
-  BvcBranch(code: 'CSM', name: 'CSE - Artificial Intelligence & Machine Learning'),
+  BvcBranch(
+      code: 'CSM', name: 'CSE - Artificial Intelligence & Machine Learning'),
   BvcBranch(code: 'CAD', name: 'CSE - Artificial Intelligence & Data Science'),
   BvcBranch(code: 'AIM', name: 'Artificial Intelligence & Machine Learning'),
   BvcBranch(code: 'ECE', name: 'Electronics & Communication Engineering'),
