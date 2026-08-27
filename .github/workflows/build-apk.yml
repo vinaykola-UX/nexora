@@ -180,6 +180,10 @@ jobs:
       - name: Flutter Pub Get
         run: flutter pub get
 
+      # 13b. Generate Nexora App Launcher Icons
+      - name: Generate App Launcher Icons
+        run: dart run flutter_launcher_icons
+
       # 14. Build release APK
       - name: Build Release APK
         run: flutter build apk --release
