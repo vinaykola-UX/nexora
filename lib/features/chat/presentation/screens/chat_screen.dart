@@ -9,6 +9,7 @@ import '../../../../core/widgets/copy_message_button.dart';
 import '../../../../app/router/app_router.dart';
 import '../../../../models/search_response_model.dart';
 import '../../../../services/nexora_api_service.dart';
+import '../../../../services/rag_service.dart';
 import '../../data/chat_repository.dart';
 import '../widgets/history_drawer.dart';
 
@@ -30,6 +31,7 @@ class ChatScreen extends StatefulWidget {
 class _ChatScreenState extends State<ChatScreen> {
   final GlobalKey<ScaffoldState> _scaffoldKey = GlobalKey<ScaffoldState>();
   final NexoraApiService _apiService = NexoraApiService();
+  final RagService _ragService = RagService();
   final ChatRepository _chatRepository = ChatRepository();
 
   late TextEditingController _messageController;
@@ -45,11 +47,11 @@ class _ChatScreenState extends State<ChatScreen> {
   }
 
   final List<String> _suggestionChips = [
-    'BR23 exam notification',
-    'internal assessment BR23',
-    'exam fee last date',
-    'Academic calendars',
-    'Syllabus',
+    'What is a linked list?',
+    'What is a doubly linked list?',
+    'What is a circular linked list?',
+    'Array vs linked list',
+    'Applications of linked lists',
   ];
 
   @override
@@ -74,7 +76,7 @@ class _ChatScreenState extends State<ChatScreen> {
     _messages.clear();
     _messages.add(
       _ChatMessage(
-        text: 'Hello! I am Nexora, your official BVC College Assistant.\nAsk me about examinations, regulations (BR23), syllabus, circulars, fee dates, or college announcements.',
+        text: 'Hello! I am Nexora, your official BVC College & Study Assistant.\nAsk me about Data Structures (Linked Lists, Arrays), examinations, regulations (BR23), syllabus, circulars, fee dates, or college announcements.',
         isUser: false,
         timestamp: DateTime.now(),
       ),
@@ -122,6 +124,7 @@ class _ChatScreenState extends State<ChatScreen> {
     _messageController.dispose();
     _scrollController.dispose();
     _apiService.dispose();
+    _ragService.dispose();
     super.dispose();
   }
 
@@ -170,56 +173,117 @@ class _ChatScreenState extends State<ChatScreen> {
     }
 
     try {
-      final response = await _apiService.searchOfficialSources(query);
+      // ---------------------------------------------------------------
+      // Step 1: Query RAG knowledge base first
+      // ---------------------------------------------------------------
+      final ragResponse = await _ragService.searchDocumentsStructured(query);
 
       if (!mounted) return;
 
-      String aiText;
-      bool isError = false;
-      NexoraSearchResponse? parsedResponse;
+      if (ragResponse.success && ragResponse.hasResults) {
+        // RAG retrieval found matching study chunks from D1
+        final formattedContent = ragResponse.toFormattedContent();
+        final sourceLabel = ragResponse.sourceLabel;
 
-      if (response.success && response.results.isNotEmpty) {
-        aiText = 'Found ${response.results.length} official update${response.results.length > 1 ? 's' : ''} from BVC College sources for "$query":';
-        parsedResponse = response;
-      } else if (response.success && response.results.isEmpty) {
-        aiText = response.message ??
-            'No matching circulars or notifications were found on the official college website for "$query". You can try rephrasing your search or check the autonomous portal.';
-        parsedResponse = response;
-      } else {
-        aiText = response.error ??
-            'Unable to retrieve official information. Please check your connection and try again.';
-        isError = true;
-      }
+        final aiMsg = _ChatMessage(
+          text: formattedContent,
+          isUser: false,
+          timestamp: DateTime.now(),
+          sourceLabel: sourceLabel,
+        );
 
-      final aiMsg = _ChatMessage(
-        text: aiText,
-        isUser: false,
-        timestamp: DateTime.now(),
-        searchResponse: parsedResponse,
-        isError: isError,
-        retryQuery: isError ? query : null,
-      );
+        setState(() {
+          _isTyping = false;
+          _messages.add(aiMsg);
+        });
 
-      setState(() {
-        _isTyping = false;
-        _messages.add(aiMsg);
-      });
+        // Persist RAG response
+        if (_currentConversationId != null) {
+          await _chatRepository.saveMessage(
+            uid,
+            _currentConversationId!,
+            text: formattedContent,
+            isUser: false,
+          );
+        }
+      } else if (ragResponse.success && !ragResponse.hasResults) {
+        // ---------------------------------------------------------------
+        // Step 2: Fallback check against official BVC portal notifications
+        // ---------------------------------------------------------------
+        final portalResponse = await _apiService.searchOfficialSources(query);
 
-      // Persist AI response
-      if (_currentConversationId != null) {
-        await _chatRepository.saveMessage(
-          uid,
-          _currentConversationId!,
+        if (!mounted) return;
+
+        String aiText;
+        bool isError = false;
+        NexoraSearchResponse? parsedResponse;
+
+        if (portalResponse.success && portalResponse.results.isNotEmpty) {
+          aiText = 'Found ${portalResponse.results.length} official update${portalResponse.results.length > 1 ? 's' : ''} from BVC College sources for "$query":';
+          parsedResponse = portalResponse;
+        } else {
+          // Task 4 requirement: show exact message when no relevant chunks found
+          aiText = "I couldn't find relevant material for that question in the current Nexora knowledge base.";
+          parsedResponse = portalResponse.success ? portalResponse : null;
+        }
+
+        final aiMsg = _ChatMessage(
           text: aiText,
           isUser: false,
+          timestamp: DateTime.now(),
           searchResponse: parsedResponse,
           isError: isError,
           retryQuery: isError ? query : null,
         );
+
+        setState(() {
+          _isTyping = false;
+          _messages.add(aiMsg);
+        });
+
+        if (_currentConversationId != null) {
+          await _chatRepository.saveMessage(
+            uid,
+            _currentConversationId!,
+            text: aiText,
+            isUser: false,
+            searchResponse: parsedResponse,
+            isError: isError,
+            retryQuery: isError ? query : null,
+          );
+        }
+      } else {
+        // RAG Service encountered a network or server error
+        final errorText = ragResponse.error ??
+            'Unable to search the knowledge base. Please check your network and try again.';
+
+        final aiMsg = _ChatMessage(
+          text: errorText,
+          isUser: false,
+          timestamp: DateTime.now(),
+          isError: true,
+          retryQuery: query,
+        );
+
+        setState(() {
+          _isTyping = false;
+          _messages.add(aiMsg);
+        });
+
+        if (_currentConversationId != null) {
+          await _chatRepository.saveMessage(
+            uid,
+            _currentConversationId!,
+            text: errorText,
+            isUser: false,
+            isError: true,
+            retryQuery: query,
+          );
+        }
       }
     } catch (e) {
       if (!mounted) return;
-      final errorText = 'An unexpected error occurred while connecting to the college retrieval system. Please try again.';
+      final errorText = 'An unexpected error occurred while connecting to the college knowledge base. Please try again.';
       final aiMsg = _ChatMessage(
         text: errorText,
         isUser: false,
@@ -389,7 +453,7 @@ class _ChatScreenState extends State<ChatScreen> {
               ),
             ),
 
-            // Bottom Pill Input Bar matching Figma
+            // Bottom Pill Input Bar
             Container(
               padding: const EdgeInsets.symmetric(
                 horizontal: NexoraSpacing.lg,
@@ -426,7 +490,7 @@ class _ChatScreenState extends State<ChatScreen> {
                           color: Color(NexoraColors.text),
                         ),
                         decoration: const InputDecoration(
-                          hintText: 'Ask anything about BVC...',
+                          hintText: 'Ask anything about BVC or your subjects...',
                           hintStyle: TextStyle(
                             color: Color(NexoraColors.textMuted),
                             fontSize: 14,
@@ -502,7 +566,8 @@ class _ChatScreenState extends State<ChatScreen> {
       );
     }
 
-    // AI Message (with optional rich official search results)
+    // AI Message
+    final hasRagContent = message.sourceLabel != null;
     final results = message.searchResponse?.results ?? [];
 
     return Padding(
@@ -539,7 +604,7 @@ class _ChatScreenState extends State<ChatScreen> {
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              // AI Header / Intro text
+              // AI Header
               Row(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
@@ -554,7 +619,9 @@ class _ChatScreenState extends State<ChatScreen> {
                     child: Icon(
                       message.isError
                           ? Icons.error_outline
-                          : Icons.auto_awesome,
+                          : hasRagContent
+                              ? Icons.school_rounded
+                              : Icons.auto_awesome,
                       color: message.isError
                           ? const Color(NexoraColors.error)
                           : const Color(NexoraColors.primary),
@@ -568,7 +635,7 @@ class _ChatScreenState extends State<ChatScreen> {
                       style: TextStyle(
                         fontSize: 14.5,
                         height: 1.45,
-                        fontWeight: results.isNotEmpty ? FontWeight.w600 : FontWeight.normal,
+                        fontWeight: (results.isNotEmpty && !hasRagContent) ? FontWeight.w600 : FontWeight.normal,
                         color: message.isError
                             ? const Color(NexoraColors.error)
                             : const Color(NexoraColors.text),
@@ -577,6 +644,37 @@ class _ChatScreenState extends State<ChatScreen> {
                   ),
                 ],
               ),
+
+              // RAG subtle indicator: "Based on Data Structures • Unit II"
+              if (hasRagContent) ...[
+                const SizedBox(height: NexoraSpacing.md),
+                Container(
+                  padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
+                  decoration: BoxDecoration(
+                    color: const Color(NexoraColors.primary).withOpacity(0.08),
+                    borderRadius: BorderRadius.circular(8),
+                  ),
+                  child: Row(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      const Icon(
+                        Icons.menu_book_outlined,
+                        size: 13,
+                        color: Color(NexoraColors.primary),
+                      ),
+                      const SizedBox(width: 5),
+                      Text(
+                        'Based on ${message.sourceLabel}',
+                        style: const TextStyle(
+                          fontSize: 11.5,
+                          fontWeight: FontWeight.w600,
+                          color: Color(NexoraColors.primary),
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+              ],
 
               // Retry Button if error
               if (message.isError && message.retryQuery != null) ...[
@@ -593,7 +691,7 @@ class _ChatScreenState extends State<ChatScreen> {
                 ),
               ],
 
-              // Official Search Results List
+              // Official Search Results List (fallback)
               if (results.isNotEmpty) ...[
                 const SizedBox(height: NexoraSpacing.md),
                 ListView.separated(
@@ -788,7 +886,7 @@ class _ChatScreenState extends State<ChatScreen> {
         const Padding(
           padding: EdgeInsets.symmetric(vertical: NexoraSpacing.xs),
           child: Text(
-            'Official BVC Topics',
+            'Official BVC & Subject Topics',
             style: TextStyle(
               fontSize: 12,
               fontWeight: FontWeight.w600,
@@ -853,7 +951,7 @@ class _ChatScreenState extends State<ChatScreen> {
               ),
               SizedBox(width: NexoraSpacing.sm),
               Text(
-                'Retrieving official college information...',
+                'Searching Nexora knowledge base...',
                 style: TextStyle(
                   fontSize: 13,
                   color: Color(NexoraColors.textSecondary),
@@ -874,6 +972,7 @@ class _ChatMessage {
   final NexoraSearchResponse? searchResponse;
   final bool isError;
   final String? retryQuery;
+  final String? sourceLabel;
 
   _ChatMessage({
     required this.text,
@@ -882,5 +981,6 @@ class _ChatMessage {
     this.searchResponse,
     this.isError = false,
     this.retryQuery,
+    this.sourceLabel,
   });
 }
