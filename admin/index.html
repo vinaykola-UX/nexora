@@ -1,0 +1,416 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Nexora Admin — Knowledge Base & RAG Content Manager</title>
+  <meta name="description" content="Admin content management dashboard for Nexora AI academic knowledge base and RAG retrieval system." />
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&family=JetBrains+Mono:wght@400;500;600&display=swap" rel="stylesheet" />
+  <!-- PDF.js CDN for client-side selectable PDF text extraction -->
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js"></script>
+  <link rel="stylesheet" href="styles.css" />
+</head>
+<body>
+  <div class="app-layout">
+    <!-- Navigation Bar -->
+    <header class="top-nav">
+      <div class="nav-brand">
+        <div class="brand-logo">
+          <svg width="24" height="24" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+            <path d="M12 2L15.09 8.26L22 9.27L17 14.14L18.18 21.02L12 17.77L5.82 21.02L7 14.14L2 9.27L8.91 8.26L12 2Z" fill="url(#sparkle-grad)" />
+            <defs>
+              <linearGradient id="sparkle-grad" x1="2" y1="2" x2="22" y2="22" gradientUnits="userSpaceOnUse">
+                <stop stop-color="#818CF8" />
+                <stop offset="1" stop-color="#4F46E5" />
+              </linearGradient>
+            </defs>
+          </svg>
+        </div>
+        <div class="brand-text">
+          <div class="brand-title">Nexora <span class="badge-role">Admin</span></div>
+          <div class="brand-subtitle">Knowledge Base & RAG Retrieval Manager</div>
+        </div>
+      </div>
+
+      <div class="nav-actions">
+        <div class="status-indicator" id="workerStatus">
+          <span class="status-dot"></span>
+          <span class="status-text">Checking Worker...</span>
+        </div>
+        <button class="btn btn-secondary btn-icon" id="openSettingsBtn" title="API & Security Settings">
+          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+            <path d="M12.22 2h-.44a2 2 0 0 0-2 2v.18a2 2 0 0 1-1 1.73l-.43.25a2 2 0 0 1-2 0l-.15-.08a2 2 0 0 0-2.73.73l-.22.38a2 2 0 0 0 .73 2.73l.15.1a2 2 0 0 1 1 1.72v.51a2 2 0 0 1-1 1.74l-.15.09a2 2 0 0 0-.73 2.73l.22.38a2 2 0 0 0 2.73.73l.15-.08a2 2 0 0 1 2 0l.43.25a2 2 0 0 1 1 1.73V20a2 2 0 0 0 2 2h.44a2 2 0 0 0 2-2v-.18a2 2 0 0 1 1-1.73l.43-.25a2 2 0 0 1 2 0l.15.08a2 2 0 0 0 2.73-.73l.22-.39a2 2 0 0 0-.73-2.73l-.15-.08a2 2 0 0 1-1-1.74v-.5a2 2 0 0 1 1-1.74l.15-.09a2 2 0 0 0 .73-2.73l-.22-.38a2 2 0 0 0-2.73-.73l-.15.08a2 2 0 0 1-2 0l-.43-.25a2 2 0 0 1-1-1.73V4a2 2 0 0 0-2-2z"></path>
+            <circle cx="12" cy="12" r="3"></circle>
+          </svg>
+          Settings
+        </button>
+      </div>
+    </header>
+
+    <!-- Main Container -->
+    <main class="main-content">
+      <!-- Top Overview Banner -->
+      <section class="overview-banner">
+        <div class="overview-info">
+          <h1>Manage Nexora Knowledge Base</h1>
+          <p>
+            Upload study materials (Units, Notes, PPTs, Text) directly to the Cloudflare D1 database.
+            The Flutter student app will instantly retrieve new knowledge via RAG without requiring an APK update.
+          </p>
+        </div>
+        <div class="overview-stats">
+          <div class="stat-card">
+            <div class="stat-value" id="statDocCount">—</div>
+            <div class="stat-label">Total Documents</div>
+          </div>
+          <div class="stat-card">
+            <div class="stat-value" id="statChunkCount">—</div>
+            <div class="stat-label">Indexed Chunks</div>
+          </div>
+          <div class="stat-card">
+            <div class="stat-value" id="statSubjectCount">—</div>
+            <div class="stat-label">Active Subjects</div>
+          </div>
+        </div>
+      </section>
+
+      <!-- Two-Column Grid: Form & List -->
+      <div class="dashboard-grid">
+        <!-- Left: Upload & Indexing Form -->
+        <div class="card form-card">
+          <div class="card-header">
+            <div class="card-title-group">
+              <div class="card-icon upload-icon">
+                <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                  <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path>
+                  <polyline points="17 8 12 3 7 8"></polyline>
+                  <line x1="12" y1="3" x2="12" y2="15"></line>
+                </svg>
+              </div>
+              <div>
+                <h2>Upload & Index Study Material</h2>
+                <p class="card-subtitle">Extract text from PDF/TXT or paste study notes directly.</p>
+              </div>
+            </div>
+          </div>
+
+          <form id="uploadForm" class="admin-form" onsubmit="return false;">
+            <!-- Row 1: Subject & Unit -->
+            <div class="form-row two-cols">
+              <div class="form-group">
+                <label for="subjectInput">Subject <span class="req">*</span></label>
+                <input
+                  type="text"
+                  id="subjectInput"
+                  class="form-control"
+                  placeholder="e.g. Data Structures, ADS, OS"
+                  list="subjectSuggestions"
+                  required
+                />
+                <datalist id="subjectSuggestions">
+                  <option value="Data Structures"></option>
+                  <option value="Advanced Data Structures"></option>
+                  <option value="Operating Systems"></option>
+                  <option value="Database Management Systems"></option>
+                  <option value="Computer Networks"></option>
+                  <option value="Software Engineering"></option>
+                </datalist>
+              </div>
+
+              <div class="form-group">
+                <label>Academic Unit <span class="req">*</span></label>
+                <div class="unit-selector">
+                  <label class="unit-pill"><input type="radio" name="unit" value="1" /><span>Unit 1</span></label>
+                  <label class="unit-pill"><input type="radio" name="unit" value="2" checked /><span>Unit 2</span></label>
+                  <label class="unit-pill"><input type="radio" name="unit" value="3" /><span>Unit 3</span></label>
+                  <label class="unit-pill"><input type="radio" name="unit" value="4" /><span>Unit 4</span></label>
+                  <label class="unit-pill"><input type="radio" name="unit" value="5" /><span>Unit 5</span></label>
+                </div>
+              </div>
+            </div>
+
+            <!-- Row 2: Topic & Title -->
+            <div class="form-row two-cols">
+              <div class="form-group">
+                <label for="topicInput">Topic / Module Name <span class="req">*</span></label>
+                <input
+                  type="text"
+                  id="topicInput"
+                  class="form-control"
+                  placeholder="e.g. Stacks and Queues, Linked Lists"
+                  required
+                />
+              </div>
+
+              <div class="form-group">
+                <label for="titleInput">Document Title <span class="req">*</span></label>
+                <input
+                  type="text"
+                  id="titleInput"
+                  class="form-control"
+                  placeholder="e.g. Data Structures - Unit III: Stacks & Queues"
+                  required
+                />
+              </div>
+            </div>
+
+            <!-- File Upload Dropzone -->
+            <div class="form-group">
+              <label>Attach PDF or Text Document <span class="hint">(Client-side text extraction)</span></label>
+              <div class="dropzone" id="fileDropzone">
+                <input type="file" id="fileInput" accept=".pdf,.txt,.md" style="display: none;" />
+                <div class="dropzone-content" id="dropzoneEmpty">
+                  <div class="dropzone-icon">
+                    <svg width="36" height="36" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8">
+                      <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"></path>
+                      <polyline points="14 2 14 8 20 8"></polyline>
+                      <line x1="12" y1="18" x2="12" y2="12"></line>
+                      <line x1="9" y1="15" x2="15" y2="15"></line>
+                    </svg>
+                  </div>
+                  <div class="dropzone-text">
+                    <span class="highlight">Click to browse</span> or drag and drop a file
+                  </div>
+                  <div class="dropzone-sub">Supports PDF (selectable text), TXT, and Markdown files</div>
+                </div>
+
+                <!-- Selected File Preview -->
+                <div class="file-preview-card" id="filePreview" style="display: none;">
+                  <div class="file-preview-icon" id="fileIcon">📄</div>
+                  <div class="file-preview-meta">
+                    <div class="file-name" id="fileName">file.pdf</div>
+                    <div class="file-size" id="fileSize">0 KB</div>
+                    <div class="extract-progress" id="extractProgress" style="display: none;">
+                      <div class="progress-bar"><div class="progress-fill" id="progressFill"></div></div>
+                      <span class="progress-label" id="progressLabel">Extracting...</span>
+                    </div>
+                  </div>
+                  <button type="button" class="btn-remove-file" id="removeFileBtn" title="Remove file">✕</button>
+                </div>
+              </div>
+            </div>
+
+            <!-- Study Material Textarea -->
+            <div class="form-group">
+              <div class="textarea-header">
+                <label for="contentInput">Study Material Content <span class="req">*</span></label>
+                <div class="text-stats">
+                  <span id="charCount">0 chars</span> •
+                  <span id="wordCount">0 words</span> •
+                  <span id="estChunkCount" class="badge-accent">~0 chunks</span>
+                </div>
+              </div>
+              <textarea
+                id="contentInput"
+                class="form-control text-area"
+                rows="8"
+                placeholder="Extracted text will appear here. You can also paste, write, or refine syllabus notes directly..."
+                required
+              ></textarea>
+            </div>
+
+            <!-- Chunk Preview Accordion -->
+            <div class="chunk-preview-box" id="chunkPreviewBox" style="display: none;">
+              <div class="chunk-preview-header" id="toggleChunkPreview">
+                <span>Deterministic Chunking Preview (<span id="chunkCountNum">0</span> Chunks)</span>
+                <span class="toggle-icon">▼</span>
+              </div>
+              <div class="chunk-list" id="chunkList"></div>
+            </div>
+
+            <!-- Submit Button & Action Bar -->
+            <div class="form-actions">
+              <button type="button" class="btn btn-ghost" id="clearFormBtn">Clear Form</button>
+              <button type="submit" class="btn btn-primary" id="submitBtn">
+                <span class="btn-spinner" id="btnSpinner" style="display: none;"></span>
+                <span class="btn-text" id="btnText">Process & Add to Nexora</span>
+              </button>
+            </div>
+          </form>
+        </div>
+
+        <!-- Right Column: Document List & Live Retrieval Tester -->
+        <div class="right-column">
+          <!-- Card: Knowledge Base Documents -->
+          <div class="card list-card">
+            <div class="card-header">
+              <div class="card-title-group">
+                <div class="card-icon book-icon">
+                  <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                    <path d="M4 19.5A2.5 2.5 0 0 1 6.5 17H20"></path>
+                    <path d="M6.5 2H20v20H6.5A2.5 2.5 0 0 1 4 19.5v-15A2.5 2.5 0 0 1 6.5 2z"></path>
+                  </svg>
+                </div>
+                <div>
+                  <h2>Knowledge Base Documents</h2>
+                  <p class="card-subtitle">Active syllabus units indexed in Cloudflare D1</p>
+                </div>
+              </div>
+              <button class="btn btn-ghost btn-sm" id="refreshDocsBtn" title="Refresh list">
+                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                  <path d="M21.5 2v6h-6M21.34 15.57a10 10 0 1 1-.57-8.38l5.67-5.67"></path>
+                </svg>
+                Refresh
+              </button>
+            </div>
+
+            <!-- Search & Filter Filter Bar -->
+            <div class="filter-bar">
+              <div class="search-input-wrapper">
+                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                  <circle cx="11" cy="11" r="8"></circle>
+                  <line x1="21" y1="21" x2="16.65" y2="16.65"></line>
+                </svg>
+                <input type="text" id="filterInput" placeholder="Filter by subject, unit, or topic..." />
+              </div>
+            </div>
+
+            <!-- Documents Table Container -->
+            <div class="table-container">
+              <table class="data-table" id="docsTable">
+                <thead>
+                  <tr>
+                    <th>ID</th>
+                    <th>Document / Title</th>
+                    <th>Subject</th>
+                    <th>Unit</th>
+                    <th>Chunks</th>
+                    <th>Actions</th>
+                  </tr>
+                </thead>
+                <tbody id="docsTableBody">
+                  <tr>
+                    <td colspan="6" class="table-loading">Loading documents from D1...</td>
+                  </tr>
+                </tbody>
+              </table>
+            </div>
+          </div>
+
+          <!-- Card: Live RAG Retrieval Tester -->
+          <div class="card tester-card">
+            <div class="card-header">
+              <div class="card-title-group">
+                <div class="card-icon test-icon">
+                  <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                    <circle cx="12" cy="12" r="10"></circle>
+                    <line x1="12" y1="16" x2="12" y2="12"></line>
+                    <line x1="12" y1="8" x2="12.01" y2="8"></line>
+                  </svg>
+                </div>
+                <div>
+                  <h2>Live RAG Retrieval Tester</h2>
+                  <p class="card-subtitle">Verify student queries against live Cloudflare D1 chunks</p>
+                </div>
+              </div>
+            </div>
+
+            <div class="tester-form">
+              <div class="tester-input-group">
+                <input
+                  type="text"
+                  id="testQueryInput"
+                  class="form-control"
+                  placeholder="e.g. What is a doubly linked list? or stacks"
+                />
+                <button type="button" class="btn btn-secondary" id="testQueryBtn">Search RAG</button>
+              </div>
+
+              <!-- Quick query chips -->
+              <div class="quick-chips">
+                <span class="chip-label">Test Queries:</span>
+                <button class="chip" data-query="doubly linked list">doubly linked list</button>
+                <button class="chip" data-query="circular linked list">circular</button>
+                <button class="chip" data-query="array vs linked list">array vs list</button>
+                <button class="chip" data-query="stacks">stacks</button>
+              </div>
+
+              <!-- Results Area -->
+              <div class="test-results-area" id="testResultsArea" style="display: none;">
+                <div class="test-results-header">
+                  <span id="testResultsSummary">Retrieval Results</span>
+                  <span class="badge-success" id="testResultCount">0 Chunks</span>
+                </div>
+                <div class="test-results-list" id="testResultsList"></div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </main>
+
+    <!-- Footer -->
+    <footer class="app-footer">
+      <div>Nexora BVC AI &bull; Cloudflare D1 Knowledge Base System</div>
+      <div class="footer-links">
+        <a href="https://nexora-bvc-api-2026.vkola306.workers.dev/api" target="_blank">API Documentation</a> &bull;
+        <a href="https://github.com/vinaykola-UX/nexora" target="_blank">GitHub Repository</a>
+      </div>
+    </footer>
+  </div>
+
+  <!-- Settings Modal -->
+  <div class="modal-overlay" id="settingsModal" style="display: none;">
+    <div class="modal-card">
+      <div class="modal-header">
+        <h3>API & Security Settings</h3>
+        <button class="btn-close-modal" id="closeSettingsBtn">✕</button>
+      </div>
+      <div class="modal-body">
+        <div class="form-group">
+          <label for="apiUrlInput">Cloudflare Worker Base URL</label>
+          <input type="url" id="apiUrlInput" class="form-control" placeholder="https://..." />
+          <span class="form-hint">Default: https://nexora-bvc-api-2026.vkola306.workers.dev</span>
+        </div>
+
+        <div class="form-group">
+          <label for="adminSecretInput">Admin Secret Key (Bearer Token)</label>
+          <div class="password-wrapper">
+            <input type="password" id="adminSecretInput" class="form-control" placeholder="Enter admin secret..." />
+            <button type="button" class="btn-toggle-pwd" id="togglePwdBtn">👁</button>
+          </div>
+          <span class="form-hint">Stored securely only in your browser localStorage. Sent via Authorization header.</span>
+        </div>
+
+        <div class="connection-test-box">
+          <button type="button" class="btn btn-secondary btn-sm" id="testConnectionBtn">Test Connection</button>
+          <span class="test-result-msg" id="testResultMsg"></span>
+        </div>
+      </div>
+      <div class="modal-footer">
+        <button type="button" class="btn btn-ghost" id="cancelSettingsBtn">Cancel</button>
+        <button type="button" class="btn btn-primary" id="saveSettingsBtn">Save Settings</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Inspect Document Chunks Modal -->
+  <div class="modal-overlay" id="inspectModal" style="display: none;">
+    <div class="modal-card modal-lg">
+      <div class="modal-header">
+        <div>
+          <h3 id="inspectDocTitle">Document Details</h3>
+          <span class="modal-subtitle" id="inspectDocMeta">Subject • Unit</span>
+        </div>
+        <button class="btn-close-modal" id="closeInspectBtn">✕</button>
+      </div>
+      <div class="modal-body">
+        <div class="inspect-chunks-list" id="inspectChunksList">
+          <div class="table-loading">Loading chunk details...</div>
+        </div>
+      </div>
+      <div class="modal-footer">
+        <button type="button" class="btn btn-secondary" id="closeInspectFooterBtn">Close</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Toast Notification Container -->
+  <div class="toast-container" id="toastContainer"></div>
+
+  <!-- App Script -->
+  <script src="app.js"></script>
+</body>
+</html>

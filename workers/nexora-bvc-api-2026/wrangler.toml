@@ -5,3 +5,9 @@ compatibility_flags = ["nodejs_compat"]
 
 [vars]
 ENVIRONMENT = "production"
+ADMIN_SECRET = "nexora-admin-secure-key-2026"
+
+[[d1_databases]]
+binding = "DB"
+database_name = "nexora-rag"
+database_id = "nexora-rag"
