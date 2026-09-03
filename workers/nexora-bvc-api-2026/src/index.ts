@@ -16,11 +16,18 @@
 import { AIService, EnvAIConfig } from './ai/ai_service';
 import { ADSSearchPipeline } from './ads/pipeline';
 import { AIController } from './ai/ai_controller';
+import { semanticSearch } from './rag/semantic_search';
+import { mergeRetrievalSignals, calculateHybridScores } from './rag/hybrid_ranker';
+import { backfillChunksToVectorize, syncChunkToVectorize } from './rag/vector_sync';
+import { EMBEDDING_CONFIG } from './rag/embedding_service';
 
 export interface Env extends EnvAIConfig {
   ENVIRONMENT?: string;
   ADMIN_SECRET?: string;
   DB?: D1Database;
+  VECTORIZE?: VectorizeIndex;
+  EMBEDDING_MODEL?: string;
+  AI_MODEL?: string;
 }
 
 interface SearchResult {
@@ -405,10 +412,97 @@ export default {
         return jsonResponse({
           success: true,
           service: 'nexora-bvc-api-2026',
-          version: '2.1.0',
+          version: '3.1.0',
           status: 'online',
-          message: 'Nexora BVC AI & RAG Knowledge Base Retrieval Service',
+          message: 'Nexora BVC AI — Hybrid Semantic RAG + ADS Engine + Invisible Tone Engine',
         });
+      }
+
+      // 1b. Preflight verification route (GET /preflight) — billing/model safety check
+      if (request.method === 'GET' && path === '/preflight') {
+        const report: Record<string, any> = { timestamp: new Date().toISOString(), checks: {} };
+
+        // Check 1: Workers AI binding
+        report.checks.workersAI = env.AI && typeof env.AI.run === 'function'
+          ? { status: 'PASS', detail: 'env.AI bound and callable' }
+          : { status: 'FAIL', detail: 'env.AI missing — check [ai] binding in wrangler.toml' };
+
+        // Check 2: Embedding model returns exactly 384 dimensions
+        const embModel = env.EMBEDDING_MODEL || '@cf/baai/bge-small-en-v1.5';
+        if (env.AI && typeof env.AI.run === 'function') {
+          try {
+            const t0 = performance.now();
+            const resp = await env.AI.run(embModel, { text: ['BVC Nexora preflight embedding verification'] });
+            const vec: number[] | undefined = resp?.data?.[0] ?? resp?.result?.data?.[0];
+            const elapsed = Math.round(performance.now() - t0);
+            if (!vec || !Array.isArray(vec)) {
+              report.checks.embeddingModel = { status: 'FAIL', model: embModel, detail: 'No vector returned', raw: JSON.stringify(resp).slice(0, 200) };
+            } else if (vec.length !== 384) {
+              report.checks.embeddingModel = { status: 'FAIL', model: embModel, dimension: vec.length, expected: 384, detail: `DIMENSION MISMATCH: ${vec.length} !== 384. STOP — do not proceed with backfill.` };
+            } else {
+              report.checks.embeddingModel = { status: 'PASS', model: embModel, dimension: 384, latencyMs: elapsed, sample: vec.slice(0, 4).map((v: number) => +v.toFixed(6)) };
+            }
+          } catch (e: any) {
+            report.checks.embeddingModel = { status: 'FAIL', model: embModel, detail: e?.message || String(e) };
+          }
+        } else {
+          report.checks.embeddingModel = { status: 'SKIP', detail: 'Workers AI unavailable, cannot test' };
+        }
+
+        // Check 3: Vectorize binding
+        report.checks.vectorize = env.VECTORIZE
+          ? { status: 'PASS', detail: 'env.VECTORIZE bound' }
+          : { status: 'FAIL', detail: 'env.VECTORIZE missing — check [[vectorize]] in wrangler.toml' };
+
+        // Check 4: Vectorize index describe
+        if (env.VECTORIZE) {
+          try {
+            const info = await (env.VECTORIZE as any).describe();
+            const dim = info?.dimensions ?? info?.config?.dimensions;
+            const metric = info?.metric ?? info?.config?.metric ?? 'cosine';
+            report.checks.vectorizeIndex = {
+              status: dim === 384 ? 'PASS' : (dim ? 'FAIL' : 'WARN'),
+              indexName: 'nexora-vector-index', dimension: dim, metric, vectorCount: info?.vectorCount ?? 0,
+              detail: dim === 384 ? '384 dims cosine — matches embedding model ✓' : `dim=${dim}, expected 384`
+            };
+          } catch (e: any) {
+            report.checks.vectorizeIndex = { status: 'WARN', detail: `describe() failed: ${e?.message}` };
+          }
+        }
+
+        // Check 5: Vectorize roundtrip upsert+query
+        if (env.VECTORIZE && report.checks.embeddingModel?.status === 'PASS') {
+          try {
+            const tv = (await env.AI.run(embModel, { text: ['nexora roundtrip test'] }))?.data?.[0];
+            await env.VECTORIZE.upsert([{ id: 'nexora-preflight-test', values: tv, metadata: { type: 'test' } }]);
+            const qr = await env.VECTORIZE.query(tv, { topK: 1, returnMetadata: 'indexed' });
+            const match = qr?.matches?.[0];
+            report.checks.vectorizeRoundTrip = {
+              status: match?.id === 'nexora-preflight-test' ? 'PASS' : 'WARN',
+              detail: match ? `upsert→query: id=${match.id}, score=${match.score?.toFixed(6)}` : 'No match returned (may propagate shortly)'
+            };
+            try { await env.VECTORIZE.deleteByIds(['nexora-preflight-test']); } catch (_) {}
+          } catch (e: any) {
+            report.checks.vectorizeRoundTrip = { status: 'FAIL', detail: e?.message };
+          }
+        }
+
+        const checks = Object.values(report.checks) as any[];
+        const fails = checks.filter((c) => c.status === 'FAIL').length;
+        report.billing = {
+          workersAI: 'Free tier: 10,000 neurons/day. BGE-small embeddings use ~1 neuron per call. 15 chunks + queries = well within free limits.',
+          vectorize: 'Free tier: 5,000,000 vectors stored, 30,000,000 queried/month. 15 vectors is negligible.',
+          paidServicesRequired: false,
+          note: 'No paid plan activation required for Phase 4 with current data volume (15 chunks).'
+        };
+        report.summary = {
+          passed: checks.filter((c) => c.status === 'PASS').length,
+          failed: fails,
+          warned: checks.filter((c) => c.status === 'WARN').length,
+          readyForPhase4Backfill: fails === 0,
+          recommendation: fails === 0 ? 'PROCEED — all checks passed. Backfill is safe.' : 'STOP — resolve FAIL items before backfill.'
+        };
+        return jsonResponse(report, fails > 0 ? 503 : 200);
       }
 
       // 2. Health check route
@@ -497,7 +591,7 @@ export default {
         const limitParam = parseInt(url.searchParams.get('limit') || '10', 10);
         const topK = isNaN(limitParam) ? 10 : Math.max(1, Math.min(20, limitParam));
 
-        // Step 1: Query Cloudflare D1 across ALL documents using ADS Algorithm Engine
+        // Step 1: Hybrid Search — ADS Engine + Vectorize Semantic + GraphRAG
         if (env.DB) {
           try {
             const { results: allRows } = await env.DB.prepare(
@@ -508,30 +602,125 @@ export default {
             ).all<D1ChunkRow>();
 
             if (allRows && allRows.length > 0) {
+              // Stage A: ADS Pipeline (Hash Table → AVL → Graph → Heap → Merge Sort)
               const pipeline = ADSSearchPipeline.getInstance();
               pipeline.buildIndex(allRows as any);
-
-              const { results: adsRankedResults, debug: debugInfo } = pipeline.search(
+              const { results: adsRankedResults, debug: adsDebugInfo } = pipeline.search(
                 trimmedQuery,
-                topK,
+                topK * 2,
                 isDebug
               );
 
+              // Stage B: Vectorize Semantic Search
+              let vectorResult: any = null;
+              let vectorAvailable = false;
+              try {
+                vectorResult = await semanticSearch(trimmedQuery, topK * 2, env);
+                vectorAvailable = vectorResult.vectorStatus === 'success';
+              } catch (vecErr: any) {
+                console.warn('[Nexora Worker] Vectorize search error (falling back to ADS-only):', vecErr?.message);
+              }
+
+              // Build chunk ID → row lookup
+              const chunkIdToRow = new Map<number, typeof allRows[0]>();
+              for (const row of allRows) {
+                if (row.id) chunkIdToRow.set(row.id, row);
+              }
+
+              // ADS results mapped by chunk ID with scores
+              const adsSignals: Array<{ chunkId: number; adsScore: number }> = [];
+              for (const r of adsRankedResults) {
+                // Find chunk ID from allRows by matching content
+                for (const row of allRows) {
+                  if (row.content === r.content && row.id) {
+                    adsSignals.push({ chunkId: row.id, adsScore: r.relevanceScore });
+                    break;
+                  }
+                }
+              }
+
+              // Vector candidates
+              const vectorSignals: Array<{ chunkId: number; vectorScore: number }> = [];
+              if (vectorAvailable && vectorResult?.candidates) {
+                for (const c of vectorResult.candidates) {
+                  vectorSignals.push({ chunkId: c.chunkId, vectorScore: c.score });
+                }
+              }
+
+              // Stage C: Hybrid Ranking
+              const mergedSignals = mergeRetrievalSignals(adsSignals, vectorSignals);
+              const hybridScores = calculateHybridScores(mergedSignals, {
+                vectorAvailable,
+                graphAvailable: true,
+              });
+
+              // Sort by hybrid score descending, take topK
+              hybridScores.sort((a, b) => b.hybridScore - a.hybridScore);
+              const topHybrid = hybridScores.slice(0, topK);
+
+              // Resolve chunk content from D1 rows
+              const hybridResults = topHybrid
+                .map((h) => {
+                  const row = chunkIdToRow.get(h.chunkId);
+                  if (!row) return null;
+                  return {
+                    content: row.content,
+                    title: row.title || '',
+                    subject: row.subject || '',
+                    unit: row.unit || 0,
+                    hybridScore: h.hybridScore,
+                    ...(isDebug ? {
+                      scoring: {
+                        normalizedAds: h.normalizedAds,
+                        normalizedVector: h.normalizedVector,
+                        normalizedGraph: h.normalizedGraph,
+                        weights: h.weightsUsed,
+                      }
+                    } : {}),
+                  };
+                })
+                .filter(Boolean);
+
+              if (hybridResults.length > 0) {
+                return jsonResponse({
+                  query: trimmedQuery,
+                  results: hybridResults,
+                  retrieval: {
+                    mode: vectorAvailable ? 'hybrid_semantic_ads' : 'ads_only',
+                    adsResultCount: adsSignals.length,
+                    vectorResultCount: vectorSignals.length,
+                    hybridCandidates: mergedSignals.length,
+                  },
+                  ...(isDebug ? {
+                    pipeline: adsDebugInfo,
+                    vectorize: vectorResult ? {
+                      status: vectorResult.vectorStatus,
+                      embeddingModel: vectorResult.embeddingModel,
+                      queryDimension: vectorResult.queryDimension,
+                      timingMs: vectorResult.timingMs,
+                      candidateCount: vectorResult.candidates?.length || 0,
+                    } : null,
+                  } : {}),
+                });
+              }
+
+              // Fallback: if hybrid returned nothing, use ADS-only results
               if (adsRankedResults.length > 0) {
                 return jsonResponse({
                   query: trimmedQuery,
-                  results: adsRankedResults.map((r) => ({
+                  results: adsRankedResults.slice(0, topK).map((r) => ({
                     content: r.content,
                     title: r.title,
                     subject: r.subject,
                     unit: r.unit,
                   })),
-                  ...(isDebug && debugInfo ? { pipeline: debugInfo } : {}),
+                  retrieval: { mode: 'ads_fallback' },
+                  ...(isDebug && adsDebugInfo ? { pipeline: adsDebugInfo } : {}),
                 });
               }
             }
           } catch (d1Err: any) {
-            console.error('[Nexora Worker] ADS D1 Search Error:', d1Err?.message || d1Err);
+            console.error('[Nexora Worker] Hybrid Search Error:', d1Err?.message || d1Err);
           }
         }
 
@@ -683,6 +872,39 @@ export default {
 
             await env.DB.batch(chunkStatements);
 
+            // 3. Embed and upsert to Vectorize (best-effort, non-blocking failure)
+            let vectorizeStatus = 'skipped';
+            let vectorizedCount = 0;
+            if (env.VECTORIZE && env.AI) {
+              try {
+                // Fetch the newly inserted chunk IDs
+                const { results: newChunks } = await env.DB.prepare(
+                  `SELECT id, document_id, content, chunk_index FROM chunks WHERE document_id = ? ORDER BY chunk_index ASC`
+                ).bind(documentId).all<{ id: number; document_id: number; content: string; chunk_index: number }>();
+
+                if (newChunks && newChunks.length > 0) {
+                  const syncInputs = newChunks.map((c) => ({
+                    chunkId: c.id,
+                    documentId: c.document_id,
+                    content: c.content,
+                    title,
+                    subject,
+                    unit,
+                    chunkIndex: c.chunk_index,
+                    topic: topic || undefined,
+                    source: sourceName || undefined,
+                    page_info: pageInfo || undefined,
+                  }));
+                  const syncResult = await backfillChunksToVectorize(syncInputs, env);
+                  vectorizeStatus = syncResult.vectorStatus;
+                  vectorizedCount = syncResult.vectorized;
+                }
+              } catch (vecErr: any) {
+                console.error('[Nexora Worker] Vectorize sync error (D1 insert succeeded):', vecErr?.message);
+                vectorizeStatus = 'error';
+              }
+            }
+
             return jsonResponse({
               success: true,
               documentId,
@@ -692,6 +914,7 @@ export default {
               topic: topic || undefined,
               chunksCreated: chunkTexts.length,
               chunkCount: chunkTexts.length,
+              vectorize: { status: vectorizeStatus, vectorized: vectorizedCount },
               message: `Successfully processed and indexed ${chunkTexts.length} chunks into Nexora knowledge base.`,
             });
           } catch (dbErr: any) {
@@ -829,6 +1052,85 @@ export default {
           document: { id: docId, title: 'Sample Doc', subject: 'Data Structures', unit: 2 },
           chunks: [],
         });
+      }
+
+      // 8b. Admin Backfill Vectorize (POST /admin/backfill)
+      if (request.method === 'POST' && path === '/admin/backfill') {
+        if (!verifyAdminAuth(request, env)) {
+          return jsonResponse({ success: false, error: 'Unauthorized' }, 401);
+        }
+
+        if (!env.DB) {
+          return jsonResponse({ success: false, error: 'D1 database not available' }, 503);
+        }
+        if (!env.VECTORIZE) {
+          return jsonResponse({ success: false, error: 'Vectorize binding not available. Check wrangler.toml [[vectorize]].' }, 503);
+        }
+        if (!env.AI) {
+          return jsonResponse({ success: false, error: 'Workers AI binding not available.' }, 503);
+        }
+
+        try {
+          // Fetch ALL chunks from D1 with document metadata
+          const { results: allChunks } = await env.DB.prepare(
+            `SELECT c.id, c.document_id, c.content, c.chunk_index, d.title, d.subject, d.unit, d.file_url
+             FROM chunks c
+             JOIN documents d ON c.document_id = d.id
+             ORDER BY c.id ASC`
+          ).all<any>();
+
+          if (!allChunks || allChunks.length === 0) {
+            return jsonResponse({ success: true, message: 'No chunks found in D1. Nothing to backfill.', totalChunks: 0 });
+          }
+
+          const syncInputs = allChunks.map((c: any) => {
+            // Parse topic/source/page_info from file_url metadata
+            const fileUrl = c.file_url || '';
+            let topic = '';
+            let source = '';
+            let page_info = '';
+            if (fileUrl.includes('Topic:')) {
+              topic = fileUrl.split('Topic:')[1]?.split('|')[0]?.trim() || '';
+            }
+            if (fileUrl.includes('Source:')) {
+              source = fileUrl.split('Source:')[1]?.split('|')[0]?.trim() || '';
+            }
+            if (fileUrl.includes('Pages:')) {
+              page_info = fileUrl.split('Pages:')[1]?.split('|')[0]?.trim() || '';
+            }
+
+            return {
+              chunkId: c.id,
+              documentId: c.document_id,
+              content: c.content,
+              title: c.title || '',
+              subject: c.subject || '',
+              unit: c.unit || 0,
+              chunkIndex: c.chunk_index || 0,
+              topic,
+              source,
+              page_info,
+            };
+          });
+
+          const result = await backfillChunksToVectorize(syncInputs, env);
+
+          return jsonResponse({
+            success: true,
+            message: `Backfill complete: ${result.vectorized}/${result.totalChunks} chunks embedded and upserted to Vectorize.`,
+            totalChunks: result.totalChunks,
+            vectorized: result.vectorized,
+            failed: result.failed,
+            vectorStatus: result.vectorStatus,
+            embeddingModel: EMBEDDING_CONFIG.MODEL,
+            indexName: EMBEDDING_CONFIG.INDEX_NAME,
+            dimension: EMBEDDING_CONFIG.DIMENSION,
+            results: result.results,
+          });
+        } catch (err: any) {
+          console.error('[Nexora Worker] Backfill Error:', err?.message || err);
+          return jsonResponse({ success: false, error: 'Backfill failed', detail: err?.message || String(err) }, 500);
+        }
       }
 
       // 9. Grounded Conversational AI Route (POST /chat and POST /ask)

@@ -6,6 +6,10 @@ compatibility_flags = ["nodejs_compat"]
 [vars]
 ENVIRONMENT = "production"
 ADMIN_SECRET = "nexora-admin-secure-key-2026"
+# Embedding model for Vectorize — dimension MUST match nexora-vector-index (384)
+EMBEDDING_MODEL = "@cf/baai/bge-small-en-v1.5"
+# Generation model
+AI_MODEL = "@cf/meta/llama-3.2-3b-instruct"
 
 [[d1_databases]]
 binding = "DB"
@@ -14,3 +18,7 @@ database_id = "dd95f8eb-9668-41c8-b9c7-020d1bcc260e"
 
 [ai]
 binding = "AI"
+
+[[vectorize]]
+binding = "VECTORIZE"
+index_name = "nexora-vector-index"

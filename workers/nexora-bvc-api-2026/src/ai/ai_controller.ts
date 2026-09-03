@@ -1,28 +1,42 @@
 /**
  * ============================================================================
- * BVC Nexora AI Intelligence Layer — Controlled AI Controller & Tool System
+ * BVC Nexora AI Intelligence Layer — Controlled AI Controller & Tone Engine
+ * Phase 5A: Personality Foundation + Invisible Intent/Tone Engine
  * ============================================================================
  * 
  * ARCHITECTURE:
- * User Question
+ * Student Message
  *     ↓
- * AI Controller / Intent Detection
+ * Conversation Context
  *     ↓
- * Allowed Tool Selection (Permission Matrix)
+ * Intent Classification (IntentDetector)
+ *     ↓
+ * Personality Policy (PersonalityPolicyEngine)
+ *     ↓
+ * Allowed Tool Selection
  *     ↓
  * Existing ADS Search Pipeline (Hash, AVL, Graph, Max-Heap, Merge Sort)
  *     ↓
  * Grounded D1 Knowledge Context
  *     ↓
- * Workers AI Model (@cf/meta/llama-3.1-8b-instruct)
+ * Workers AI Model (Llama 3.2 3B with Candidate Fallbacks)
  *     ↓
  * Response Validation & Code Line Limit Enforcement
  *     ↓
- * Clean Grounded Nexora Response
+ * Natural, Grounded Nexora Response
+ * 
+ * INVISIBLE PERSONALITY RULES:
+ * 1. The student should NEVER see internal mode names or personality decisions.
+ * 2. Academic grounding is the highest priority.
+ * 3. NO ROASTING, NO MOCKING, NO SARCASM for stressed students.
+ * 4. Never invent college dates, circulars, or policies.
+ * 5. No fake human emotions ("I missed you", "I have feelings").
  * ============================================================================
  */
 
 import { ADSSearchPipeline, RankedChunk } from '../ads/pipeline';
+import { IntentDetector, ExtendedUserIntent } from './intent_detector';
+import { PersonalityPolicyEngine, PersonalityPolicy } from './personality_policy';
 
 export const AI_LIMITS = {
   MAX_TOOL_CALLS: 3,
@@ -31,7 +45,7 @@ export const AI_LIMITS = {
   MAX_CODE_LINES_DEFAULT: 50,
   MAX_CODE_LINES_HARD: 100,
   MAX_WEB_SEARCHES: 1,
-  DEFAULT_MODEL: '@cf/meta/llama-3.1-8b-instruct',
+  DEFAULT_MODEL: '@cf/meta/llama-3.2-3b-instruct',
 };
 
 export type AIToolType =
@@ -44,15 +58,7 @@ export type AIToolType =
   | 'study_notes'
   | 'web_search';
 
-export type UserIntent =
-  | 'GENERAL_ACADEMIC'
-  | 'EXPLAIN'
-  | 'CODE_GENERATION'
-  | 'CODE_EXPLANATION'
-  | 'SUMMARIZE'
-  | 'QUIZ'
-  | 'STUDY_NOTES'
-  | 'WEB_SEARCH';
+export type UserIntent = ExtendedUserIntent | 'GENERAL_ACADEMIC' | 'EXPLAIN' | 'CODE_GENERATION' | 'CODE_EXPLANATION' | 'SUMMARIZE' | 'WEB_SEARCH';
 
 export interface ChatSource {
   title: string;
@@ -75,6 +81,13 @@ export interface ChatResponse {
     model: string;
     codeLineCount: number;
     generationStatus: string;
+    personality?: {
+      tone: string;
+      humorLevel: string;
+      teasingLevel: string;
+      academicPriority: string;
+      supportive: boolean;
+    };
     timingsMs: {
       intentDetection: number;
       adsRetrieval: number;
@@ -87,6 +100,8 @@ export interface ChatResponse {
 
 export class AIController {
   private static instance: AIController | null = null;
+  private readonly intentDetector = IntentDetector.getInstance();
+  private readonly personalityEngine = PersonalityPolicyEngine.getInstance();
 
   public static getInstance(): AIController {
     if (!AIController.instance) {
@@ -96,80 +111,14 @@ export class AIController {
   }
 
   /**
-   * Classify user question intent
+   * Classify user question intent using the lightweight deterministic detector
    */
-  public detectIntent(question: string, webAccessEnabled = false): UserIntent {
-    const q = question.toLowerCase().trim();
-
-    // Check for explicit web queries first if web access is enabled
-    if (
-      webAccessEnabled &&
-      (q.includes('portal') ||
-        q.includes('circular') ||
-        q.includes('notification') ||
-        q.includes('fee date') ||
-        q.includes('announcement') ||
-        q.includes('bvcec.edu.in'))
-    ) {
-      return 'WEB_SEARCH';
-    }
-
-    if (
-      q.includes('write a program') ||
-      q.includes('write a java program') ||
-      q.includes('code for') ||
-      q.includes('implement in java') ||
-      q.includes('create a class') ||
-      q.includes('source code') ||
-      q.includes('program to') ||
-      q.includes('java code')
-    ) {
-      return 'CODE_GENERATION';
-    }
-
-    if (
-      q.includes('explain the code') ||
-      q.includes('explain this program') ||
-      q.includes('how does this code work') ||
-      q.includes('trace the code')
-    ) {
-      return 'CODE_EXPLANATION';
-    }
-
-    if (q.includes('quiz') || q.includes('mcq') || q.includes('test me') || q.includes('practice questions')) {
-      return 'QUIZ';
-    }
-
-    if (
-      q.includes('summarize') ||
-      q.includes('summary of') ||
-      q.includes('brief overview') ||
-      q.includes('key takeaways')
-    ) {
-      return 'SUMMARIZE';
-    }
-
-    if (
-      q.includes('notes') ||
-      q.includes('revision notes') ||
-      q.includes('study material') ||
-      q.includes('cheat sheet')
-    ) {
-      return 'STUDY_NOTES';
-    }
-
-    if (
-      q.includes('explain') ||
-      q.includes('what is') ||
-      q.includes('define') ||
-      q.includes('how does') ||
-      q.includes('difference between') ||
-      q.includes('why')
-    ) {
-      return 'EXPLAIN';
-    }
-
-    return 'GENERAL_ACADEMIC';
+  public detectIntent(
+    question: string,
+    conversation: Array<{ role: string; content: string }> = [],
+    webAccessEnabled = false
+  ): UserIntent {
+    return this.intentDetector.detect(question, conversation, webAccessEnabled).intent;
   }
 
   /**
@@ -177,21 +126,33 @@ export class AIController {
    */
   public getAllowedTools(intent: UserIntent, webAccessEnabled = false): AIToolType[] {
     switch (intent) {
+      case 'PROGRAMMING':
       case 'CODE_GENERATION':
-      case 'CODE_EXPLANATION':
         return ['knowledge_search', 'code_generator', 'code_explainer'];
+      case 'CODE_EXPLANATION':
+        return ['knowledge_search', 'code_explainer'];
       case 'QUIZ':
         return ['knowledge_search', 'quiz_generator'];
+      case 'SUMMARY':
       case 'SUMMARIZE':
         return ['knowledge_search', 'summarizer'];
       case 'STUDY_NOTES':
         return ['knowledge_search', 'study_notes'];
+      case 'COLLEGE_INFO':
+        return webAccessEnabled ? ['knowledge_search', 'web_search'] : ['knowledge_search', 'explain'];
       case 'WEB_SEARCH':
         return webAccessEnabled ? ['knowledge_search', 'web_search'] : ['knowledge_search', 'explain'];
+      case 'GREETING':
+      case 'CASUAL':
+      case 'SMALL_TALK':
+      case 'STRESSED_STUDENT':
+      case 'EXAM_PREP':
+      case 'ACADEMIC':
       case 'EXPLAIN':
       case 'GENERAL_ACADEMIC':
+      case 'UNKNOWN':
       default:
-        return ['knowledge_search', 'explain', 'summarizer', 'study_notes'];
+        return ['knowledge_search', 'explain', 'study_notes'];
     }
   }
 
@@ -199,7 +160,7 @@ export class AIController {
    * Selects the primary tool to execute based on intent and allowed tools
    */
   public selectPrimaryTool(intent: UserIntent, allowedTools: AIToolType[]): AIToolType {
-    if (intent === 'CODE_GENERATION' && allowedTools.includes('code_generator')) {
+    if ((intent === 'PROGRAMMING' || intent === 'CODE_GENERATION') && allowedTools.includes('code_generator')) {
       return 'code_generator';
     }
     if (intent === 'CODE_EXPLANATION' && allowedTools.includes('code_explainer')) {
@@ -208,13 +169,13 @@ export class AIController {
     if (intent === 'QUIZ' && allowedTools.includes('quiz_generator')) {
       return 'quiz_generator';
     }
-    if (intent === 'SUMMARIZE' && allowedTools.includes('summarizer')) {
+    if ((intent === 'SUMMARY' || intent === 'SUMMARIZE') && allowedTools.includes('summarizer')) {
       return 'summarizer';
     }
     if (intent === 'STUDY_NOTES' && allowedTools.includes('study_notes')) {
       return 'study_notes';
     }
-    if (intent === 'WEB_SEARCH' && allowedTools.includes('web_search')) {
+    if ((intent === 'COLLEGE_INFO' || intent === 'WEB_SEARCH') && allowedTools.includes('web_search')) {
       return 'web_search';
     }
     if (allowedTools.includes('explain')) {
@@ -277,9 +238,9 @@ export class AIController {
   private getToolInstruction(tool: AIToolType): string {
     switch (tool) {
       case 'code_generator':
-        return `The student requested code. Provide a concise, clean implementation strictly under ${AI_LIMITS.MAX_CODE_LINES_DEFAULT} lines. Follow this format:\n1. Brief approach explanation (1-2 sentences)\n2. Complete, self-contained Code block (max ${AI_LIMITS.MAX_CODE_LINES_DEFAULT} lines)\n3. Time and Space complexity analysis.`;
+        return `The student requested code. Provide a concise, clean implementation strictly under ${AI_LIMITS.MAX_CODE_LINES_DEFAULT} lines. Follow this format:\n1. Brief approach explanation (1-2 sentences)\n2. Complete, self-contained Code block (max ${AI_LIMITS.MAX_CODE_LINES_DEFAULT} lines)\n3. Time and Space complexity analysis. Never put jokes inside code.`;
       case 'code_explainer':
-        return `Explain the code provided in the context clearly, detailing what each class/method does and explaining its execution flow.`;
+        return `Explain the code clearly, detailing what each class/method does and explaining its execution flow without unnecessary jokes.`;
       case 'quiz_generator':
         return `Generate 3 multiple-choice practice quiz questions (MCQs) based strictly on the provided context, including options A, B, C, D and the correct answer with brief explanation for each.`;
       case 'summarizer':
@@ -291,12 +252,12 @@ export class AIController {
       case 'explain':
       case 'knowledge_search':
       default:
-        return `Provide a clear, direct, and structured explanation answering the student's question based strictly on the retrieved academic context.`;
+        return `Provide a clear, direct, and structured explanation answering the student's question based on the retrieved academic context.`;
     }
   }
 
   /**
-   * Main controlled generation method
+   * Main controlled generation method incorporating Invisible Personality & Tone Policy
    */
   public async handleChat(params: {
     message: string;
@@ -307,42 +268,70 @@ export class AIController {
     allChunks: any[];
   }): Promise<ChatResponse> {
     const tStart = performance.now();
-    const { message, webAccessEnabled = false, debug = false, env, allChunks } = params;
+    const { message, conversation = [], webAccessEnabled = false, debug = false, env, allChunks } = params;
 
-    // 1. Intent Detection
+    // 1. Intent Detection & Personality Policy Resolution
     const tIntentStart = performance.now();
-    const intent = this.detectIntent(message, webAccessEnabled);
-    const allowedTools = this.getAllowedTools(intent, webAccessEnabled);
-    const selectedTool = this.selectPrimaryTool(intent, allowedTools);
+    const detectedIntent = this.intentDetector.detect(message, conversation, webAccessEnabled).intent;
+    const policy = this.personalityEngine.getPolicy(detectedIntent, conversation);
+    const allowedTools = this.getAllowedTools(detectedIntent, webAccessEnabled);
+    const selectedTool = this.selectPrimaryTool(detectedIntent, allowedTools);
     const tIntentEnd = performance.now();
 
-    // 2. Retrieve candidates via existing ADS Search Pipeline
+    // 2. Candidate Retrieval via existing ADS Search Pipeline
     const tAdsStart = performance.now();
-    const pipeline = ADSSearchPipeline.getInstance();
-    pipeline.buildIndex(allChunks);
-    const adsSearchResult = pipeline.search(message, AI_LIMITS.MAX_RETRIEVED_CHUNKS, debug);
-    const retrievedChunks = adsSearchResult.results;
+    let retrievedChunks: RankedChunk[] = [];
+    let adsPipelineStatus = 'skipped_for_casual';
+
+    // Only run intensive retrieval if grounding is required or the message has academic intent
+    const needsRetrieval =
+      policy.requiresGrounding ||
+      detectedIntent === 'ACADEMIC' ||
+      detectedIntent === 'EXAM_PREP' ||
+      detectedIntent === 'PROGRAMMING' ||
+      detectedIntent === 'CODE_EXPLANATION' ||
+      detectedIntent === 'QUIZ' ||
+      detectedIntent === 'SUMMARY' ||
+      detectedIntent === 'STUDY_NOTES' ||
+      detectedIntent === 'COLLEGE_INFO';
+
+    if (needsRetrieval && allChunks && allChunks.length > 0) {
+      const pipeline = ADSSearchPipeline.getInstance();
+      pipeline.buildIndex(allChunks);
+      const adsSearchResult = pipeline.search(message, AI_LIMITS.MAX_RETRIEVED_CHUNKS, debug);
+      retrievedChunks = adsSearchResult.results;
+      adsPipelineStatus = 'executed';
+    }
     const tAdsEnd = performance.now();
 
     // 3. Grounded Context Construction
     const { contextText, sources } = this.buildGroundedContext(retrievedChunks);
+    const hasContext = contextText.length > 0 && retrievedChunks.length > 0;
 
-    // Fallback if no relevant context was found in D1
-    if (!contextText || retrievedChunks.length === 0) {
+    // 4. Grounding Validation & Strict Fallback Handling
+    // If a college info inquiry was made but no verified circulars/dates exist:
+    if (detectedIntent === 'COLLEGE_INFO' && !hasContext) {
       return {
         answer:
-          "I couldn't find enough verified information in the Nexora knowledge base to answer that reliably. Please verify that the relevant subject unit has been uploaded in the Admin Dashboard.",
+          "I don't have the verified schedule or official notification for that in the Nexora database yet. Please check the official BVC Engineering College noticeboard or website (bvcec.edu.in) for confirmed dates and circulars.",
         tool: selectedTool,
         sources: [],
         debug: debug
           ? {
-              detectedIntent: intent,
+              detectedIntent,
               selectedTool,
               allowedTools,
               retrievedChunkCount: 0,
               model: env.AI_MODEL || AI_LIMITS.DEFAULT_MODEL,
               codeLineCount: 0,
-              generationStatus: 'insufficient_context',
+              generationStatus: 'unverified_college_info',
+              personality: {
+                tone: policy.tone,
+                humorLevel: policy.humorLevel,
+                teasingLevel: policy.teasingLevel,
+                academicPriority: policy.academicPriority,
+                supportive: policy.supportive,
+              },
               timingsMs: {
                 intentDetection: Math.round((tIntentEnd - tIntentStart) * 100) / 100,
                 adsRetrieval: Math.round((tAdsEnd - tAdsStart) * 100) / 100,
@@ -355,14 +344,23 @@ export class AIController {
       };
     }
 
-    // 4. Construct System Prompt & Messages
+    // 5. Construct Invisible System Instruction
     const toolInstruction = this.getToolInstruction(selectedTool);
-    const systemInstruction = `You are Nexora, an AI academic assistant for BVC Engineering College students.
-Answer the student's question using ONLY the verified academic context provided below.
-Do not invent facts, syllabus topics, deadlines, or college policies.
-Do not fabricate document references.
-If the context does not contain enough information, say: "I couldn't find enough information in the Nexora knowledge base to answer that reliably."
-${toolInstruction}`;
+    const systemInstruction = this.personalityEngine.buildSystemInstruction(policy, toolInstruction, hasContext);
+
+    // Multi-turn message history integration (last 4 turns for context awareness)
+    const recentMessages = (conversation || [])
+      .slice(-4)
+      .filter((m) => m && m.role && m.content)
+      .map((m) => ({
+        role: m.role === 'assistant' ? 'assistant' : 'user',
+        content: String(m.content).slice(0, 500),
+      }));
+
+    // Current turn user prompt
+    const currentUserPrompt = hasContext
+      ? `VERIFIED ACADEMIC CONTEXT:\n${contextText}\n\nSTUDENT QUESTION:\n${message}`
+      : `STUDENT QUESTION:\n${message}\n(Provide a precise, comprehensive, and accurate academic explanation based on standard computer science / engineering principles.)`;
 
     const candidateModels = [
       env.AI_MODEL,
@@ -378,19 +376,17 @@ ${toolInstruction}`;
     const tAiStart = performance.now();
     let aiErrorMessage = '';
 
-    // 5. Workers AI Invocation with active candidate model fallback
+    // 6. Workers AI Invocation with candidate model fallback
     if (env.AI && typeof env.AI.run === 'function') {
       for (const candidate of candidateModels) {
         try {
           const response = await env.AI.run(candidate, {
             messages: [
               { role: 'system', content: systemInstruction },
-              {
-                role: 'user',
-                content: `VERIFIED ACADEMIC CONTEXT:\n${contextText}\n\nSTUDENT QUESTION:\n${message}`,
-              },
+              ...recentMessages,
+              { role: 'user', content: currentUserPrompt },
             ],
-            temperature: 0.2,
+            temperature: policy.humorLevel === 'moderate' ? 0.4 : 0.2,
             max_tokens: AI_LIMITS.MAX_RESPONSE_TOKENS,
           });
 
@@ -407,28 +403,45 @@ ${toolInstruction}`;
       }
     }
 
-    // Grounded academic fallback if Workers AI is not reachable
+    // 7. Deterministic Fallback if Workers AI is offline or unreachable
     if (!generatedText) {
-      const primaryChunk = retrievedChunks[0];
-      const cleanContent = primaryChunk.content.replace(/^SUBJECT:[^\n]+\n\n/, '');
+      if (detectedIntent === 'GREETING') {
+        generatedText = policy.suggestedOpeningPhrases?.[0] || 'Hey! What subject are we tackling today?';
+      } else if (detectedIntent === 'CASUAL') {
+        generatedText = policy.suggestedOpeningPhrases?.[0] || 'Standing by to rescue your GPA. What are you working on?';
+      } else if (detectedIntent === 'SMALL_TALK') {
+        generatedText = policy.suggestedOpeningPhrases?.[0] || 'Glad one of us is having fun. Now, what are we actually studying?';
+      } else if (detectedIntent === 'STRESSED_STUDENT') {
+        generatedText =
+          "Take a breath — you're not out of options yet. Tell me what subject and unit you have, and we will focus on the most important, high-scoring topics first.";
+      } else if (hasContext) {
+        const primaryChunk = retrievedChunks[0];
+        const cleanContent = primaryChunk.content.replace(/^SUBJECT:[^\n]+\n\n/, '');
 
-      if (selectedTool === 'code_generator') {
-        generatedText = `Based on verified Nexora syllabus for ${primaryChunk.subject} (Unit ${primaryChunk.unit}):\n\n\`\`\`java\n${cleanContent}\n\`\`\`\n\n**Complexity Analysis:**\n- Time Complexity: O(1) for direct member access and method calls\n- Space Complexity: O(1) auxiliary stack frame memory`;
-      } else if (selectedTool === 'quiz_generator') {
-        generatedText = `Practice Quiz on ${primaryChunk.subject} (Unit ${primaryChunk.unit}):\n\n1. What concept is demonstrated in the syllabus topic?\n   A) Single Inheritance\n   B) Multiple Inheritance\n   C) Operator Overloading\n   D) Dynamic Scoping\n   *Correct Answer: A*\n\n2. Which keyword is used to refer to superclass members in Java?\n   A) this\n   B) super\n   C) extends\n   D) base\n   *Correct Answer: B*`;
-      } else if (selectedTool === 'study_notes') {
-        generatedText = `### Revision Study Notes: ${primaryChunk.subject} (Unit ${primaryChunk.unit})\n\n**Topic:** ${primaryChunk.title}\n\n**Key Concepts:**\n- ${cleanContent.substring(0, 300)}...\n\n**Exam Tips:**\n- Ensure correct class inheritance syntax.\n- Remember super() calls the superclass constructor.`;
-      } else if (selectedTool === 'summarizer') {
-        generatedText = `### Summary of ${primaryChunk.subject} (Unit ${primaryChunk.unit})\n- ${cleanContent.substring(0, 200)}...\n- Implemented in BVC Engineering College curriculum.`;
+        if (selectedTool === 'code_generator') {
+          generatedText = `Based on verified Nexora syllabus for ${primaryChunk.subject} (Unit ${primaryChunk.unit}):\n\n\`\`\`java\n${cleanContent}\n\`\`\`\n\n**Complexity Analysis:**\n- Time Complexity: O(1) for member access\n- Space Complexity: O(1) auxiliary stack space`;
+        } else if (selectedTool === 'quiz_generator') {
+          generatedText = `Practice Quiz on ${primaryChunk.subject} (Unit ${primaryChunk.unit}):\n\n1. What concept is highlighted in this unit?\n   A) Single Inheritance\n   B) Binary Search\n   C) Operator Overloading\n   D) Dynamic Scoping\n   *Correct Answer: A*`;
+        } else if (selectedTool === 'study_notes') {
+          generatedText = `### Revision Study Notes: ${primaryChunk.subject} (Unit ${primaryChunk.unit})\n\n**Topic:** ${primaryChunk.title}\n\n**Key Points:**\n- ${cleanContent.substring(0, 300)}...`;
+        } else if (selectedTool === 'summarizer') {
+          generatedText = `### Summary of ${primaryChunk.subject} (Unit ${primaryChunk.unit})\n- ${cleanContent.substring(0, 200)}...`;
+        } else {
+          generatedText = `Based on verified Nexora knowledge base for ${primaryChunk.subject} (Unit ${primaryChunk.unit}):\n\n${cleanContent}`;
+        }
       } else {
-        generatedText = `Based on verified Nexora knowledge base for ${primaryChunk.subject} (Unit ${primaryChunk.unit}):\n\n${cleanContent}`;
+        generatedText = "I'm here to help with your BVC Engineering studies. Ask me about your subjects, units, or code implementations.";
       }
     }
     const tAiEnd = performance.now();
 
-    // 6. Code Line Limit Enforcement (MAX_CODE_LINES_HARD = 100)
+    // 8. Sanitize Invisible Personality Violations (Post-processing guardrail)
+    // Strip accidental mode announcement leaks if an LLM outputs them
+    const sanitizedText = this.sanitizeModeAnnouncements(generatedText);
+
+    // 9. Code Line Limit Enforcement (MAX_CODE_LINES_HARD = 100)
     let totalCodeLines = 0;
-    const validatedText = this.enforceCodeLimits(generatedText, (lineCount) => {
+    const validatedText = this.enforceCodeLimits(sanitizedText, (lineCount) => {
       totalCodeLines = lineCount;
     });
 
@@ -440,23 +453,49 @@ ${toolInstruction}`;
       sources,
       debug: debug
         ? {
-            detectedIntent: intent,
+            detectedIntent,
             selectedTool,
             allowedTools,
             retrievedChunkCount: retrievedChunks.length,
             model: activeModel,
             codeLineCount: totalCodeLines,
             generationStatus: aiErrorMessage ? `fallback: ${aiErrorMessage}` : 'workers_ai_success',
+            personality: {
+              tone: policy.tone,
+              humorLevel: policy.humorLevel,
+              teasingLevel: policy.teasingLevel,
+              academicPriority: policy.academicPriority,
+              supportive: policy.supportive,
+            },
             timingsMs: {
               intentDetection: Math.round((tIntentEnd - tIntentStart) * 100) / 100,
               adsRetrieval: Math.round((tAdsEnd - tAdsStart) * 100) / 100,
               aiGeneration: Math.round((tAiEnd - tAiStart) * 100) / 100,
               total: Math.round((totalEnd - tStart) * 100) / 100,
             },
-            adsPipelineStatus: 'executed',
+            adsPipelineStatus,
           }
         : undefined,
     };
+  }
+
+  /**
+   * Post-processing guardrail: Removes any inadvertent internal mode announcements
+   */
+  private sanitizeModeAnnouncements(text: string): string {
+    const forbiddenPatterns = [
+      /^(I'm|I am) switching to (study|teacher|roast|casual) mode[.:!]?\s*/i,
+      /^(Teacher|Study|Roast|Casual) mode (activated|enabled)[.:!]?\s*/i,
+      /^(No roasting for this one|I'm being serious now)[.:!]?\s*/i,
+      /^(Intent detected|Tone selected):[^\n]+\n*/i,
+      /^(My personality mode is)[^\n]+\n*/i,
+    ];
+
+    let cleaned = text;
+    for (const pattern of forbiddenPatterns) {
+      cleaned = cleaned.replace(pattern, '');
+    }
+    return cleaned;
   }
 
   /**
