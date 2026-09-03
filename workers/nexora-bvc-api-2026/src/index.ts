@@ -14,6 +14,8 @@
  */
 
 import { AIService, EnvAIConfig } from './ai/ai_service';
+import { ADSSearchPipeline } from './ads/pipeline';
+import { AIController } from './ai/ai_controller';
 
 export interface Env extends EnvAIConfig {
   ENVIRONMENT?: string;
@@ -428,9 +430,10 @@ export default {
           endpoints: [
             { method: 'GET', path: '/health', description: 'Service health check' },
             { method: 'GET', path: '/documents', description: 'List all documents in D1 knowledge base' },
-            { method: 'GET', path: '/search?q=<query>', description: 'Search across all study chunks in D1 database' },
+            { method: 'GET', path: '/search?q=<query>', description: 'Search across all study chunks in D1 database using ADS Engine' },
             { method: 'POST', path: '/admin/upload', description: 'Upload and chunk new study material into D1 (Admin)' },
             { method: 'DELETE', path: '/admin/document/:id', description: 'Delete a document and its chunks from D1 (Admin)' },
+            { method: 'POST', path: '/chat', description: 'Grounded AI with controlled tools & ADS retrieval' },
             { method: 'POST', path: '/ask', description: 'Grounded AI question answering' },
           ],
         });
@@ -490,63 +493,45 @@ export default {
         }
 
         const trimmedQuery = query.trim();
+        const isDebug = url.searchParams.get('debug') === 'true';
+        const limitParam = parseInt(url.searchParams.get('limit') || '10', 10);
+        const topK = isNaN(limitParam) ? 10 : Math.max(1, Math.min(20, limitParam));
 
-        // Step 1: Query Cloudflare D1 across ALL documents
+        // Step 1: Query Cloudflare D1 across ALL documents using ADS Algorithm Engine
         if (env.DB) {
           try {
-            const term = `%${trimmedQuery}%`;
-            const { results: d1Rows } = await env.DB.prepare(
-              `SELECT c.content, d.title, d.subject, d.unit, c.chunk_index
+            const { results: allRows } = await env.DB.prepare(
+              `SELECT c.id, c.document_id, c.content, d.title, d.subject, d.unit, c.chunk_index
                FROM chunks c
                JOIN documents d ON c.document_id = d.id
-               WHERE c.content LIKE ? OR d.title LIKE ? OR d.subject LIKE ?
-               ORDER BY d.unit ASC, c.chunk_index ASC
-               LIMIT 10`
-            )
-              .bind(term, term, term)
-              .all<D1ChunkRow>();
+               ORDER BY d.unit ASC, c.chunk_index ASC`
+            ).all<D1ChunkRow>();
 
-            if (d1Rows && d1Rows.length > 0) {
-              return jsonResponse({
-                query: trimmedQuery,
-                results: d1Rows.map((r) => ({
-                  content: r.content,
-                  title: r.title,
-                  subject: r.subject,
-                  unit: r.unit,
-                })),
-              });
-            }
+            if (allRows && allRows.length > 0) {
+              const pipeline = ADSSearchPipeline.getInstance();
+              pipeline.buildIndex(allRows as any);
 
-            // Also try keyword fallback search in D1
-            const keywords = extractSearchKeywords(trimmedQuery);
-            if (keywords && keywords.toLowerCase() !== trimmedQuery.toLowerCase()) {
-              const kwTerm = `%${keywords}%`;
-              const { results: kwRows } = await env.DB.prepare(
-                `SELECT c.content, d.title, d.subject, d.unit, c.chunk_index
-                 FROM chunks c
-                 JOIN documents d ON c.document_id = d.id
-                 WHERE c.content LIKE ? OR d.title LIKE ? OR d.subject LIKE ?
-                 ORDER BY d.unit ASC, c.chunk_index ASC
-                 LIMIT 10`
-              )
-                .bind(kwTerm, kwTerm, kwTerm)
-                .all<D1ChunkRow>();
+              const { results: adsRankedResults, debug: debugInfo } = pipeline.search(
+                trimmedQuery,
+                topK,
+                isDebug
+              );
 
-              if (kwRows && kwRows.length > 0) {
+              if (adsRankedResults.length > 0) {
                 return jsonResponse({
                   query: trimmedQuery,
-                  results: kwRows.map((r) => ({
+                  results: adsRankedResults.map((r) => ({
                     content: r.content,
                     title: r.title,
                     subject: r.subject,
                     unit: r.unit,
                   })),
+                  ...(isDebug && debugInfo ? { pipeline: debugInfo } : {}),
                 });
               }
             }
           } catch (d1Err: any) {
-            console.error('[Nexora Worker] D1 Search Error:', d1Err?.message || d1Err);
+            console.error('[Nexora Worker] ADS D1 Search Error:', d1Err?.message || d1Err);
           }
         }
 
@@ -557,12 +542,16 @@ export default {
           return jsonResponse({
             success: true,
             query: trimmedQuery,
-            results: portalResults,
+            results: portalResults.map((p) => ({
+              ...p,
+              content: p.snippet || p.title,
+            })),
             sources,
           });
         }
 
         return jsonResponse({
+          success: true,
           query: trimmedQuery,
           results: [],
           message: 'No matching study chunks or portal notices were found for this query.',
@@ -590,7 +579,7 @@ export default {
             {
               success: false,
               error: 'Bad Request',
-              message: 'Invalid JSON body. Required: { title, subject, unit, content, topic? }',
+              message: 'Invalid JSON body. Required: { title, subject, chunks: [...] }',
             },
             400
           );
@@ -598,54 +587,84 @@ export default {
 
         const title = (body?.title || '').trim();
         const subject = (body?.subject || '').trim();
-        const unit = parseInt(String(body?.unit || ''), 10);
+        const unit = parseInt(String(body?.unit || body?.academicUnit || '1'), 10) || 1;
         const topic = (body?.topic || '').trim();
         const content = (body?.content || '').trim();
+        const rawChunks = body?.chunks;
 
-        if (!title || !subject || isNaN(unit) || !content) {
+        if (!title || typeof title !== 'string' || !title.trim()) {
           return jsonResponse(
             {
               success: false,
               error: 'Validation Error',
-              message: 'All fields (title, subject, unit, content) are required and cannot be empty.',
+              message: 'Title is required and cannot be empty.',
             },
             400
           );
         }
 
-        if (unit < 1 || unit > 10) {
+        if (!subject || typeof subject !== 'string' || !subject.trim()) {
           return jsonResponse(
             {
               success: false,
               error: 'Validation Error',
-              message: 'Unit must be a valid number between 1 and 10.',
+              message: 'Subject is required and cannot be empty.',
             },
             400
           );
         }
 
-        // Deterministic chunking (800 - 1400 chars per chunk)
-        const chunks = chunkStudyContent(content, { subject, unit, topic, title });
+        let chunkTexts: string[] = [];
+        if (Array.isArray(rawChunks) && rawChunks.length > 0) {
+          // Reject payload if any item in chunks is null or empty/whitespace
+          for (let i = 0; i < rawChunks.length; i++) {
+            const c = rawChunks[i];
+            const text = (typeof c === 'string' ? c : (c && typeof c === 'object' ? (c.text || c.content) : '')) || '';
+            if (typeof text !== 'string' || !text.trim()) {
+              return jsonResponse(
+                {
+                  success: false,
+                  error: 'Validation Error',
+                  message: `Chunk #${i + 1} is empty or whitespace-only. All chunks must contain valid content.`,
+                },
+                400
+              );
+            }
+            chunkTexts.push(text.trim());
+          }
+        } else if (content) {
+          chunkTexts = chunkStudyContent(content, { subject, unit, topic, title });
+        }
 
-        if (chunks.length === 0) {
+        if (chunkTexts.length === 0) {
           return jsonResponse(
             {
               success: false,
               error: 'Empty Content',
-              message: 'Content could not be parsed into valid chunks.',
+              message: 'Invalid payload: title, subject, and chunks[] are required and cannot be empty.',
             },
             400
           );
         }
 
+        // Composite metadata descriptor for document table
+        const sourceName = (body?.source || '').trim();
+        const pageInfo = (body?.page_info || '').trim();
+        const metaParts = [
+          sourceName ? `Source: ${sourceName}` : null,
+          pageInfo ? `Pages: ${pageInfo}` : null,
+          topic ? `Topic: ${topic}` : null,
+        ].filter(Boolean);
+        const fileUrlMeta = metaParts.length > 0 ? metaParts.join(' | ') : (topic || null);
+
         if (env.DB) {
           try {
-            // 1. Insert into documents table
+            // 1. Insert into documents table with preserved metadata
             const insertDoc = await env.DB.prepare(
               `INSERT INTO documents (title, subject, unit, file_url, created_at)
                VALUES (?, ?, ?, ?, CURRENT_TIMESTAMP)`
             )
-              .bind(title, subject, unit, topic || null)
+              .bind(title, subject, unit, fileUrlMeta)
               .run();
 
             const documentId =
@@ -655,7 +674,7 @@ export default {
               Date.now();
 
             // 2. Insert all chunks into chunks table
-            const chunkStatements = chunks.map((chunkText, idx) =>
+            const chunkStatements = chunkTexts.map((chunkText, idx) =>
               env.DB!.prepare(
                 `INSERT INTO chunks (document_id, content, chunk_index, created_at)
                  VALUES (?, ?, ?, CURRENT_TIMESTAMP)`
@@ -671,8 +690,9 @@ export default {
               subject,
               unit,
               topic: topic || undefined,
-              chunksCreated: chunks.length,
-              message: `Successfully processed and indexed ${chunks.length} chunks into Nexora knowledge base.`,
+              chunksCreated: chunkTexts.length,
+              chunkCount: chunkTexts.length,
+              message: `Successfully processed and indexed ${chunkTexts.length} chunks into Nexora knowledge base.`,
             });
           } catch (dbErr: any) {
             console.error('[Nexora Worker] D1 Upload Error:', dbErr?.message || dbErr);
@@ -811,8 +831,8 @@ export default {
         });
       }
 
-      // 9. Grounded AI Generation Route (POST /ask)
-      if (request.method === 'POST' && path === '/ask') {
+      // 9. Grounded Conversational AI Route (POST /chat and POST /ask)
+      if (request.method === 'POST' && (path === '/chat' || path === '/ask')) {
         let body: any;
         try {
           body = await request.json();
@@ -821,124 +841,78 @@ export default {
             {
               success: false,
               error: 'Bad Request',
-              message: 'Invalid JSON body. Please provide a JSON object with a "question" field.',
+              message: 'Invalid JSON body. Please provide a JSON object with a "message" or "question" field.',
             },
             400
           );
         }
 
-        const question = body?.question;
-        if (typeof question !== 'string' || question.trim().length === 0) {
+        const rawMessage = body?.message || body?.question;
+        if (typeof rawMessage !== 'string' || rawMessage.trim().length === 0) {
           return jsonResponse(
             {
               success: false,
               error: 'Bad Request',
-              message: 'The "question" field is required and cannot be empty.',
+              message: 'The "message" (or "question") field is required and cannot be empty.',
             },
             400
           );
         }
 
-        if (question.length > MAX_QUESTION_LENGTH) {
+        if (rawMessage.length > MAX_QUESTION_LENGTH) {
           return jsonResponse(
             {
               success: false,
               error: 'Bad Request',
-              message: `The question exceeds the maximum allowed length of ${MAX_QUESTION_LENGTH} characters.`,
+              message: `The message exceeds the maximum allowed length of ${MAX_QUESTION_LENGTH} characters.`,
             },
             400
           );
         }
 
-        const trimmedQuestion = question.trim();
+        const trimmedMessage = rawMessage.trim();
+        const isDebug = url.searchParams.get('debug') === 'true' || body?.debug === true;
+        const webAccess = body?.webAccessEnabled === true;
 
-        // 1. Try D1 RAG chunks first
-        let retrievalContext = '';
-        const d1Sources: SourceInfo[] = [];
-
+        // Fetch D1 chunks to build grounded context through ADS pipeline
+        let allRows: any[] = [];
         if (env.DB) {
           try {
-            const term = `%${trimmedQuestion}%`;
-            const { results: d1Rows } = await env.DB.prepare(
-              `SELECT c.content, d.title, d.subject, d.unit
+            const { results } = await env.DB.prepare(
+              `SELECT c.id, c.document_id, c.content, d.title, d.subject, d.unit, c.chunk_index
                FROM chunks c
                JOIN documents d ON c.document_id = d.id
-               WHERE c.content LIKE ? OR d.title LIKE ?
-               LIMIT 4`
-            ).bind(term, term).all<D1ChunkRow>();
-
-            if (d1Rows && d1Rows.length > 0) {
-              retrievalContext = d1Rows
-                .map((r, i) => `[Study Chunk ${i + 1}] (${r.subject} Unit ${r.unit} - ${r.title}):\n${r.content}`)
-                .join('\n\n');
-
-              d1Rows.forEach((r) => {
-                if (!d1Sources.some((s) => s.title === r.title)) {
-                  d1Sources.push({ title: `${r.subject} • Unit ${r.unit}: ${r.title}`, url: '#' });
-                }
-              });
-            }
-          } catch (_) {}
-        }
-
-        // 2. If D1 has no context, search portal
-        let portalSources: SourceInfo[] = [];
-        if (!retrievalContext) {
-          const { results: portalResults, sources } = await searchOfficialSources(trimmedQuestion);
-          if (portalResults.length > 0) {
-            retrievalContext = portalResults
-              .map(
-                (r, i) =>
-                  `[Source ${i + 1}] Title: ${r.title}\nSource: ${r.source}\nURL: ${r.url}\nExcerpt: ${r.snippet}`
-              )
-              .join('\n\n');
-            portalSources = sources;
+               ORDER BY d.unit ASC, c.chunk_index ASC`
+            ).all<D1ChunkRow>();
+            allRows = results || [];
+          } catch (d1Err: any) {
+            console.error('[Nexora Worker] D1 Fetch Error for AI Chat:', d1Err?.message || d1Err);
           }
         }
 
-        if (!retrievalContext) {
+        const controller = AIController.getInstance();
+        const chatResponse = await controller.handleChat({
+          message: trimmedMessage,
+          conversation: body?.conversation || [],
+          webAccessEnabled: webAccess,
+          debug: isDebug,
+          env,
+          allChunks: allRows,
+        });
+
+        // Maintain backwards compatibility for legacy /ask callers
+        if (path === '/ask') {
           return jsonResponse({
             success: true,
-            question: trimmedQuestion,
-            answer:
-              "I couldn't find enough verified information from the currently configured official BVC sources or knowledge base to answer this accurately.",
-            sources: [],
+            question: trimmedMessage,
+            answer: chatResponse.answer,
+            tool: chatResponse.tool,
+            sources: chatResponse.sources,
+            ...(chatResponse.debug ? { debug: chatResponse.debug } : {}),
           });
         }
 
-        // 3. Generate answer
-        try {
-          const { apiKey, aiBinding } = aiService.resolveActiveProvider(env);
-
-          if (!apiKey && !aiBinding) {
-            return jsonResponse({
-              success: true,
-              question: trimmedQuestion,
-              answer: retrievalContext,
-              sources: d1Sources.length > 0 ? d1Sources : portalSources,
-            });
-          }
-
-          const aiResult = await aiService.generateGroundedAnswer({
-            question: trimmedQuestion,
-            officialContext: retrievalContext,
-            env,
-          });
-
-          return jsonResponse({
-            success: true,
-            question: trimmedQuestion,
-            answer: aiResult.answer,
-            sources: d1Sources.length > 0 ? d1Sources : portalSources,
-          });
-        } catch (aiErr: any) {
-          return jsonResponse({
-            success: true,
-            question: trimmedQuestion,
-            answer: retrievalContext,
-            sources: d1Sources.length > 0 ? d1Sources : portalSources,
-          });
-        }
+        return jsonResponse(chatResponse);
       }
 
       // 10. Unknown routes (404)

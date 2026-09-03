@@ -339,6 +339,123 @@
           </div>
         </div>
       </div>
+
+      <!-- Admin Controls: Web Access & Official Website -->
+      <div class="admin-controls-grid">
+        <!-- Web Access Card -->
+        <div class="card admin-control-card" id="webAccessCard">
+          <div class="card-header">
+            <div class="card-title-group">
+              <div class="card-icon web-icon">
+                <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                  <circle cx="12" cy="12" r="10"></circle>
+                  <line x1="2" y1="12" x2="22" y2="12"></line>
+                  <path d="M12 2a15.3 15.3 0 0 1 4 10 15.3 15.3 0 0 1-4 10 15.3 15.3 0 0 1-4-10 15.3 15.3 0 0 1 4-10z"></path>
+                </svg>
+              </div>
+              <div>
+                <h2>Web Access</h2>
+                <p class="card-subtitle">Control external web search for BVC portal results</p>
+              </div>
+            </div>
+          </div>
+
+          <div class="admin-control-body">
+            <div class="toggle-row">
+              <div class="toggle-info">
+                <span class="toggle-label">Enable Web Search</span>
+                <span class="toggle-desc">Allow Nexora to query official BVC college portals for notices, circulars, and announcements</span>
+              </div>
+              <label class="toggle-switch" for="webAccessToggle">
+                <input type="checkbox" id="webAccessToggle" />
+                <span class="toggle-slider"></span>
+              </label>
+            </div>
+
+            <div class="control-actions">
+              <button type="button" class="btn btn-secondary btn-sm" id="testWebAccessBtn">
+                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                  <polyline points="22 12 18 12 15 21 9 3 6 12 2 12"></polyline>
+                </svg>
+                Test Web Access
+              </button>
+              <div class="control-status" id="webAccessStatus">
+                <span class="status-dot"></span>
+                <span class="status-text">Not tested</span>
+              </div>
+            </div>
+
+            <!-- Web Access Test Results -->
+            <div class="web-test-results" id="webTestResults" style="display: none;">
+              <div class="web-test-header">
+                <span>Web Search Results</span>
+                <span class="badge-info" id="webTestCount">0 results</span>
+              </div>
+              <div class="web-test-list" id="webTestList"></div>
+            </div>
+          </div>
+        </div>
+
+        <!-- Official Website Card -->
+        <div class="card admin-control-card" id="officialWebsiteCard">
+          <div class="card-header">
+            <div class="card-title-group">
+              <div class="card-icon site-icon">
+                <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                  <path d="M10 13a5 5 0 0 0 7.54.54l3-3a5 5 0 0 0-7.07-7.07l-1.72 1.71"></path>
+                  <path d="M14 11a5 5 0 0 0-7.54-.54l-3 3a5 5 0 0 0 7.07 7.07l1.71-1.71"></path>
+                </svg>
+              </div>
+              <div>
+                <h2>Official Website</h2>
+                <p class="card-subtitle">Configure the trusted college website source</p>
+              </div>
+            </div>
+          </div>
+
+          <div class="admin-control-body">
+            <div class="form-group">
+              <label for="officialUrlInput">Official College Website URL</label>
+              <div class="url-input-row">
+                <div class="url-prefix">https://</div>
+                <input
+                  type="text"
+                  id="officialUrlInput"
+                  class="form-control url-input"
+                  placeholder="bvcec.edu.in"
+                />
+              </div>
+              <span class="form-hint">Enter the official HTTPS website URL for your college. This is used as a trusted source for portal scraping.</span>
+            </div>
+
+            <div class="control-actions">
+              <button type="button" class="btn btn-secondary btn-sm" id="verifyWebsiteBtn">
+                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                  <path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"></path>
+                  <polyline points="22 4 12 14.01 9 11.01"></polyline>
+                </svg>
+                Verify Website
+              </button>
+              <div class="control-status" id="officialWebsiteStatus">
+                <span class="status-dot"></span>
+                <span class="status-text">Not verified</span>
+              </div>
+            </div>
+
+            <!-- Verified Badge -->
+            <div class="verified-badge-box" id="verifiedBadgeBox" style="display: none;">
+              <div class="verified-badge">
+                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5">
+                  <path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"></path>
+                  <polyline points="22 4 12 14.01 9 11.01"></polyline>
+                </svg>
+                <span>Verified Trusted Source</span>
+              </div>
+              <span class="verified-url" id="verifiedUrlDisplay"></span>
+            </div>
+          </div>
+        </div>
+      </div>
     </main>
 
     <!-- Footer -->

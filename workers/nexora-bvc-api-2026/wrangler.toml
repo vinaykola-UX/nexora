@@ -10,4 +10,7 @@ ADMIN_SECRET = "nexora-admin-secure-key-2026"
 [[d1_databases]]
 binding = "DB"
 database_name = "nexora-rag"
-database_id = "nexora-rag"
+database_id = "dd95f8eb-9668-41c8-b9c7-020d1bcc260e"
+
+[ai]
+binding = "AI"

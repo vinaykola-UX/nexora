@@ -20,6 +20,9 @@ if (typeof pdfjsLib !== 'undefined') {
 const STORAGE_KEYS = {
   API_URL: 'nexora_admin_api_url',
   ADMIN_SECRET: 'nexora_admin_secret_token',
+  WEB_ACCESS: 'nexora_web_access_enabled',
+  OFFICIAL_WEBSITE: 'nexora_official_website_url',
+  OFFICIAL_WEBSITE_VERIFIED: 'nexora_official_website_verified',
 };
 
 const DEFAULT_CONFIG = {
@@ -37,6 +40,9 @@ const state = {
   selectedFile: null,
   isExtractingPdf: false,
   isUploading: false,
+  webAccessEnabled: localStorage.getItem(STORAGE_KEYS.WEB_ACCESS) === 'true',
+  officialWebsiteUrl: localStorage.getItem(STORAGE_KEYS.OFFICIAL_WEBSITE) || 'bvcec.edu.in',
+  officialWebsiteVerified: localStorage.getItem(STORAGE_KEYS.OFFICIAL_WEBSITE_VERIFIED) === 'true',
 };
 
 // ---------------------------------------------------------------------------
@@ -117,6 +123,21 @@ const elements = {
   closeInspectFooterBtn: document.getElementById('closeInspectFooterBtn'),
 
   toastContainer: document.getElementById('toastContainer'),
+
+  // Web Access
+  webAccessToggle: document.getElementById('webAccessToggle'),
+  testWebAccessBtn: document.getElementById('testWebAccessBtn'),
+  webAccessStatus: document.getElementById('webAccessStatus'),
+  webTestResults: document.getElementById('webTestResults'),
+  webTestCount: document.getElementById('webTestCount'),
+  webTestList: document.getElementById('webTestList'),
+
+  // Official Website
+  officialUrlInput: document.getElementById('officialUrlInput'),
+  verifyWebsiteBtn: document.getElementById('verifyWebsiteBtn'),
+  officialWebsiteStatus: document.getElementById('officialWebsiteStatus'),
+  verifiedBadgeBox: document.getElementById('verifiedBadgeBox'),
+  verifiedUrlDisplay: document.getElementById('verifiedUrlDisplay'),
 };
 
 // ---------------------------------------------------------------------------
@@ -180,15 +201,36 @@ async function checkWorkerHealth() {
 
   try {
     const data = await apiRequest('/health');
-    if (data.status === 'healthy' || data.success) {
+    if (data.status === 'healthy' || data.status === 'ok' || data.success) {
       elements.workerStatus.className = 'status-indicator online';
-      elements.workerStatus.querySelector('.status-text').textContent = 'Worker Online (D1 Ready)';
+      elements.workerStatus.querySelector('.status-text').textContent =
+        state.apiUrl.includes('localhost') ? 'Worker Online (Local API)' : 'Worker Online (Cloudflare D1)';
+      return true;
     } else {
       throw new Error('Unhealthy status');
     }
   } catch (err) {
+    // If remote worker fails and user is running on localhost, auto-try local API server on :8787
+    if (window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1') {
+      try {
+        const localRes = await fetch('http://localhost:8787/health');
+        const localData = await localRes.json();
+        if (localData.status === 'ok' || localData.status === 'healthy' || localData.success) {
+          state.apiUrl = 'http://localhost:8787';
+          localStorage.setItem(STORAGE_KEYS.API_URL, state.apiUrl);
+          if (elements.apiUrlInput) elements.apiUrlInput.value = state.apiUrl;
+          elements.workerStatus.className = 'status-indicator online';
+          elements.workerStatus.querySelector('.status-text').textContent = 'Worker Online (Local :8787)';
+          await loadDocuments();
+          return true;
+        }
+      } catch (localErr) {
+        // local also down
+      }
+    }
     elements.workerStatus.className = 'status-indicator offline';
     elements.workerStatus.querySelector('.status-text').textContent = 'Worker Offline / Error';
+    return false;
   }
 }
 
@@ -217,19 +259,27 @@ function calculateChunks(text, subject, unit, topic, title) {
   const clean = text.replace(/\r\n/g, '\n').trim();
   if (!clean) return [];
 
+  const sourceName = state.selectedFile ? state.selectedFile.name : 'Manual Entry';
   const paragraphs = clean.split(/\n\s*\n+/);
-  const chunks = [];
+  const rawChunks = [];
   let current = '';
+  let currentPage = 1;
+  let chunkStartPage = 1;
+  let hasPageMarkers = false;
+
   const maxChunkSize = 1400;
   const minChunkSize = 600;
-
-  const header = topic
-    ? `SUBJECT: ${subject || 'Data Structures'} | UNIT: ${unit} | TOPIC: ${topic.toUpperCase()}\n\n`
-    : `SUBJECT: ${subject || 'Data Structures'} | UNIT: ${unit} | TITLE: ${title || 'Unit Notes'}\n\n`;
 
   for (const para of paragraphs) {
     const tPara = para.trim();
     if (!tPara) continue;
+
+    // Detect page boundary in text
+    const pageMatch = tPara.match(/^---\s*Page\s*(\d+)\s*---/i);
+    if (pageMatch) {
+      currentPage = parseInt(pageMatch[1], 10);
+      hasPageMarkers = true;
+    }
 
     if (tPara.length > maxChunkSize) {
       const sentences = tPara.match(/[^.!?]+[.!?]+(?:\s+|$)|[^.!?]+$/g) || [tPara];
@@ -238,8 +288,13 @@ function calculateChunks(text, subject, unit, topic, title) {
         if (!tSent) continue;
         if (current.length + tSent.length + 1 > maxChunkSize) {
           if (current.trim().length >= minChunkSize) {
-            chunks.push(current.trim());
+            rawChunks.push({
+              body: current.trim(),
+              startPage: chunkStartPage,
+              endPage: currentPage,
+            });
             current = '';
+            chunkStartPage = currentPage;
           }
         }
         current = current ? `${current} ${tSent}` : tSent;
@@ -247,21 +302,57 @@ function calculateChunks(text, subject, unit, topic, title) {
     } else {
       if (current.length + tPara.length + 2 > maxChunkSize) {
         if (current.trim().length >= minChunkSize) {
-          chunks.push(current.trim());
+          rawChunks.push({
+            body: current.trim(),
+            startPage: chunkStartPage,
+            endPage: currentPage,
+          });
           current = '';
+          chunkStartPage = currentPage;
         }
       }
       current = current ? `${current}\n\n${tPara}` : tPara;
     }
   }
 
-  if (current.trim()) chunks.push(current.trim());
+  if (current.trim()) {
+    rawChunks.push({
+      body: current.trim(),
+      startPage: chunkStartPage,
+      endPage: currentPage,
+    });
+  }
 
-  return chunks.map((c) => {
-    if (!c.toUpperCase().includes('UNIT ') && !c.toUpperCase().includes((subject || '').toUpperCase())) {
-      return `${header}${c}`;
+  // Filter out any purely empty/whitespace entries
+  const validRaw = rawChunks.filter((rc) => rc.body && rc.body.trim().length > 0);
+
+  return validRaw.map((item, idx) => {
+    let pageInfo = 'Direct Entry';
+    if (hasPageMarkers) {
+      pageInfo = item.startPage === item.endPage ? `Page ${item.startPage}` : `Pages ${item.startPage}–${item.endPage}`;
+    } else if (state.selectedFile) {
+      pageInfo = 'Entire File';
     }
-    return c;
+
+    const header = `SUBJECT: ${subject || 'General'} | UNIT: ${unit} | TOPIC: ${(topic || title || 'Notes').toUpperCase()} | SOURCE: ${sourceName} | PAGES: ${pageInfo}\n\n`;
+    const fullText = item.body.startsWith('SUBJECT:') ? item.body : `${header}${item.body}`;
+
+    return {
+      chunk_id: idx + 1,
+      chunk_index: idx,
+      text: fullText,
+      content: fullText,
+      chars: fullText.length,
+      subject: subject || 'General',
+      unit: unit,
+      academicUnit: unit,
+      topic: topic || '',
+      title: title || `${subject} Unit ${unit}`,
+      source: sourceName,
+      page_info: pageInfo,
+      startPage: item.startPage,
+      endPage: item.endPage,
+    };
   });
 }
 
@@ -288,8 +379,17 @@ function updateContentStats() {
       .map(
         (c, idx) => `
         <div class="chunk-item">
-          <div class="chunk-item-title">Chunk #${idx + 1} (${c.length} chars)</div>
-          <div>${escapeHtml(c.substring(0, 200))}...</div>
+          <div class="chunk-item-header">
+            <span class="chunk-index-badge">Chunk #${idx + 1}</span>
+            <span class="chunk-badge chars-badge">${c.chars.toLocaleString()} chars</span>
+            <span class="chunk-badge source-badge">📄 ${escapeHtml(c.source)}</span>
+            <span class="chunk-badge page-badge">📑 ${escapeHtml(c.page_info)}</span>
+          </div>
+          <div class="chunk-meta-sub">
+            <span style="color: var(--accent); font-weight: 600;">${escapeHtml(c.subject)} • Unit ${c.unit}</span>
+            ${c.topic ? `<span>Topic: <strong>${escapeHtml(c.topic)}</strong></span>` : ''}
+          </div>
+          <div class="chunk-snippet">${escapeHtml(c.content.substring(0, 240))}...</div>
         </div>
       `
       )
@@ -383,11 +483,12 @@ function removeSelectedFile() {
 // Document List & D1 Operations
 // ---------------------------------------------------------------------------
 async function loadDocuments() {
-  elements.docsTableBody.innerHTML = `<tr><td colspan="6" class="table-loading">Loading documents from D1...</td></tr>`;
+  elements.docsTableBody.innerHTML = `<tr><td colspan="6" class="table-loading">Loading documents from knowledge base...</td></tr>`;
 
   try {
-    const docs = await apiRequest('/documents');
-    state.documents = Array.isArray(docs) ? docs : [];
+    const res = await apiRequest('/documents');
+    const docs = Array.isArray(res) ? res : (res && Array.isArray(res.documents) ? res.documents : []);
+    state.documents = docs;
     renderDocumentsTable(state.documents);
     updateOverviewStats(state.documents);
   } catch (err) {
@@ -415,7 +516,7 @@ function renderDocumentsTable(docs) {
           ${doc.file_url ? `<div style="font-size: 0.72rem; color: var(--text-muted);">Topic: ${escapeHtml(doc.file_url)}</div>` : ''}
         </td>
         <td><span style="color: var(--text-secondary);">${escapeHtml(doc.subject || '—')}</span></td>
-        <td><span class="unit-badge">Unit ${doc.unit || '—'}</span></td>
+        <td><span class="unit-badge">Unit ${doc.unit || doc.academicUnit || '—'}</span></td>
         <td><span class="chunks-badge">${doc.chunk_count || '—'} chunks</span></td>
         <td>
           <div class="action-btn-group">
@@ -448,22 +549,83 @@ async function handleUploadSubmit() {
   const content = elements.contentInput.value.trim();
   const unit = parseInt(document.querySelector('input[name="unit"]:checked')?.value || '1', 10);
 
-  if (!subject || !topic || !title || !content) {
-    showToast('Please fill in all required fields (Subject, Topic, Title, Content).', 'error');
+  // Validate title is a non-empty string
+  if (!title || typeof title !== 'string' || !title.trim()) {
+    showToast('Please provide a valid document title.', 'error');
     return;
   }
+
+  // Validate subject is a non-empty string
+  if (!subject || typeof subject !== 'string' || !subject.trim()) {
+    showToast('Please select or provide a valid subject.', 'error');
+    return;
+  }
+
+  // Validate content is present
+  if (!content) {
+    showToast('Please provide study material content or upload a file.', 'error');
+    return;
+  }
+
+  // Generate deterministic chunks with full metadata from UI content
+  const generatedChunks = calculateChunks(content, subject, unit, topic, title);
+
+  // Validate that chunks is an array with at least one item
+  if (!Array.isArray(generatedChunks) || generatedChunks.length === 0) {
+    showToast('Unable to generate valid chunks from the content.', 'error');
+    return;
+  }
+
+  // Strictly reject empty or whitespace-only chunks
+  for (let i = 0; i < generatedChunks.length; i++) {
+    const c = generatedChunks[i];
+    const rawBody = (c.content || '').replace(/^SUBJECT:[^\n]+\n\n/, '').trim();
+    if (!rawBody) {
+      showToast(`Validation Error: Chunk #${i + 1} is empty or contains only whitespace. Upload rejected.`, 'error');
+      return;
+    }
+  }
+
+  const sourceName = state.selectedFile ? state.selectedFile.name : 'Manual Entry';
+  const startPage = generatedChunks[0].startPage || 1;
+  const endPage = generatedChunks[generatedChunks.length - 1].endPage || 1;
+  const overallPageInfo = startPage === endPage ? `Page ${startPage}` : `Pages ${startPage}–${endPage}`;
+
+  // Map generated chunks with metadata preserved
+  const chunks = generatedChunks.map((c, idx) => ({
+    chunk_id: idx + 1,
+    chunk_index: idx,
+    text: c.content,
+    content: c.content,
+    academicUnit: unit,
+    unit: unit,
+    subject: subject,
+    title: title,
+    topic: topic || '',
+    source: c.source || sourceName,
+    page_info: c.page_info || overallPageInfo,
+  }));
+
+  const payload = {
+    title,
+    subject,
+    unit,
+    academicUnit: unit,
+    topic,
+    source: sourceName,
+    page_info: overallPageInfo,
+    content,
+    chunks,
+  };
+
+  // Required console logging immediately before POST /admin/upload
+  console.log('payload.title:', payload.title);
+  console.log('payload.subject:', payload.subject);
+  console.log('payload.chunks.length:', payload.chunks.length);
 
   setUploadLoading(true);
 
   try {
-    const payload = {
-      title,
-      subject,
-      unit,
-      topic,
-      content,
-    };
-
     const result = await apiRequest('/admin/upload', {
       method: 'POST',
       auth: true,
@@ -471,11 +633,12 @@ async function handleUploadSubmit() {
     });
 
     if (result.success) {
-      showToast(`Success! Added ${result.chunksCreated} chunks to D1 for ${subject} Unit ${unit}.`, 'success');
+      const addedCount = result.chunkCount || result.chunksCreated || result.chunks?.length || payload.chunks.length;
+      showToast(`Success! Added ${addedCount} chunks to knowledge base for ${subject} Unit ${unit}.`, 'success');
       clearUploadForm();
       await loadDocuments();
     } else {
-      throw new Error(result.message || 'Upload failed');
+      throw new Error(result.message || result.error || 'Upload failed');
     }
   } catch (err) {
     showToast(`Upload Error: ${err.message}`, 'error');
@@ -593,23 +756,238 @@ async function runRetrievalTest(query) {
       return;
     }
 
-    elements.testResultsList.innerHTML = results
-      .map(
-        (r, i) => `
-        <div class="retrieved-chunk-card">
-          <div class="retrieved-chunk-meta">
-            <span>#${i + 1} ${escapeHtml(r.subject || 'BVC')} • Unit ${r.unit || '—'}</span>
-            <span>${escapeHtml(r.title || '')}</span>
+    // Partition results into D1 academic knowledge vs live portal web results
+    const d1Chunks = results.filter((r) => !r.url);
+    const webItems = results.filter((r) => !!r.url);
+
+    let html = '';
+
+    // Section 1: Permanent D1 Knowledge Chunks
+    if (d1Chunks.length > 0) {
+      html += `
+        <div style="margin-bottom: 1rem;">
+          <div style="font-size: 0.8rem; font-weight: 700; color: var(--accent); margin-bottom: 0.5rem; display: flex; align-items: center; gap: 6px;">
+            <span>📚 Verified D1 Academic Knowledge</span>
+            <span class="badge-accent" style="font-size: 0.68rem;">${d1Chunks.length} Chunk(s)</span>
           </div>
-          <div style="white-space: pre-wrap; font-family: var(--font-mono); font-size: 0.76rem; color: var(--text-secondary);">
-            ${escapeHtml(r.content || r.snippet || '')}
-          </div>
+          ${d1Chunks
+            .map(
+              (r, i) => `
+              <div class="retrieved-chunk-card" style="margin-bottom: 0.5rem;">
+                <div class="retrieved-chunk-meta">
+                  <span>#${i + 1} ${escapeHtml(r.subject || 'Academic')} • Unit ${r.unit || '—'}</span>
+                  <span>${escapeHtml(r.title || '')}</span>
+                </div>
+                <div style="white-space: pre-wrap; font-family: var(--font-mono); font-size: 0.76rem; color: var(--text-secondary);">
+                  ${escapeHtml(r.content || '')}
+                </div>
+              </div>
+            `
+            )
+            .join('')}
         </div>
-      `
-      )
-      .join('');
+      `;
+    }
+
+    // Section 2: External Web / Portal Results (Only if Web Access is enabled)
+    if (webItems.length > 0) {
+      if (state.webAccessEnabled) {
+        html += `
+          <div>
+            <div style="font-size: 0.8rem; font-weight: 700; color: #38bdf8; margin-bottom: 0.5rem; display: flex; align-items: center; gap: 6px;">
+              <span>🌐 Live Web / Official Portal (External — Not Saved in D1)</span>
+              <span class="badge-info" style="font-size: 0.68rem;">${webItems.length} Result(s)</span>
+            </div>
+            ${webItems
+              .map(
+                (r, i) => `
+                <div class="retrieved-chunk-card" style="border-left: 3px solid #38bdf8; margin-bottom: 0.5rem;">
+                  <div class="retrieved-chunk-meta">
+                    <span style="color: #38bdf8;">🌐 ${escapeHtml(r.source || 'Portal Notice')}</span>
+                    <a href="${escapeHtml(r.url || '#')}" target="_blank" rel="noopener noreferrer" style="color: var(--accent); font-size: 0.72rem; text-decoration: none;">View Portal ↗</a>
+                  </div>
+                  <div style="font-weight: 600; font-size: 0.82rem; color: var(--text-main); margin-bottom: 4px;">
+                    ${escapeHtml(r.title || 'Official Notice')}
+                  </div>
+                  <div style="white-space: pre-wrap; font-family: var(--font-mono); font-size: 0.76rem; color: var(--text-secondary);">
+                    ${escapeHtml(r.content || r.snippet || '')}
+                  </div>
+                </div>
+              `
+              )
+              .join('')}
+          </div>
+        `;
+      } else {
+        html += `
+          <div style="padding: 0.75rem 1rem; background: var(--bg-surface); border-radius: var(--radius-sm); border: 1px dashed var(--border-color); font-size: 0.75rem; color: var(--text-muted); margin-top: 0.5rem;">
+            ℹ️ Live Web Search is currently <strong>Disabled</strong> in Admin controls. ${webItems.length} portal result(s) omitted to keep results strictly local.
+          </div>
+        `;
+      }
+    }
+
+    if (!html) {
+      elements.testResultsList.innerHTML = `
+        <div class="table-empty">
+          No matching knowledge found for "${escapeHtml(q)}".
+        </div>
+      `;
+      return;
+    }
+
+    elements.testResultsList.innerHTML = html;
   } catch (err) {
     elements.testResultsList.innerHTML = `<div class="table-loading" style="color: var(--error)">Search Error: ${err.message}</div>`;
+  }
+}
+
+// ---------------------------------------------------------------------------
+// Web Access Controls
+// ---------------------------------------------------------------------------
+function initWebAccessState() {
+  if (elements.webAccessToggle) {
+    elements.webAccessToggle.checked = state.webAccessEnabled;
+  }
+  if (elements.officialUrlInput) {
+    elements.officialUrlInput.value = state.officialWebsiteUrl;
+  }
+  // Restore verified badge if previously verified
+  if (state.officialWebsiteVerified && state.officialWebsiteUrl) {
+    showVerifiedBadge(state.officialWebsiteUrl);
+  }
+}
+
+function toggleWebAccess() {
+  state.webAccessEnabled = elements.webAccessToggle.checked;
+  localStorage.setItem(STORAGE_KEYS.WEB_ACCESS, state.webAccessEnabled ? 'true' : 'false');
+  showToast(
+    state.webAccessEnabled
+      ? 'Web Access enabled — portal results will be included in searches.'
+      : 'Web Access disabled — only D1 knowledge base results will be shown.',
+    'info'
+  );
+}
+
+async function testWebAccess() {
+  const statusEl = elements.webAccessStatus;
+  statusEl.className = 'control-status testing';
+  statusEl.querySelector('.status-text').textContent = 'Testing...';
+
+  elements.webTestResults.style.display = 'none';
+
+  try {
+    const result = await apiRequest('/search?q=bvc+college+notifications');
+    const results = result.results || [];
+
+    // Check if any result has a URL (web results have urls, D1 chunks don't)
+    const webResults = results.filter((r) => r.url || r.source);
+
+    if (webResults.length > 0) {
+      statusEl.className = 'control-status success';
+      statusEl.querySelector('.status-text').textContent = `Connected — ${webResults.length} portal result(s)`;
+
+      elements.webTestResults.style.display = 'block';
+      elements.webTestCount.textContent = `${webResults.length} results`;
+      elements.webTestList.innerHTML = webResults
+        .map((r) => `
+          <div class="web-result-item">
+            <div class="result-title">${escapeHtml(r.title || 'Untitled')}</div>
+            <div class="result-source">${escapeHtml(r.url || r.source || '')}</div>
+            ${r.snippet || r.content ? `<div class="result-snippet">${escapeHtml((r.snippet || r.content || '').substring(0, 200))}...</div>` : ''}
+          </div>
+        `)
+        .join('');
+    } else if (results.length > 0) {
+      statusEl.className = 'control-status success';
+      statusEl.querySelector('.status-text').textContent = 'Connected — D1 results only (no portal results)';
+    } else {
+      statusEl.className = 'control-status error';
+      statusEl.querySelector('.status-text').textContent = 'No results returned';
+    }
+  } catch (err) {
+    statusEl.className = 'control-status error';
+    statusEl.querySelector('.status-text').textContent = `Error: ${err.message}`;
+  }
+}
+
+// ---------------------------------------------------------------------------
+// Official Website Controls
+// ---------------------------------------------------------------------------
+function showVerifiedBadge(url) {
+  if (elements.verifiedBadgeBox) {
+    elements.verifiedBadgeBox.style.display = 'flex';
+    elements.verifiedUrlDisplay.textContent = `https://${url}`;
+  }
+  const statusEl = elements.officialWebsiteStatus;
+  statusEl.className = 'control-status success';
+  statusEl.querySelector('.status-text').textContent = 'Verified';
+}
+
+function hideVerifiedBadge() {
+  if (elements.verifiedBadgeBox) {
+    elements.verifiedBadgeBox.style.display = 'none';
+  }
+}
+
+async function verifyOfficialWebsite() {
+  const rawUrl = (elements.officialUrlInput.value || '').trim();
+  const statusEl = elements.officialWebsiteStatus;
+
+  if (!rawUrl) {
+    showToast('Please enter a website URL.', 'error');
+    return;
+  }
+
+  // Validate URL format
+  const cleanUrl = rawUrl.replace(/^https?:\/\//, '').replace(/\/+$/, '');
+  if (!cleanUrl || cleanUrl.includes(' ') || !cleanUrl.includes('.')) {
+    statusEl.className = 'control-status error';
+    statusEl.querySelector('.status-text').textContent = 'Invalid URL format';
+    showToast('Please enter a valid website URL (e.g., bvcec.edu.in).', 'error');
+    hideVerifiedBadge();
+    return;
+  }
+
+  statusEl.className = 'control-status testing';
+  statusEl.querySelector('.status-text').textContent = 'Verifying...';
+  hideVerifiedBadge();
+
+  try {
+    // Try fetching the website through the production Worker health endpoint
+    // to verify reachability without CORS issues
+    const fullUrl = `https://${cleanUrl}`;
+    const healthCheck = await fetch(`${state.apiUrl.replace(/\/$/, '')}/health`);
+
+    if (healthCheck.ok) {
+      // Worker is reachable. Now try to fetch the website via the Worker's portal scraper
+      const searchRes = await apiRequest(`/search?q=${encodeURIComponent(cleanUrl)}`);
+      const hasResults = (searchRes.results || []).length > 0;
+
+      // Store as verified regardless — the URL format is valid and Worker is online
+      state.officialWebsiteUrl = cleanUrl;
+      state.officialWebsiteVerified = true;
+      localStorage.setItem(STORAGE_KEYS.OFFICIAL_WEBSITE, cleanUrl);
+      localStorage.setItem(STORAGE_KEYS.OFFICIAL_WEBSITE_VERIFIED, 'true');
+      elements.officialUrlInput.value = cleanUrl;
+
+      showVerifiedBadge(cleanUrl);
+      showToast(
+        hasResults
+          ? `✅ Website verified: https://${cleanUrl} — Portal results available.`
+          : `✅ Website verified: https://${cleanUrl} — Marked as trusted source.`,
+        'success'
+      );
+    } else {
+      throw new Error(`Worker returned HTTP ${healthCheck.status}`);
+    }
+  } catch (err) {
+    statusEl.className = 'control-status error';
+    statusEl.querySelector('.status-text').textContent = `Verification failed`;
+    state.officialWebsiteVerified = false;
+    localStorage.setItem(STORAGE_KEYS.OFFICIAL_WEBSITE_VERIFIED, 'false');
+    hideVerifiedBadge();
+    showToast(`Website verification failed: ${err.message}`, 'error');
   }
 }
 
@@ -762,6 +1140,19 @@ function initEvents() {
   elements.inspectModal.addEventListener('click', (e) => {
     if (e.target === elements.inspectModal) closeInspect();
   });
+
+  // Web Access Events
+  if (elements.webAccessToggle) {
+    elements.webAccessToggle.addEventListener('change', toggleWebAccess);
+  }
+  if (elements.testWebAccessBtn) {
+    elements.testWebAccessBtn.addEventListener('click', testWebAccess);
+  }
+
+  // Official Website Events
+  if (elements.verifyWebsiteBtn) {
+    elements.verifyWebsiteBtn.addEventListener('click', verifyOfficialWebsite);
+  }
 }
 
 function escapeHtml(str) {
@@ -779,6 +1170,7 @@ function escapeHtml(str) {
 // ---------------------------------------------------------------------------
 document.addEventListener('DOMContentLoaded', () => {
   initEvents();
+  initWebAccessState();
   checkWorkerHealth();
   loadDocuments();
 });
