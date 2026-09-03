@@ -67,15 +67,17 @@ export class IntentDetector {
   ): IntentDetectionResult {
     const raw = message.trim();
     const q = raw.toLowerCase();
+    const cleanWord = q.replace(/[^\w\s]/g, '').trim();
     const signals: string[] = [];
 
     // 1. STRESSED STUDENT DETECTION (Highest priority — safety & empathy rule)
     const stressPatterns = [
-      /\b(screwed|fucked|failing|failed|fail\b|gonna fail|going to fail)\b/i,
-      /\b(know nothing|haven't studied|havent studied|didn't study|didnt study|zero preparation)\b/i,
-      /\b(scared|panicking|panic\b|freaking out|crying|anxious|anxiety|hopeless|depressed)\b/i,
-      /\b(give up|giving up|ruined|save me|lost all hope|can't do this|cant do this)\b/i,
+      /\b(screwed|fucked|failing|failed|fail\b|gonna fail|going to fail|think i.?ll fail|think i will fail)\b/i,
+      /\b(know nothing|don.?t know anything|dont know anything|haven't studied|havent studied|didn't study|didnt study|zero preparation|no preparation)\b/i,
+      /\b(scared|panicking|panic\b|freaking out|crying|anxious|anxiety|hopeless|depressed|overwhelmed)\b/i,
+      /\b(give up|giving up|ruined|save me|lost all hope|can't do this|cant do this|nothing to do now)\b/i,
       /\b(suicide|kill myself|end it all)\b/i, // Critical safety check
+      /\b(really stressed|so stressed|very stressed|totally lost|completely lost)\b/i,
     ];
 
     for (const pattern of stressPatterns) {
@@ -91,6 +93,8 @@ export class IntentDetector {
       /\b(exam in \d+|exam next week|finals coming|mid terms|internals coming)\b/i,
       /\b(what to study|what should i study|how to prepare|how to pass|important questions|frequently asked)\b/i,
       /\b(last minute prep|passing marks|important topics for exam|exam tips)\b/i,
+      /\b(only \d+ hours?(left| to study| for exam| remaining)?)\b/i, // "only 2 hours left"
+      /\b(bro exam|yaar exam|boss exam|sir exam)\b/i, // casual Indian exam urgency
     ];
 
     for (const pattern of examPrepPatterns) {
@@ -130,6 +134,17 @@ export class IntentDetector {
     if (q.includes('quiz') || q.includes('mcq') || q.includes('test me') || q.includes('practice questions')) {
       signals.push('quiz_keyword');
       return { intent: 'QUIZ', confidence: 0.9, signals };
+    }
+
+    // Quiz reply detection: if prior assistant turn had MCQ content and student is answering
+    const isAnsweringQuiz = /^(answer is|my answer is|i think it.?s|option|choice)\s*[a-d]\b/i.test(q) ||
+      /^[a-d]\s*[.\)]?\s*$/i.test(cleanWord);
+    if (isAnsweringQuiz && conversation && conversation.length > 0) {
+      const lastAssistant = [...conversation].reverse().find((m) => m.role === 'assistant')?.content || '';
+      if (/\bA\).*\bB\).*\bC\)/s.test(lastAssistant) || lastAssistant.toLowerCase().includes('correct answer')) {
+        signals.push('quiz_reply_detected');
+        return { intent: 'QUIZ', confidence: 0.9, signals };
+      }
     }
 
     if (
@@ -178,7 +193,6 @@ export class IntentDetector {
       'good morning', 'good afternoon', 'good evening', 'yo', 'sup', 'howdy', 'namaste',
     ];
     // Exact or punctuated match ("hi!", "hello...", "hey bro")
-    const cleanWord = q.replace(/[^\w\s]/g, '').trim();
     if (greetingMatches.includes(cleanWord) || /^(hi|hello|hey|yo|sup)\b/i.test(q) && q.split(/\s+/).length <= 3) {
       signals.push('greeting_match');
       return { intent: 'GREETING', confidence: 0.95, signals };
@@ -186,7 +200,7 @@ export class IntentDetector {
 
     // 7. SMALL TALK & EMOJI REACTIONS
     // Pure emoji or short reactions like 😂, lol, haha, thanks, thanks bro, ok, cool
-    const isEmojiOnly = /^[\p{Emoji}\s]+$/u.test(raw);
+    const isEmojiOnly = raw.length > 0 && !/\w/.test(raw) && /[^\x00-\x7F]/.test(raw);
     const smallTalkPattern = /^(thanks|thank you|thx|cool|nice|ok|okay|lol|haha|lmao|great|awesome|got it|understood)(\s+(bro|nexora|sir|man|boss|dear))?[.!]?$/i;
     const smallTalkWords = ['😂', '🤣', 'lol', 'haha', 'lmao', 'nice', 'cool', 'thanks', 'thank you', 'ok', 'okay', 'cool bro', 'ok bro', 'k', 'great', 'awesome', 'good job', 'thanks bro', 'thx bro'];
     if (isEmojiOnly || smallTalkWords.includes(cleanWord) || smallTalkPattern.test(cleanWord)) {
@@ -197,8 +211,9 @@ export class IntentDetector {
     // 8. CASUAL CONVERSATION (About Nexora, state, general banter)
     const casualPatterns = [
       /\b(what are you doing|what r u doing|what are u doing|what's up|whats up|wassup)\b/i,
-      /\b(who are you|who r u|tell me about yourself|what can you do|are you a bot)\b/i,
-      /\b(how are you|how r u|how are things|are you tired|are you awake)\b/i,
+      /\b(who are you|who r u|tell me about yourself|what can you do|are you a bot|are you ai|are you human)\b/i,
+      /\b(what is your name|what.?s your name|who made you|who created you|who built you|what are you)\b/i,
+      /\b(how are you|how r u|how are things|are you tired|are you awake|how.?s it going)\b/i,
       /\b(tell me a joke|bored|entertain me|roast me|sing a song)\b/i,
     ];
 

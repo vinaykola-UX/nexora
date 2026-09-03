@@ -8,8 +8,10 @@ ENVIRONMENT = "production"
 ADMIN_SECRET = "nexora-admin-secure-key-2026"
 # Embedding model for Vectorize — dimension MUST match nexora-vector-index (384)
 EMBEDDING_MODEL = "@cf/baai/bge-small-en-v1.5"
-# Generation model
+# Generation model (Workers AI fallback)
 AI_MODEL = "@cf/meta/llama-3.2-3b-instruct"
+# Primary LLM model (Phase 5C: xAI Grok)
+XAI_MODEL = "grok-4.20-0309-non-reasoning"
 
 [[d1_databases]]
 binding = "DB"

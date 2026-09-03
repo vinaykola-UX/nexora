@@ -28,6 +28,9 @@ export interface Env extends EnvAIConfig {
   VECTORIZE?: VectorizeIndex;
   EMBEDDING_MODEL?: string;
   AI_MODEL?: string;
+  XAI_MODEL?: string;
+  XAI_API_KEY_1?: string;
+  XAI_API_KEY_2?: string;
 }
 
 interface SearchResult {
@@ -1228,11 +1231,13 @@ export default {
       );
     } catch (err: unknown) {
       console.error('[Nexora Worker] Uncaught handler exception:', err);
+      const isDebug = url.searchParams.get('debug') === 'true';
       return jsonResponse(
         {
           success: false,
           error: 'Internal Server Error',
           message: 'An unexpected error occurred while processing your request.',
+          ...(isDebug && err instanceof Error ? { debugDetail: `${err.name}: ${err.message}`, stack: err.stack } : {}),
         },
         500
       );
