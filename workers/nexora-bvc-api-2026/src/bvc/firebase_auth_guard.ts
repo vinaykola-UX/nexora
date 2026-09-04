@@ -24,7 +24,7 @@ export class FirebaseAuthGuard {
    * Extracts and validates the Firebase user identity from the request.
    * Supports standard Bearer tokens and development test tokens.
    */
-  public static async authenticate(request: Request): Promise<AuthenticatedFirebaseUser | null> {
+  public static async authenticate(request: Request, environment?: string): Promise<AuthenticatedFirebaseUser | null> {
     const authHeader = request.headers.get('Authorization') || '';
     if (!authHeader.startsWith('Bearer ')) {
       return null;
@@ -33,8 +33,12 @@ export class FirebaseAuthGuard {
     const token = authHeader.substring(7).trim();
     if (!token) return null;
 
-    // Support dev/test simulated tokens: "dev_test_uid_<id>"
+    // Dev/test simulated tokens: ONLY allowed in non-production environments
     if (token.startsWith('dev_test_uid_') || token.startsWith('test_uid_')) {
+      if (environment && environment.toLowerCase() === 'production') {
+        console.warn('[FirebaseAuthGuard] Rejected dev test token in production environment.');
+        return null;
+      }
       const uid = token;
       return {
         uid,

@@ -203,6 +203,8 @@ class _ChatScreenState extends State<ChatScreen> {
           isUser: false,
           timestamp: DateTime.now(),
           sourceLabel: sourceLabel,
+          document: chatResponse.document,
+          documents: chatResponse.documents,
         );
 
         setState(() {
@@ -226,8 +228,7 @@ class _ChatScreenState extends State<ChatScreen> {
         if (!mounted) return;
 
         String aiText;
-        bool isError = false;
-        NexoraSearchResponse? parsedResponse;
+                NexoraSearchResponse? parsedResponse;
 
         if (portalResponse.success && portalResponse.results.isNotEmpty) {
           aiText = 'Found ${portalResponse.results.length} official update${portalResponse.results.length > 1 ? 's' : ''} from BVC College sources for "$query":';
@@ -243,8 +244,8 @@ class _ChatScreenState extends State<ChatScreen> {
           isUser: false,
           timestamp: DateTime.now(),
           searchResponse: parsedResponse,
-          isError: isError,
-          retryQuery: isError ? query : null,
+          isError: false,
+          retryQuery: null,
         );
 
         setState(() {
@@ -259,8 +260,8 @@ class _ChatScreenState extends State<ChatScreen> {
             text: aiText,
             isUser: false,
             searchResponse: parsedResponse,
-            isError: isError,
-            retryQuery: isError ? query : null,
+            isError: false,
+            retryQuery: null,
           );
         }
       }
@@ -628,6 +629,15 @@ class _ChatScreenState extends State<ChatScreen> {
                 ],
               ),
 
+              // Document Card Rendering (Single or Multiple Original Documents)
+              if (message.document != null) ...[
+                const SizedBox(height: NexoraSpacing.sm),
+                _buildDocumentCard(message.document!),
+              ] else if (message.documents != null && message.documents!.isNotEmpty) ...[
+                const SizedBox(height: NexoraSpacing.sm),
+                ...message.documents!.map((d) => _buildDocumentCard(d)),
+              ],
+
               // RAG subtle indicator: "Based on Data Structures • Unit II"
               if (hasRagContent) ...[
                 const SizedBox(height: NexoraSpacing.md),
@@ -735,6 +745,212 @@ class _ChatScreenState extends State<ChatScreen> {
             ],
           ),
         ),
+      ),
+    );
+  }
+
+  Widget _buildDocumentCard(NexoraDocumentInfo doc) {
+    final bool hasValidUrl = doc.isAvailable &&
+        doc.fileUrl != null &&
+        (doc.fileUrl!.startsWith('http://') || doc.fileUrl!.startsWith('https://'));
+
+    return Container(
+      margin: const EdgeInsets.only(top: NexoraSpacing.sm, bottom: NexoraSpacing.xs),
+      decoration: BoxDecoration(
+        color: const Color(0xFFF9FAFB),
+        borderRadius: BorderRadius.circular(14),
+        border: Border.all(
+          color: const Color(NexoraColors.border),
+          width: 1.2,
+        ),
+      ),
+      padding: const EdgeInsets.all(NexoraSpacing.md),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          // Document Header: Icon + Title
+          Row(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Container(
+                padding: const EdgeInsets.all(8),
+                decoration: BoxDecoration(
+                  color: const Color(0xFFE02424).withOpacity(0.1),
+                  borderRadius: BorderRadius.circular(8),
+                ),
+                child: const Icon(
+                  Icons.picture_as_pdf_rounded,
+                  color: Color(0xFFE02424),
+                  size: 22,
+                ),
+              ),
+              const SizedBox(width: NexoraSpacing.sm),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      doc.title,
+                      style: const TextStyle(
+                        fontSize: 14.5,
+                        fontWeight: FontWeight.bold,
+                        color: Color(NexoraColors.text),
+                        height: 1.3,
+                      ),
+                    ),
+                    const SizedBox(height: 4),
+                    Wrap(
+                      spacing: 6,
+                      runSpacing: 4,
+                      children: [
+                        if (doc.subject.isNotEmpty)
+                          Container(
+                            padding: const EdgeInsets.symmetric(horizontal: 7, vertical: 2),
+                            decoration: BoxDecoration(
+                              color: const Color(NexoraColors.primary).withOpacity(0.08),
+                              borderRadius: BorderRadius.circular(5),
+                            ),
+                            child: Text(
+                              doc.subject,
+                              style: const TextStyle(
+                                fontSize: 11,
+                                fontWeight: FontWeight.w600,
+                                color: Color(NexoraColors.primary),
+                              ),
+                            ),
+                          ),
+                        if (doc.unit != null && doc.unit! > 0)
+                          Container(
+                            padding: const EdgeInsets.symmetric(horizontal: 7, vertical: 2),
+                            decoration: BoxDecoration(
+                              color: const Color(NexoraColors.gray2),
+                              borderRadius: BorderRadius.circular(5),
+                            ),
+                            child: Text(
+                              'Unit ${doc.unit}',
+                              style: const TextStyle(
+                                fontSize: 11,
+                                fontWeight: FontWeight.w600,
+                                color: Color(NexoraColors.text),
+                              ),
+                            ),
+                          ),
+                      ],
+                    ),
+                  ],
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: NexoraSpacing.sm),
+
+          // Availability State Section
+          if (hasValidUrl) ...[
+            Row(
+              children: const [
+                Icon(Icons.check_circle_rounded, size: 14, color: Color(0xFF10B981)),
+                SizedBox(width: 5),
+                Text(
+                  'Original college document available',
+                  style: TextStyle(
+                    fontSize: 12,
+                    fontWeight: FontWeight.w500,
+                    color: Color(0xFF065F46),
+                  ),
+                ),
+              ],
+            ),
+            const SizedBox(height: NexoraSpacing.sm),
+            SizedBox(
+              width: double.infinity,
+              child: ElevatedButton.icon(
+                onPressed: () => _openOfficialUrl(doc.fileUrl!),
+                icon: const Icon(Icons.open_in_new_rounded, size: 16),
+                label: const Text(
+                  'Open PDF',
+                  style: TextStyle(fontWeight: FontWeight.bold, fontSize: 13.5),
+                ),
+                style: ElevatedButton.styleFrom(
+                  backgroundColor: const Color(0xFF171717),
+                  foregroundColor: Colors.white,
+                  padding: const EdgeInsets.symmetric(vertical: 10),
+                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
+                  elevation: 0,
+                ),
+              ),
+            ),
+          ] else if (doc.source != null && doc.source!.isNotEmpty) ...[
+            Container(
+              width: double.infinity,
+              padding: const EdgeInsets.all(8),
+              decoration: BoxDecoration(
+                color: const Color(0xFFF3F4F6),
+                borderRadius: BorderRadius.circular(6),
+              ),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Row(
+                    children: const [
+                      Icon(Icons.library_books_outlined, size: 13, color: Color(NexoraColors.textSecondary)),
+                      SizedBox(width: 4),
+                      Text(
+                        'Source Available in BVC Library',
+                        style: TextStyle(
+                          fontSize: 11.5,
+                          fontWeight: FontWeight.w600,
+                          color: Color(NexoraColors.textSecondary),
+                        ),
+                      ),
+                    ],
+                  ),
+                  const SizedBox(height: 3),
+                  Text(
+                    doc.source!,
+                    style: const TextStyle(
+                      fontSize: 11,
+                      color: Color(NexoraColors.textMuted),
+                    ),
+                  ),
+                  const SizedBox(height: 4),
+                  const Text(
+                    'The document source is available in Nexora, but the original PDF is not currently available for direct download.',
+                    style: TextStyle(
+                      fontSize: 11,
+                      fontStyle: FontStyle.italic,
+                      color: Color(NexoraColors.textMuted),
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ] else ...[
+            Container(
+              width: double.infinity,
+              padding: const EdgeInsets.all(8),
+              decoration: BoxDecoration(
+                color: const Color(0xFFF3F4F6),
+                borderRadius: BorderRadius.circular(6),
+              ),
+              child: Row(
+                children: const [
+                  Icon(Icons.info_outline, size: 14, color: Color(NexoraColors.textMuted)),
+                  SizedBox(width: 5),
+                  Expanded(
+                    child: Text(
+                      'PDF Not Currently Available',
+                      style: TextStyle(
+                        fontSize: 11.5,
+                        fontWeight: FontWeight.w500,
+                        color: Color(NexoraColors.textMuted),
+                      ),
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ],
+        ],
       ),
     );
   }
@@ -956,6 +1172,8 @@ class _ChatMessage {
   final bool isError;
   final String? retryQuery;
   final String? sourceLabel;
+  final NexoraDocumentInfo? document;
+  final List<NexoraDocumentInfo>? documents;
 
   _ChatMessage({
     required this.text,
@@ -965,5 +1183,9 @@ class _ChatMessage {
     this.isError = false,
     this.retryQuery,
     this.sourceLabel,
+    this.document,
+    this.documents,
   });
 }
+
+

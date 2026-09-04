@@ -4,17 +4,17 @@ import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
 
-import '../../../../app/router/app_router.dart';
+import '../../../../app/router/route_paths.dart';
 import '../../../../core/theme/colors.dart';
 import '../../../../core/theme/spacing.dart';
 import '../../../../core/widgets/nexora_button.dart';
 import '../../../profile/data/student_profile_repository.dart';
 import '../../data/auth_service.dart';
 
-/// Verify-Email screen — shown after sign-up (or login with unverified account).
+/// Verify-Email screen - shown after sign-up (or login with unverified account).
 ///
 /// Displays the target email, a 60-second cooldown resend button,
-/// and a "I have verified — Continue" button that reloads and checks
+/// and a "I have verified - Continue" button that reloads and checks
 /// [User.emailVerified] before granting access.
 class VerifyEmailScreen extends StatefulWidget {
   /// The email address the verification link was sent to.
@@ -111,7 +111,7 @@ class _VerifyEmailScreenState extends State<VerifyEmailScreen> {
       // Reload the user to get the latest emailVerified flag from Firebase
       final user = FirebaseAuth.instance.currentUser;
       if (user == null) {
-        // Session expired — send back to login
+        // Session expired - send back to login
         if (mounted) context.go(RoutePaths.login);
         return;
       }
@@ -305,9 +305,9 @@ class _VerifyEmailScreenState extends State<VerifyEmailScreen> {
               ),
               const SizedBox(height: NexoraSpacing.xxxl),
 
-              // -- "I've verified" — primary CTA -----------------------------
+              // -- "I've verified" - primary CTA -----------------------------
               NexoraButton(
-                label: "I've verified — Continue",
+                label: "I've verified - Continue",
                 onPressed: _onContinue,
                 isLoading: _isCheckingVerification,
                 isEnabled: !_isCheckingVerification,
@@ -362,7 +362,7 @@ class _VerifyEmailScreenState extends State<VerifyEmailScreen> {
               ],
               const SizedBox(height: NexoraSpacing.lg),
 
-              // -- Resend — secondary button ---------------------------------
+              // -- Resend - secondary button ---------------------------------
               SizedBox(
                 width: double.infinity,
                 height: 54,
@@ -428,3 +428,4 @@ class _VerifyEmailScreenState extends State<VerifyEmailScreen> {
     );
   }
 }
+

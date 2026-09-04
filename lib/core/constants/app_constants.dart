@@ -3,15 +3,15 @@ class AppConstants {
   AppConstants._();
 
   // API Configuration
-  static const String cloudflareApiBaseUrl = 'https://api.nexora.ai'; // TODO: Update with actual URL
+  static const String cloudflareApiBaseUrl = 'https://nexora-bvc-api-2026.vkola306.workers.dev';
   static const String workerBaseUrl = 'https://nexora-bvc-api-2026.vkola306.workers.dev';
   static const String healthEndpoint = '/health';
   static const Duration apiTimeout = Duration(seconds: 30);
 
   // Firebase Configuration
-  static const String firebaseProjectId = 'nexora-bvc'; // TODO: Update with actual project ID
-  static const String firebaseWebApiKey = ''; // TODO: Set in environment
-  static const String firebaseAppId = ''; // TODO: Set in environment
+  static const String firebaseProjectId = 'nexorabvcai';
+  static const String firebaseWebApiKey = 'AIzaSyDMI7UxOrVxb9E8GBavhNA60-DA5_54Tcw';
+  static const String firebaseAppId = '1:1056749020398:web:ab4abc8a5f6397120f3fff';
 
   // College Information
   static const String collegeName = 'BVC Engineering College';

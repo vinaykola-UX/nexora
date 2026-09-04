@@ -36,6 +36,7 @@
  */
 
 import { ADSSearchPipeline, RankedChunk } from '../ads/pipeline';
+import { DocumentSearchEngine, NexoraDocumentInfoPayload, DocumentSearchResult } from './document_search';
 import { IntentDetector, ExtendedUserIntent } from './intent_detector';
 import { PersonalityPolicyEngine, PersonalityPolicy } from './personality_policy';
 import { XAIProvider, XAIMessage, XAIUsageInfo, XAI_DEFAULTS } from './xai_provider';
@@ -53,6 +54,7 @@ export const AI_LIMITS = {
 };
 
 export type AIToolType =
+  | 'document_search'
   | 'knowledge_search'
   | 'explain'
   | 'code_generator'
@@ -78,6 +80,8 @@ export interface ChatResponse {
   answer: string;
   tool: AIToolType;
   sources: ChatSource[];
+  document?: NexoraDocumentInfoPayload;
+  documents?: NexoraDocumentInfoPayload[];
   debug?: {
     detectedIntent: UserIntent;
     selectedTool: AIToolType;
@@ -135,6 +139,8 @@ export class AIController {
    */
   public getAllowedTools(intent: UserIntent, webAccessEnabled = false): AIToolType[] {
     switch (intent) {
+      case 'DOCUMENT_SEARCH':
+        return ['document_search', 'knowledge_search', 'explain'];
       case 'PROGRAMMING':
       case 'CODE_GENERATION':
         return ['knowledge_search', 'code_generator', 'code_explainer'];
@@ -169,6 +175,9 @@ export class AIController {
    * Selects the primary tool to execute based on intent and allowed tools
    */
   public selectPrimaryTool(intent: UserIntent, allowedTools: AIToolType[]): AIToolType {
+    if (intent === 'DOCUMENT_SEARCH' && allowedTools.includes('document_search')) {
+      return 'document_search';
+    }
     if ((intent === 'PROGRAMMING' || intent === 'CODE_GENERATION') && allowedTools.includes('code_generator')) {
       return 'code_generator';
     }
@@ -246,6 +255,8 @@ export class AIController {
    */
   private getToolInstruction(tool: AIToolType): string {
     switch (tool) {
+      case 'document_search':
+        return `The student requested an official college document and concept explanation. Provide a clean, structured overview covering: 1. Key Important Topics (bullet points) 2. Clear conceptual explanation grounded strictly in the verified BVC course context.`;
       case 'code_generator':
         return `The student requested code. Provide a concise, clean implementation strictly under ${AI_LIMITS.MAX_CODE_LINES_DEFAULT} lines. Follow this format:\n1. Brief approach explanation (1-2 sentences)\n2. Complete, self-contained Code block (max ${AI_LIMITS.MAX_CODE_LINES_DEFAULT} lines)\n3. Time and Space complexity analysis. Never put jokes inside code.`;
       case 'code_explainer':
@@ -295,7 +306,9 @@ export class AIController {
 
     // 1. Intent Detection & Personality Policy Resolution
     const tIntentStart = performance.now();
-    const detectedIntent = this.intentDetector.detect(message, conversation, webAccessEnabled).intent;
+    const detectedResult = this.intentDetector.detect(message, conversation, webAccessEnabled);
+    const detectedIntent = detectedResult.intent;
+    const wantsExplanation = detectedResult.wantsExplanation || false;
     const policy = this.personalityEngine.getPolicy(detectedIntent, conversation);
     const allowedTools = this.getAllowedTools(detectedIntent, webAccessEnabled);
     const selectedTool = this.selectPrimaryTool(detectedIntent, allowedTools);
@@ -340,6 +353,53 @@ export class AIController {
       };
     }
 
+    // 1.5 Authoritative Document Delivery (MODE B: Pure Document Request)
+    let preRetrievedDocResult: DocumentSearchResult | null = null;
+
+    if (detectedIntent === 'DOCUMENT_SEARCH') {
+      const docEngine = DocumentSearchEngine.getInstance();
+      preRetrievedDocResult = await docEngine.searchDocuments(env.DB, message);
+
+      // MODE B: Student only asked for the document/PDF.
+      // Deliver the original document immediately without calling the LLM.
+      if (!wantsExplanation) {
+        const docSources: ChatSource[] = [];
+        if (preRetrievedDocResult.document) {
+          docSources.push({
+            title: preRetrievedDocResult.document.title,
+            subject: preRetrievedDocResult.document.subject,
+            unit: preRetrievedDocResult.document.unit,
+            source: preRetrievedDocResult.document.source || (preRetrievedDocResult.document.fileUrl ? 'Official Document Link' : 'BVC College Repository'),
+            url: preRetrievedDocResult.document.fileUrl || undefined,
+          });
+        }
+
+        return {
+          answer: preRetrievedDocResult.answer,
+          tool: 'document_search',
+          document: preRetrievedDocResult.document,
+          documents: preRetrievedDocResult.documents,
+          sources: docSources,
+          debug: debug ? {
+            detectedIntent,
+            selectedTool: 'document_search',
+            allowedTools,
+            retrievedChunkCount: 0,
+            model: 'deterministic_d1_search',
+            codeLineCount: 0,
+            generationStatus: preRetrievedDocResult.status,
+            timingsMs: {
+              intentDetection: Math.round((tIntentEnd - tIntentStart) * 100) / 100,
+              adsRetrieval: 0,
+              aiGeneration: 0,
+              total: Math.round((performance.now() - tStart) * 100) / 100,
+            },
+            adsPipelineStatus: 'skipped_for_pure_document_delivery',
+          } : undefined,
+        };
+      }
+    }
+
     // 2. Candidate Retrieval via Hybrid RAG Pipeline (ADS + Vectorize)
     const tAdsStart = performance.now();
     let retrievedChunks: RankedChunk[] = [];
@@ -361,7 +421,8 @@ export class AIController {
         detectedIntent === 'QUIZ' ||
         detectedIntent === 'SUMMARY' ||
         detectedIntent === 'STUDY_NOTES' ||
-        detectedIntent === 'COLLEGE_INFO'
+        detectedIntent === 'COLLEGE_INFO' ||
+        detectedIntent === 'DOCUMENT_SEARCH'
       );
 
     if (needsRetrieval && allChunks && allChunks.length > 0) {
@@ -683,10 +744,37 @@ export class AIController {
 
     const totalEnd = performance.now();
 
+    let finalAnswer = validatedText.trim();
+    let finalSources = sources;
+
+    // MODE C: Document + Explanation combination
+    if (preRetrievedDocResult) {
+      if (preRetrievedDocResult.status === 'single_match' && preRetrievedDocResult.document) {
+        const d = preRetrievedDocResult.document;
+        finalAnswer = `I found the original document in the verified BVC knowledge base: **${d.title}** (${d.subject} — Unit ${d.unit}). I've also explained the key topics below.\n\n${validatedText.trim()}`;
+        finalSources = [
+          {
+            title: d.title,
+            subject: d.subject,
+            unit: d.unit,
+            source: d.source || (d.fileUrl ? 'Official Document Link' : 'BVC College Repository'),
+            url: d.fileUrl || undefined,
+          },
+          ...sources,
+        ];
+      } else if (preRetrievedDocResult.status === 'multiple_matches') {
+        finalAnswer = `${preRetrievedDocResult.answer}\n\n---\n### Key Topics & Explanation\n\n${validatedText.trim()}`;
+      } else {
+        finalAnswer = `I searched the BVC repository, but no verified matching document or PDF was found. However, I have explained the relevant concepts below based on verified course material:\n\n${validatedText.trim()}`;
+      }
+    }
+
     return {
-      answer: validatedText.trim(),
+      answer: finalAnswer,
       tool: selectedTool,
-      sources,
+      sources: finalSources,
+      document: preRetrievedDocResult?.document,
+      documents: preRetrievedDocResult?.documents,
       debug: debug
         ? {
             detectedIntent,

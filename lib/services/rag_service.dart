@@ -170,11 +170,58 @@ class NexoraSource {
   }
 }
 
+/// Information about an original college document in the verified BVC repository.
+class NexoraDocumentInfo {
+  final int? id;
+  final String title;
+  final String subject;
+  final int? unit;
+  final String? fileUrl;
+  final String? source;
+  final bool isAvailable;
+
+  const NexoraDocumentInfo({
+    this.id,
+    required this.title,
+    required this.subject,
+    this.unit,
+    this.fileUrl,
+    this.source,
+    this.isAvailable = false,
+  });
+
+  factory NexoraDocumentInfo.fromJson(Map<String, dynamic> json) {
+    return NexoraDocumentInfo(
+      id: json['id'] as int?,
+      title: json['title'] as String? ?? '',
+      subject: json['subject'] as String? ?? '',
+      unit: json['unit'] as int?,
+      fileUrl: (json['fileUrl'] as String?) ?? (json['file_url'] as String?),
+      source: json['source'] as String?,
+      isAvailable: json['isAvailable'] as bool? ?? false,
+    );
+  }
+
+  Map<String, dynamic> toJson() {
+    return {
+      'id': id,
+      'title': title,
+      'subject': subject,
+      'unit': unit,
+      'fileUrl': fileUrl,
+      'source': source,
+      'isAvailable': isAvailable,
+    };
+  }
+}
+
 /// Structured response from the user-facing /chat endpoint
 class NexoraChatResponse {
   final String answer;
   final String tool;
   final List<NexoraSource> sources;
+  final NexoraDocumentInfo? document;
+  final List<NexoraDocumentInfo> documents;
   final bool success;
   final String? error;
 
@@ -182,6 +229,8 @@ class NexoraChatResponse {
     required this.answer,
     this.tool = 'explain',
     this.sources = const [],
+    this.document,
+    this.documents = const [],
     this.success = true,
     this.error,
   });
@@ -191,10 +240,19 @@ class NexoraChatResponse {
     final parsedSources = rawSources
         .map((s) => NexoraSource.fromJson(s as Map<String, dynamic>))
         .toList();
+
+    final docJson = json['document'] as Map<String, dynamic>?;
+    final docsJson = json['documents'] as List<dynamic>? ?? [];
+    final parsedDocs = docsJson
+        .map((d) => NexoraDocumentInfo.fromJson(d as Map<String, dynamic>))
+        .toList();
+
     return NexoraChatResponse(
       answer: json['answer'] as String? ?? '',
       tool: json['tool'] as String? ?? 'explain',
       sources: parsedSources,
+      document: docJson != null ? NexoraDocumentInfo.fromJson(docJson) : null,
+      documents: parsedDocs,
       success: true,
     );
   }
@@ -203,6 +261,8 @@ class NexoraChatResponse {
     return NexoraChatResponse(
       answer: '',
       sources: const [],
+      document: null,
+      documents: const [],
       success: false,
       error: errorMessage,
     );

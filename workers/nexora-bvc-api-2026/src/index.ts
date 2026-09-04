@@ -1561,7 +1561,7 @@ export default {
 
 
       if (path.startsWith('/student/')) {
-        const studentUser = await FirebaseAuthGuard.authenticate(request);
+        const studentUser = await FirebaseAuthGuard.authenticate(request, env.ENVIRONMENT);
         if (!studentUser) {
           return jsonResponse(
             {
@@ -1605,7 +1605,7 @@ export default {
               firebaseUid: studentUser.uid,
               rollNumber: normalizedRoll,
               password: bBody?.password,
-              useLiveClient: bBody?.useLiveClient === true,
+              useLiveClient: bBody?.useLiveClient,
               db: env.DB,
             });
 
@@ -1634,7 +1634,7 @@ export default {
               firebaseUid: studentUser.uid,
               rollNumber: profile.roll_number,
               password: bBody?.password,
-              useLiveClient: bBody?.useLiveClient === true,
+              useLiveClient: bBody?.useLiveClient,
               db: env.DB,
             });
 
@@ -1876,6 +1876,8 @@ export default {
             answer: chatResponse.answer,
             tool: chatResponse.tool,
             sources: chatResponse.sources,
+            document: chatResponse.document,
+            documents: chatResponse.documents,
             ...(chatResponse.debug ? { debug: chatResponse.debug } : {}),
           });
         }

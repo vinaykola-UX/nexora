@@ -2,7 +2,6 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import 'package:intl/intl.dart';
-import '../../../../core/theme/colors.dart';
 import '../../../../models/notification_model.dart';
 import '../../../../services/notification_service.dart';
 
@@ -384,3 +383,4 @@ class _NotificationsScreenState extends ConsumerState<NotificationsScreen> {
     return DateFormat('MMM d, h:mm a').format(dt);
   }
 }
+

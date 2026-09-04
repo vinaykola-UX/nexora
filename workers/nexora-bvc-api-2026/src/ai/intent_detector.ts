@@ -27,6 +27,7 @@
  */
 
 export type ExtendedUserIntent =
+  | 'DOCUMENT_SEARCH'
   | 'GREETING'
   | 'CASUAL'
   | 'SMALL_TALK'
@@ -45,6 +46,7 @@ export interface IntentDetectionResult {
   intent: ExtendedUserIntent;
   confidence: number;
   signals: string[];
+  wantsExplanation?: boolean;
 }
 
 export class IntentDetector {
@@ -85,6 +87,49 @@ export class IntentDetector {
         signals.push('stress_marker_detected');
         return { intent: 'STRESSED_STUDENT', confidence: 0.95, signals };
       }
+    }
+
+    // 1.5 DOCUMENT & PDF RETRIEVAL DETECTION (Authoritative BVC Document Delivery)
+    // Matches student requests for original college PDFs, notes, syllabi, regulations, handouts, etc.
+    const docKeywords = [
+      'pdf', 'document', 'documents', 'syllabus', 'regulation', 'regulations',
+      'question paper', 'question papers', 'lecture notes', 'unit notes', 'unit material',
+      'study material', 'handout', 'handouts', 'curriculum', 'course copy',
+    ];
+
+    const docActionPhrases = [
+      /\b(give me|send me|show me|get me|provide|share|download|open|view|find|need)\b.*\b(pdf|document|notes|syllabus|material|regulation|handout|paper)\b/i,
+      /\b(can (i|you) (get|have|give|download|see|find))\b.*\b(pdf|document|notes|syllabus|material)\b/i,
+      /\b(where (is|can i find))\b.*\b(pdf|document|notes|syllabus|material)\b/i,
+      /\b(original (pdf|document|file)|official (pdf|document)|verified document)\b/i,
+      /\b(download\s+[a-z0-9\s_-]+)\b/i,
+      /\b([a-z0-9\s_-]+\s+(pdf|syllabus|notes|handout))\b/i,
+    ];
+
+    // Check if query is asking for a document
+    const hasDocKeyword = docKeywords.some((kw) => {
+      const regex = new RegExp(`\\b${kw}\\b`, 'i');
+      return regex.test(q);
+    });
+
+    const matchesDocAction = docActionPhrases.some((pattern) => pattern.test(q));
+
+    // Special check: pure unit notes / syllabus queries like "ADS Unit 2 PDF", "Send Java notes", "BVC syllabus"
+    const isDocRequest = hasDocKeyword || matchesDocAction;
+
+    if (isDocRequest) {
+      signals.push('document_search_pattern');
+
+      // Check if student ALSO wants an explanation (MODE C: Document + Explanation)
+      const wantsExplanation =
+        /\b(and explain|explain it|explain this|explain the|explain important|explain|tell me\b.*(topic|concept|important|about)|important topics|important questions|key topics|summarize|give summary|teach me|overview)\b/i.test(q);
+
+      return {
+        intent: 'DOCUMENT_SEARCH',
+        confidence: 0.95,
+        signals,
+        wantsExplanation,
+      };
     }
 
     // 2. EXAM PREP DETECTION (Urgent study/prep inquiries)

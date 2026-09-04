@@ -1,7 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
 
-import '../../../../app/router/app_router.dart';
+import '../../../../app/router/route_paths.dart';
 import '../../../../core/theme/colors.dart';
 import '../../../../core/theme/spacing.dart';
 import '../../../../core/widgets/nexora_button.dart';
@@ -9,7 +9,7 @@ import '../../../../core/widgets/nexora_textfield.dart';
 import '../../../profile/data/student_profile_repository.dart';
 import '../../data/auth_service.dart';
 
-/// Login screen — supports both email/password and Google Sign-In.
+/// Login screen - supports both email/password and Google Sign-In.
 ///
 /// Google Sign-In code is left fully intact; email/password is the primary flow.
 class LoginScreen extends StatefulWidget {
@@ -92,7 +92,7 @@ class _LoginScreenState extends State<LoginScreen> {
       if (!mounted) return;
 
       if (!user.emailVerified) {
-        // Redirect to verify-email screen — do NOT grant access yet
+        // Redirect to verify-email screen - do NOT grant access yet
         context.go(RoutePaths.verifyEmail, extra: user.email ?? '');
         return;
       }
@@ -147,7 +147,7 @@ class _LoginScreenState extends State<LoginScreen> {
   }
 
   // ---------------------------------------------------------------------------
-  // Google Sign-In (unchanged logic — left in place per spec)
+  // Google Sign-In (unchanged logic - left in place per spec)
   // ---------------------------------------------------------------------------
 
   Future<void> _onGoogleLogin() async {
@@ -393,3 +393,9 @@ class _LoginScreenState extends State<LoginScreen> {
     );
   }
 }
+
+
+
+
+
+

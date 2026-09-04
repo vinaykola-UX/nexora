@@ -1,6 +1,5 @@
 import 'dart:math' as math;
 import 'package:flutter/material.dart';
-import '../theme/colors.dart';
 
 /// BVC College circular seal emblem component matching the Figma artwork
 class BvcEmblem extends StatelessWidget {
@@ -185,3 +184,4 @@ class _BvcEmblemPainter extends CustomPainter {
   @override
   bool shouldRepaint(covariant CustomPainter oldDelegate) => false;
 }
+

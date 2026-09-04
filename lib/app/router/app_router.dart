@@ -172,3 +172,7 @@ class NavigationObserver extends NavigatorObserver {
     debugPrint('NavigationObserver: Replaced ${oldRoute?.settings.name} with ${newRoute?.settings.name}');
   }
 }
+
+
+
+

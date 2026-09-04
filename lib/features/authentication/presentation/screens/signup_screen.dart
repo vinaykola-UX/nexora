@@ -5,10 +5,10 @@ import '../../../../core/theme/colors.dart';
 import '../../../../core/theme/spacing.dart';
 import '../../../../core/widgets/nexora_button.dart';
 import '../../../../core/widgets/nexora_textfield.dart';
-import '../../../../app/router/app_router.dart';
+import '../../../../app/router/route_paths.dart';
 import '../../data/auth_service.dart';
 
-/// Sign-up screen — email/password registration restricted to @bvcgroup.in
+/// Sign-up screen - email/password registration restricted to @bvcgroup.in
 class SignupScreen extends StatefulWidget {
   const SignupScreen({Key? key}) : super(key: key);
 
@@ -30,7 +30,7 @@ class _SignupScreenState extends State<SignupScreen> {
 
   bool _isLoading = false;
 
-  // Inline error strings — shown without requiring full form submission
+  // Inline error strings - shown without requiring full form submission
   String? _emailError;
   String? _passwordError;
   String? _confirmPasswordError;
@@ -303,3 +303,4 @@ class _SignupScreenState extends State<SignupScreen> {
     );
   }
 }
+
