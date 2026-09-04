@@ -1,0 +1,1782 @@
+[
+  {
+    "query": "How does inheritance work in Java?",
+    "search": {
+      "query": "How does inheritance work in Java?",
+      "results": [
+        {
+          "content": "SUBJECT: Software Engineering | UNIT: 2 | TOPIC: SINGLE INHERITANCE IN JAVA\n\nExercise - 4 Aim: 4a) Write a JAVA program to implement single Inheritance\nProgram:\nclass A {\n  int a, b;\n  void show() {\n    System.out.println(\"The values of A and B: \" + a + \",\" + b);\n  }\n}\nclass B extends A {\n  int c;\n  void display() {\n    System.out.println(\"The values of C: \" + c);\n  }\n  void sum() {\n    System.out.println(\"The values of a+b+c: \" + (a + b + c));\n  }\n}\nclass SingleInh {\n  public static void main(String args[]) {\n    A a1 = new A();\n    a1.a = 10;\n    a1.b = 20;\n    System.out.println(\"Content of superclass object only\");\n    a1.show();\n    B b1 = new B();\n    b1.a = 1;\n    b1.b = 2;\n    b1.c = 3;\n    System.out.println(\"Content of subclass object only\");\n    b1.show();\n    b1.display();\n    b1.sum();\n  }\n}",
+          "title": "Software Engineering - Unit II: Java Inheritance & Polymorphism Exercises",
+          "subject": "Software Engineering",
+          "unit": 2,
+          "hybridScore": 0.6587,
+          "scoring": {
+            "normalizedAds": 1,
+            "normalizedVector": 0.7392,
+            "normalizedGraph": 0,
+            "weights": {
+              "ads": 0.4,
+              "vector": 0.35,
+              "graph": 0.25
+            }
+          }
+        },
+        {
+          "content": "SUBJECT: Software Engineering | UNIT: 2 | TOPIC: MULTILEVEL INHERITANCE IN JAVA\n\nAim: 4(b) Write a JAVA program to implement Multilevel Inheritance\nProgram:\nclass A {\n  String str = \" \";\n  A() { str = \"This\"; }\n}\nclass B extends A {\n  B() { str = str.concat(\" is\"); }\n}\nclass C extends B {\n  C() { str = str.concat(\" multilevel\"); }\n}\nclass D extends C {\n  D() { str = str.concat(\" Inheritance\"); }\n  void display() { System.out.println(str); }\n}\nclass Multilevel {\n  public static void main(String args[]) {\n    D d = new D();\n    d.display();\n  }\n}",
+          "title": "Software Engineering - Unit II: Java Inheritance & Polymorphism Exercises",
+          "subject": "Software Engineering",
+          "unit": 2,
+          "hybridScore": 0.6444,
+          "scoring": {
+            "normalizedAds": 1,
+            "normalizedVector": 0.6982,
+            "normalizedGraph": 0,
+            "weights": {
+              "ads": 0.4,
+              "vector": 0.35,
+              "graph": 0.25
+            }
+          }
+        },
+        {
+          "content": "SUBJECT: Software Engineering | UNIT: 2 | TOPIC: SUPER KEYWORD IN JAVA\n\nExercise - 5 Aim: 5a) Write a JAVA program give example for \"super\" keyword.\nProgram:\nclass A {\n  int i = 10;\n  A() { System.out.println(\"Constructor in A class\"); }\n  void view() {\n    System.out.println(\"View Method in A class\");\n    System.out.println(\"i value : \" + i);\n  }\n}\nclass B extends A {\n  int j;\n  B(int j) {\n    super();\n    this.j = j;\n  }\n  void display() {\n    super.view();\n    System.out.println(\"display Method in B class\");\n    System.out.println(\"i value is \" + super.i);\n    System.out.println(\"j value is \" + j);\n  }\n}\nclass Super1 {\n  public static void main(String args[]) {\n    B b = new B(10);\n    b.display();\n  }\n}",
+          "title": "Software Engineering - Unit II: Java Inheritance & Polymorphism Exercises",
+          "subject": "Software Engineering",
+          "unit": 2,
+          "hybridScore": 0.5756,
+          "scoring": {
+            "normalizedAds": 0.9111,
+            "normalizedVector": 0.6034,
+            "normalizedGraph": 0,
+            "weights": {
+              "ads": 0.4,
+              "vector": 0.35,
+              "graph": 0.25
+            }
+          }
+        },
+        {
+          "content": "SUBJECT: Software Engineering | UNIT: 2 | TOPIC: ABSTRACT CLASSES IN JAVA\n\nAim: 4(c) Write a JAVA program for abstract class to find areas of different shapes\nimport java.util.Scanner;\nabstract class CalcArea {\n  abstract void findTriangle(double b, double h);\n  abstract void findRectangle(double l, double b);\n  abstract void findSquare(double s);\n  abstract void findCircle(double r);\n}\nclass FindArea extends CalcArea {\n  void findTriangle(double b, double h) { double area = (b * h) / 2; System.out.println(\"Area of Triangle: \" + area); }\n  void findRectangle(double l, double b) { double area = l * b; System.out.println(\"Area of Rectangle: \" + area); }\n  void findSquare(double s) { double area = s * s; System.out.println(\"Area of Square: \" + area); }\n  void findCircle(double r) { double area = 3.14 * r * r; System.out.println(\"Area of Circle: \" + area); }\n}\nclass Area {\n  public static void main(String args[]) {\n    FindArea area = new FindArea();\n    area.findTriangle(10, 5);\n    area.findRectangle(10, 20);\n    area.findSquare(5);\n    area.findCircle(7);\n  }\n}",
+          "title": "Software Engineering - Unit II: Java Inheritance & Polymorphism Exercises",
+          "subject": "Software Engineering",
+          "unit": 2,
+          "hybridScore": 0.5657,
+          "scoring": {
+            "normalizedAds": 0.9111,
+            "normalizedVector": 0.575,
+            "normalizedGraph": 0,
+            "weights": {
+              "ads": 0.4,
+              "vector": 0.35,
+              "graph": 0.25
+            }
+          }
+        },
+        {
+          "content": "SUBJECT: Software Engineering | UNIT: 2 | TOPIC: INTERFACES & RUNTIME POLYMORPHISM IN JAVA\n\nAim: 5b) Write a JAVA program to implement Interface.\ninterface Add { int addition(int i, int j); }\ninterface Sub { int substraction(int i, int j); }\nclass Mul implements Add, Sub {\n  public int addition(int i, int j) { return (i + j); }\n  public int substraction(int i, int j) { return (i - j); }\n  public static void main(String args[]) {\n    Mul m1 = new Mul();\n    System.out.println(\"Addition: \" + m1.addition(5, 10));\n    System.out.println(\"Substraction: \" + m1.substraction(5, 10));\n  }\n}\n\nAim: 5c) Write a JAVA program that implements Run time polymorphism\nclass A { public void display() { System.out.println(\"Inside A's display method\"); } }\nclass B extends A { public void display() { System.out.println(\"Inside B's display method\"); } }\nclass C extends B { public void display() { System.out.println(\"Inside C's display method\"); } }\nclass Ex8a {\n  public static void main(String args[]) {\n    A a1 = new A();\n    B b1 = new B();\n    C c1 = new C();\n    A ref;\n    ref = a1; ref.display();\n    ref = b1; ref.display();\n    ref = c1; ref.display();\n  }\n}",
+          "title": "Software Engineering - Unit II: Java Inheritance & Polymorphism Exercises",
+          "subject": "Software Engineering",
+          "unit": 2,
+          "hybridScore": 0.5654,
+          "scoring": {
+            "normalizedAds": 0.8222,
+            "normalizedVector": 0.6757,
+            "normalizedGraph": 0,
+            "weights": {
+              "ads": 0.4,
+              "vector": 0.35,
+              "graph": 0.25
+            }
+          }
+        },
+        {
+          "content": "CIRCULAR LINKED LIST  In a circular linked list, the last node does not point to NULL. Instead, it points back to the first node, creating a circular structure.  A circular linked list can be singly circular or doubly circular.  Applications include situations where data or processes must be repeatedly traversed in a cycle, such as round-robin scheduling.",
+          "title": "Data Structures - Unit II: Linked Lists",
+          "subject": "Data Structures",
+          "unit": 2,
+          "hybridScore": 0.2255,
+          "scoring": {
+            "normalizedAds": 0.1333,
+            "normalizedVector": 0.4919,
+            "normalizedGraph": 0,
+            "weights": {
+              "ads": 0.4,
+              "vector": 0.35,
+              "graph": 0.25
+            }
+          }
+        },
+        {
+          "content": "LINKED LIST OPERATIONS AND COMPLEXITY  Common operations on linked lists include traversal, searching, insertion, and deletion.  Typical time complexities: - Accessing an element by position: O(n) - Searching: O(n) - Insertion at the beginning: O(1) - Deletion at the beginning: O(1)  Insertion or deletion at other positions may require traversal to locate the required node, resulting in O(n) time.",
+          "title": "Data Structures - Unit II: Linked Lists",
+          "subject": "Data Structures",
+          "unit": 2,
+          "hybridScore": 0.1791,
+          "scoring": {
+            "normalizedAds": 0,
+            "normalizedVector": 0.5116,
+            "normalizedGraph": 0,
+            "weights": {
+              "ads": 0.4,
+              "vector": 0.35,
+              "graph": 0.25
+            }
+          }
+        },
+        {
+          "content": "ARRAY VS LINKED LIST  Array: - Elements are stored in contiguous memory locations. - Size is generally fixed after creation. - Random access using an index is efficient. - Insertion and deletion can require shifting elements.  Linked List: - Nodes can be stored at different memory locations. - Size can grow or shrink dynamically. - Elements are accessed sequentially by traversal. - Insertion and deletion can be efficient when the required node position is known.",
+          "title": "Data Structures - Unit II: Linked Lists",
+          "subject": "Data Structures",
+          "unit": 2,
+          "hybridScore": 0.1784,
+          "scoring": {
+            "normalizedAds": 0,
+            "normalizedVector": 0.5096,
+            "normalizedGraph": 0,
+            "weights": {
+              "ads": 0.4,
+              "vector": 0.35,
+              "graph": 0.25
+            }
+          }
+        },
+        {
+          "content": "DOUBLY LINKED LIST  A doubly linked list contains nodes with three parts: 1. Pointer to the previous node 2. Data 3. Pointer to the next node  Unlike a singly linked list, traversal can occur in both forward and backward directions.  Advantages: - Bidirectional traversal - Easier deletion when a node is known  Disadvantages: - Extra memory is required for the previous pointer. - Operations require maintaining both previous and next links.",
+          "title": "Data Structures - Unit II: Linked Lists",
+          "subject": "Data Structures",
+          "unit": 2,
+          "hybridScore": 0.176,
+          "scoring": {
+            "normalizedAds": 0,
+            "normalizedVector": 0.5029,
+            "normalizedGraph": 0,
+            "weights": {
+              "ads": 0.4,
+              "vector": 0.35,
+              "graph": 0.25
+            }
+          }
+        },
+        {
+          "content": "SINGLY LINKED LIST  A singly linked list consists of nodes where each node contains data and a pointer or reference to the next node. The last node points to NULL.  A typical node contains: 1. Data 2. Next pointer  Traversal starts from the head node and continues through the next pointers until NULL is reached.  Common operations include: - Insertion at the beginning - Insertion at the end - Insertion at a specific position - Deletion from the beginning - Deletion from the end - Deletion of a specific node - Traversal - Searching",
+          "title": "Data Structures - Unit II: Linked Lists",
+          "subject": "Data Structures",
+          "unit": 2,
+          "hybridScore": 0.1756,
+          "scoring": {
+            "normalizedAds": 0,
+            "normalizedVector": 0.5018,
+            "normalizedGraph": 0,
+            "weights": {
+              "ads": 0.4,
+              "vector": 0.35,
+              "graph": 0.25
+            }
+          }
+        }
+      ],
+      "retrieval": {
+        "mode": "hybrid_semantic_ads",
+        "adsResultCount": 6,
+        "vectorResultCount": 15,
+        "hybridCandidates": 15
+      },
+      "pipeline": {
+        "hashLookups": [
+          {
+            "term": "does",
+            "matchesFound": 1
+          },
+          {
+            "term": "inheritance",
+            "matchesFound": 5
+          },
+          {
+            "term": "work",
+            "matchesFound": 0
+          },
+          {
+            "term": "java",
+            "matchesFound": 5
+          }
+        ],
+        "avlPrefixMatches": [
+          {
+            "prefix": "does",
+            "topicsFound": []
+          },
+          {
+            "prefix": "inheritance",
+            "topicsFound": [
+              "inheritance"
+            ]
+          },
+          {
+            "prefix": "work",
+            "topicsFound": []
+          },
+          {
+            "prefix": "java",
+            "topicsFound": [
+              "java"
+            ]
+          }
+        ],
+        "graphRelatedConcepts": [
+          {
+            "concept": "unit 2: java oop & inheritance",
+            "boostWeight": 1
+          },
+          {
+            "concept": "single inheritance",
+            "boostWeight": 1
+          },
+          {
+            "concept": "multilevel inheritance",
+            "boostWeight": 1
+          },
+          {
+            "concept": "super keyword",
+            "boostWeight": 0.5
+          },
+          {
+            "concept": "abstract classes",
+            "boostWeight": 0.5
+          },
+          {
+            "concept": "polymorphism",
+            "boostWeight": 0.5
+          },
+          {
+            "concept": "software engineering - unit ii: java inheritance & polymorphism exercises",
+            "boostWeight": 1
+          }
+        ],
+        "candidateCountBeforeHeap": 6,
+        "heapTopKExtracted": 6,
+        "sortingAlgorithm": "Divide-and-Conquer Stable Merge Sort (O(n log n))",
+        "timingsMs": {
+          "hashLookup": 0,
+          "avlLookup": 0,
+          "graphTraversal": 0,
+          "heapRanking": 0,
+          "mergeSort": 0,
+          "totalPipeline": 0
+        },
+        "adsVivaMetadata": {
+          "hashTableCapacity": 673,
+          "hashTableEntries": 287,
+          "avlTreeNodes": 15,
+          "avlTreeHeight": 5,
+          "avlRotations": {
+            "ll": 2,
+            "rr": 1,
+            "lr": 0,
+            "rl": 3
+          },
+          "graphVertices": 26,
+          "graphEdges": 36
+        }
+      },
+      "vectorize": {
+        "status": "success",
+        "embeddingModel": "@cf/baai/bge-small-en-v1.5",
+        "queryDimension": 384,
+        "timingMs": 196,
+        "candidateCount": 15
+      }
+    },
+    "search_time_ms": 1636,
+    "chat": {
+      "answer": "In Java, inheritance is a mechanism that allows one class to inherit the properties and behavior of another class. The class that is being inherited from is called the superclass or parent class, while the class that is doing the inheriting is called the subclass or child class.\n\nHere's a step-by-step explanation of how inheritance works in Java:\n\n1.  **Class Definition**: A subclass is defined by extending the superclass using the `extends` keyword. For example, `class B extends A { ... }`.\n\n2.  **Access Modifiers**: The subclass can access the members (methods and variables) of the superclass using the access modifiers `public`, `protected`, or `default` (no modifier).\n\n3.  **Inheritance**: When a subclass is created, it inherits all the members of the superclass. This means that the subclass has access to all the members of the superclass, including methods and variables.\n\n4.  **Overriding**: A subclass can override the methods of the superclass by providing a method with the same name, return type, and parameters. The overridden method in the subclass has priority over the method in the superclass.\n\n5.  **Hiding**: A subclass can hide the members of the superclass by providing a member with the same name, but different access modifier or parameters. The hidden member in the subclass has priority over the member in the superclass.\n\n6.  **Multiple Inheritance**: A subclass can inherit from multiple superclasses using the `extends` keyword multiple times. However, this is not allowed in Java.\n\n7.  **Abstract Classes**: A subclass can inherit from an abstract class, which is a class that cannot be instantiated and is designed to be inherited by other classes.\n\nHere's an example of single inheritance in Java:\n\n```java\nclass A {\n    int a, b;\n    void show() {\n        System.out.println(\"The values of A and B: \" + a + \",\" + b);\n    }\n}\n\nclass B extends A {\n    int c;\n    void display() {\n        System.out.println(\"The values of C: \" + c);\n    }\n    void sum() {\n        System.out.println(\"The values of a+b+c: \" + (a + b + c));\n    }\n}\n\npublic class SingleInheritance {\n    public static void main(String args[]) {\n        A a1 = new A();\n        a1.a = 10;\n        a1.b = 20;\n        System.out.println(\"Content of superclass object only\");\n        a1.show();\n        B b1 = new B();\n        b1.a = 1;\n        b1.b = 2;\n        b1.c = 3;\n        System.out.println(\"Content of subclass object only\");\n        b1.show();\n        b1.display();\n        b1.sum();\n    }\n}\n```\n\nIn this example, the `B` class extends the `A` class, which means that `B` inherits all the members of `A`. The `B` class also provides its own members, such as the `c` variable and the `display` and `sum` methods.",
+      "tool": "explain",
+      "sources": [
+        {
+          "title": "Software Engineering - Unit II: Java Inheritance & Polymorphism Exercises",
+          "subject": "Software Engineering",
+          "unit": 2,
+          "topic": "SINGLE INHERITANCE IN JAVA",
+          "source": "BVC Academic Base",
+          "page_info": "Page N/A"
+        },
+        {
+          "title": "Software Engineering - Unit II: Java Inheritance & Polymorphism Exercises",
+          "subject": "Software Engineering",
+          "unit": 2,
+          "topic": "MULTILEVEL INHERITANCE IN JAVA",
+          "source": "BVC Academic Base",
+          "page_info": "Page N/A"
+        },
+        {
+          "title": "Software Engineering - Unit II: Java Inheritance & Polymorphism Exercises",
+          "subject": "Software Engineering",
+          "unit": 2,
+          "topic": "ABSTRACT CLASSES IN JAVA",
+          "source": "BVC Academic Base",
+          "page_info": "Page N/A"
+        },
+        {
+          "title": "Software Engineering - Unit II: Java Inheritance & Polymorphism Exercises",
+          "subject": "Software Engineering",
+          "unit": 2,
+          "topic": "SUPER KEYWORD IN JAVA",
+          "source": "BVC Academic Base",
+          "page_info": "Page N/A"
+        },
+        {
+          "title": "Software Engineering - Unit II: Java Inheritance & Polymorphism Exercises",
+          "subject": "Software Engineering",
+          "unit": 2,
+          "topic": "INTERFACES & RUNTIME POLYMORPHISM IN JAVA",
+          "source": "BVC Academic Base",
+          "page_info": "Page N/A"
+        },
+        {
+          "title": "Data Structures - Unit II: Linked Lists",
+          "subject": "Data Structures",
+          "unit": 2,
+          "source": "BVC Academic Base",
+          "page_info": "Page N/A"
+        }
+      ],
+      "debug": {
+        "detectedIntent": "ACADEMIC",
+        "selectedTool": "explain",
+        "allowedTools": [
+          "knowledge_search",
+          "explain",
+          "study_notes"
+        ],
+        "retrievedChunkCount": 6,
+        "model": "@cf/meta/llama-3.2-3b-instruct",
+        "provider": "workers_ai_fallback",
+        "providerAttempt": 1,
+        "codeLineCount": 35,
+        "generationStatus": "workers_ai_fallback_success",
+        "personality": {
+          "tone": "clear/teacher-like",
+          "humorLevel": "minimal",
+          "teasingLevel": "none",
+          "academicPriority": "immediate",
+          "supportive": false
+        },
+        "timingsMs": {
+          "intentDetection": 0,
+          "adsRetrieval": 0,
+          "aiGeneration": 2334,
+          "total": 2334
+        },
+        "adsPipelineStatus": "executed",
+        "xaiDiagnostic": "failed: HTTP 400: {\"code\":\"invalid-argument\",\"error\":\"Incorrect API key provided. You can obtain an API key from https://console.x.ai.\"}"
+      }
+    },
+    "chat_time_ms": 3397
+  },
+  {
+    "query": "How does a linked list connect its nodes?",
+    "search": {
+      "query": "How does a linked list connect its nodes?",
+      "results": [
+        {
+          "content": "DOUBLY LINKED LIST  A doubly linked list contains nodes with three parts: 1. Pointer to the previous node 2. Data 3. Pointer to the next node  Unlike a singly linked list, traversal can occur in both forward and backward directions.  Advantages: - Bidirectional traversal - Easier deletion when a node is known  Disadvantages: - Extra memory is required for the previous pointer. - Operations require maintaining both previous and next links.",
+          "title": "Data Structures - Unit II: Linked Lists",
+          "subject": "Data Structures",
+          "unit": 2,
+          "hybridScore": 0.6428,
+          "scoring": {
+            "normalizedAds": 1,
+            "normalizedVector": 0.6937,
+            "normalizedGraph": 0,
+            "weights": {
+              "ads": 0.4,
+              "vector": 0.35,
+              "graph": 0.25
+            }
+          }
+        },
+        {
+          "content": "SINGLY LINKED LIST  A singly linked list consists of nodes where each node contains data and a pointer or reference to the next node. The last node points to NULL.  A typical node contains: 1. Data 2. Next pointer  Traversal starts from the head node and continues through the next pointers until NULL is reached.  Common operations include: - Insertion at the beginning - Insertion at the end - Insertion at a specific position - Deletion from the beginning - Deletion from the end - Deletion of a specific node - Traversal - Searching",
+          "title": "Data Structures - Unit II: Linked Lists",
+          "subject": "Data Structures",
+          "unit": 2,
+          "hybridScore": 0.5932,
+          "scoring": {
+            "normalizedAds": 0.8545,
+            "normalizedVector": 0.7184,
+            "normalizedGraph": 0,
+            "weights": {
+              "ads": 0.4,
+              "vector": 0.35,
+              "graph": 0.25
+            }
+          }
+        },
+        {
+          "content": "CIRCULAR LINKED LIST  In a circular linked list, the last node does not point to NULL. Instead, it points back to the first node, creating a circular structure.  A circular linked list can be singly circular or doubly circular.  Applications include situations where data or processes must be repeatedly traversed in a cycle, such as round-robin scheduling.",
+          "title": "Data Structures - Unit II: Linked Lists",
+          "subject": "Data Structures",
+          "unit": 2,
+          "hybridScore": 0.5758,
+          "scoring": {
+            "normalizedAds": 0.8545,
+            "normalizedVector": 0.6685,
+            "normalizedGraph": 0,
+            "weights": {
+              "ads": 0.4,
+              "vector": 0.35,
+              "graph": 0.25
+            }
+          }
+        },
+        {
+          "content": "APPLICATIONS OF LINKED LISTS  Linked lists are used in: - Dynamic memory management - Implementation of stacks - Implementation of queues - Graph adjacency lists - Polynomial representation - Round-robin scheduling using circular linked lists - Browser navigation and similar bidirectional navigation using doubly linked lists",
+          "title": "Data Structures - Unit II: Linked Lists",
+          "subject": "Data Structures",
+          "unit": 2,
+          "hybridScore": 0.5644,
+          "scoring": {
+            "normalizedAds": 0.7818,
+            "normalizedVector": 0.7192,
+            "normalizedGraph": 0,
+            "weights": {
+              "ads": 0.4,
+              "vector": 0.35,
+              "graph": 0.25
+            }
+          }
+        },
+        {
+          "content": "UNIT II: LINKED LISTS  A linked list is a linear data structure consisting of nodes. Each node contains data and a link or pointer to the next node. Unlike arrays, linked list elements are not necessarily stored in contiguous memory locations.  Main advantages of linked lists include dynamic memory allocation and efficient insertion and deletion. A major disadvantage is that elements cannot normally be accessed directly by index; traversal is required.",
+          "title": "Data Structures - Unit II: Linked Lists",
+          "subject": "Data Structures",
+          "unit": 2,
+          "hybridScore": 0.5456,
+          "scoring": {
+            "normalizedAds": 0.7091,
+            "normalizedVector": 0.7486,
+            "normalizedGraph": 0,
+            "weights": {
+              "ads": 0.4,
+              "vector": 0.35,
+              "graph": 0.25
+            }
+          }
+        },
+        {
+          "content": "ARRAY VS LINKED LIST  Array: - Elements are stored in contiguous memory locations. - Size is generally fixed after creation. - Random access using an index is efficient. - Insertion and deletion can require shifting elements.  Linked List: - Nodes can be stored at different memory locations. - Size can grow or shrink dynamically. - Elements are accessed sequentially by traversal. - Insertion and deletion can be efficient when the required node position is known.",
+          "title": "Data Structures - Unit II: Linked Lists",
+          "subject": "Data Structures",
+          "unit": 2,
+          "hybridScore": 0.5358,
+          "scoring": {
+            "normalizedAds": 0.7091,
+            "normalizedVector": 0.7206,
+            "normalizedGraph": 0,
+            "weights": {
+              "ads": 0.4,
+              "vector": 0.35,
+              "graph": 0.25
+            }
+          }
+        },
+        {
+          "content": "LINKED LIST OPERATIONS AND COMPLEXITY  Common operations on linked lists include traversal, searching, insertion, and deletion.  Typical time complexities: - Accessing an element by position: O(n) - Searching: O(n) - Insertion at the beginning: O(1) - Deletion at the beginning: O(1)  Insertion or deletion at other positions may require traversal to locate the required node, resulting in O(n) time.",
+          "title": "Data Structures - Unit II: Linked Lists",
+          "subject": "Data Structures",
+          "unit": 2,
+          "hybridScore": 0.4912,
+          "scoring": {
+            "normalizedAds": 0.6,
+            "normalizedVector": 0.7176,
+            "normalizedGraph": 0,
+            "weights": {
+              "ads": 0.4,
+              "vector": 0.35,
+              "graph": 0.25
+            }
+          }
+        },
+        {
+          "content": "SUBJECT: Advanced Data Structures | UNIT: 1 | TOPIC: COLLISION RESOLUTION TECHNIQUES | SOURCE: sample_real_lecture_unit1.pdf | PAGES: Page 3\n\nWhen two distinct keys produce the same hash index, a collision occurs. Standard collision handling techniques include: 1. Open Addressing (Linear Probing, Quadratic Probing, Double Hashing) and 2. Separate Chaining where each slot contains a linked list. Average case search is O(1) time complexity.",
+          "title": "Advanced Data Structures - Unit I: Dictionaries & Hashing Techniques",
+          "subject": "Advanced Data Structures",
+          "unit": 1,
+          "hybridScore": 0.3201,
+          "scoring": {
+            "normalizedAds": 0.3182,
+            "normalizedVector": 0.5509,
+            "normalizedGraph": 0,
+            "weights": {
+              "ads": 0.4,
+              "vector": 0.35,
+              "graph": 0.25
+            }
+          }
+        },
+        {
+          "content": "SUBJECT: Software Engineering | UNIT: 2 | TOPIC: INTERFACES & RUNTIME POLYMORPHISM IN JAVA\n\nAim: 5b) Write a JAVA program to implement Interface.\ninterface Add { int addition(int i, int j); }\ninterface Sub { int substraction(int i, int j); }\nclass Mul implements Add, Sub {\n  public int addition(int i, int j) { return (i + j); }\n  public int substraction(int i, int j) { return (i - j); }\n  public static void main(String args[]) {\n    Mul m1 = new Mul();\n    System.out.println(\"Addition: \" + m1.addition(5, 10));\n    System.out.println(\"Substraction: \" + m1.substraction(5, 10));\n  }\n}\n\nAim: 5c) Write a JAVA program that implements Run time polymorphism\nclass A { public void display() { System.out.println(\"Inside A's display method\"); } }\nclass B extends A { public void display() { System.out.println(\"Inside B's display method\"); } }\nclass C extends B { public void display() { System.out.println(\"Inside C's display method\"); } }\nclass Ex8a {\n  public static void main(String args[]) {\n    A a1 = new A();\n    B b1 = new B();\n    C c1 = new C();\n    A ref;\n    ref = a1; ref.display();\n    ref = b1; ref.display();\n    ref = c1; ref.display();\n  }\n}",
+          "title": "Software Engineering - Unit II: Java Inheritance & Polymorphism Exercises",
+          "subject": "Software Engineering",
+          "unit": 2,
+          "hybridScore": 0.1973,
+          "scoring": {
+            "normalizedAds": 0,
+            "normalizedVector": 0.5637,
+            "normalizedGraph": 0,
+            "weights": {
+              "ads": 0.4,
+              "vector": 0.35,
+              "graph": 0.25
+            }
+          }
+        },
+        {
+          "content": "SUBJECT: Software Engineering | UNIT: 2 | TOPIC: SINGLE INHERITANCE IN JAVA\n\nExercise - 4 Aim: 4a) Write a JAVA program to implement single Inheritance\nProgram:\nclass A {\n  int a, b;\n  void show() {\n    System.out.println(\"The values of A and B: \" + a + \",\" + b);\n  }\n}\nclass B extends A {\n  int c;\n  void display() {\n    System.out.println(\"The values of C: \" + c);\n  }\n  void sum() {\n    System.out.println(\"The values of a+b+c: \" + (a + b + c));\n  }\n}\nclass SingleInh {\n  public static void main(String args[]) {\n    A a1 = new A();\n    a1.a = 10;\n    a1.b = 20;\n    System.out.println(\"Content of superclass object only\");\n    a1.show();\n    B b1 = new B();\n    b1.a = 1;\n    b1.b = 2;\n    b1.c = 3;\n    System.out.println(\"Content of subclass object only\");\n    b1.show();\n    b1.display();\n    b1.sum();\n  }\n}",
+          "title": "Software Engineering - Unit II: Java Inheritance & Polymorphism Exercises",
+          "subject": "Software Engineering",
+          "unit": 2,
+          "hybridScore": 0.1811,
+          "scoring": {
+            "normalizedAds": 0,
+            "normalizedVector": 0.5175,
+            "normalizedGraph": 0,
+            "weights": {
+              "ads": 0.4,
+              "vector": 0.35,
+              "graph": 0.25
+            }
+          }
+        }
+      ],
+      "retrieval": {
+        "mode": "hybrid_semantic_ads",
+        "adsResultCount": 8,
+        "vectorResultCount": 15,
+        "hybridCandidates": 15
+      },
+      "pipeline": {
+        "hashLookups": [
+          {
+            "term": "does",
+            "matchesFound": 1
+          },
+          {
+            "term": "linked",
+            "matchesFound": 8
+          },
+          {
+            "term": "list",
+            "matchesFound": 7
+          },
+          {
+            "term": "connect",
+            "matchesFound": 0
+          },
+          {
+            "term": "its",
+            "matchesFound": 0
+          },
+          {
+            "term": "nodes",
+            "matchesFound": 4
+          }
+        ],
+        "avlPrefixMatches": [
+          {
+            "prefix": "does",
+            "topicsFound": []
+          },
+          {
+            "prefix": "linked",
+            "topicsFound": [
+              "linked"
+            ]
+          },
+          {
+            "prefix": "list",
+            "topicsFound": [
+              "lists"
+            ]
+          },
+          {
+            "prefix": "connect",
+            "topicsFound": []
+          },
+          {
+            "prefix": "its",
+            "topicsFound": []
+          },
+          {
+            "prefix": "nodes",
+            "topicsFound": []
+          }
+        ],
+        "graphRelatedConcepts": [
+          {
+            "concept": "unit 2: linked lists",
+            "boostWeight": 1
+          },
+          {
+            "concept": "singly linked list",
+            "boostWeight": 1
+          },
+          {
+            "concept": "doubly linked list",
+            "boostWeight": 1
+          },
+          {
+            "concept": "circular linked list",
+            "boostWeight": 1
+          },
+          {
+            "concept": "separate chaining",
+            "boostWeight": 0.45
+          },
+          {
+            "concept": "linear probing",
+            "boostWeight": 0.24000000000000002
+          },
+          {
+            "concept": "data structures - unit ii: linked lists",
+            "boostWeight": 1
+          }
+        ],
+        "candidateCountBeforeHeap": 8,
+        "heapTopKExtracted": 8,
+        "sortingAlgorithm": "Divide-and-Conquer Stable Merge Sort (O(n log n))",
+        "timingsMs": {
+          "hashLookup": 0,
+          "avlLookup": 0,
+          "graphTraversal": 0,
+          "heapRanking": 0,
+          "mergeSort": 0,
+          "totalPipeline": 0
+        },
+        "adsVivaMetadata": {
+          "hashTableCapacity": 673,
+          "hashTableEntries": 287,
+          "avlTreeNodes": 15,
+          "avlTreeHeight": 5,
+          "avlRotations": {
+            "ll": 2,
+            "rr": 1,
+            "lr": 0,
+            "rl": 3
+          },
+          "graphVertices": 26,
+          "graphEdges": 36
+        }
+      },
+      "vectorize": {
+        "status": "success",
+        "embeddingModel": "@cf/baai/bge-small-en-v1.5",
+        "queryDimension": 384,
+        "timingMs": 205,
+        "candidateCount": 15
+      }
+    },
+    "search_time_ms": 2757,
+    "chat": {
+      "answer": "In a linked list, each node contains three parts: \n\n1. Data: The actual data stored in the node.\n2. Pointer to the previous node: This allows traversal in the backward direction.\n3. Pointer to the next node: This allows traversal in the forward direction.\n\nThese pointers enable the nodes to connect and form a chain, allowing for efficient insertion, deletion, and traversal of the list.",
+      "tool": "explain",
+      "sources": [
+        {
+          "title": "Data Structures - Unit II: Linked Lists",
+          "subject": "Data Structures",
+          "unit": 2,
+          "source": "BVC Academic Base",
+          "page_info": "Page N/A"
+        },
+        {
+          "title": "Data Structures - Unit II: Linked Lists",
+          "subject": "Data Structures",
+          "unit": 2,
+          "source": "BVC Academic Base",
+          "page_info": "Page N/A"
+        },
+        {
+          "title": "Data Structures - Unit II: Linked Lists",
+          "subject": "Data Structures",
+          "unit": 2,
+          "source": "BVC Academic Base",
+          "page_info": "Page N/A"
+        },
+        {
+          "title": "Data Structures - Unit II: Linked Lists",
+          "subject": "Data Structures",
+          "unit": 2,
+          "source": "BVC Academic Base",
+          "page_info": "Page N/A"
+        },
+        {
+          "title": "Data Structures - Unit II: Linked Lists",
+          "subject": "Data Structures",
+          "unit": 2,
+          "source": "BVC Academic Base",
+          "page_info": "Page N/A"
+        },
+        {
+          "title": "Data Structures - Unit II: Linked Lists",
+          "subject": "Data Structures",
+          "unit": 2,
+          "source": "BVC Academic Base",
+          "page_info": "Page N/A"
+        },
+        {
+          "title": "Data Structures - Unit II: Linked Lists",
+          "subject": "Data Structures",
+          "unit": 2,
+          "source": "BVC Academic Base",
+          "page_info": "Page N/A"
+        },
+        {
+          "title": "Advanced Data Structures - Unit I: Dictionaries & Hashing Techniques",
+          "subject": "Advanced Data Structures",
+          "unit": 1,
+          "topic": "COLLISION RESOLUTION TECHNIQUES",
+          "source": "sample_real_lecture_unit1.pdf",
+          "page_info": "Page 3"
+        }
+      ],
+      "debug": {
+        "detectedIntent": "ACADEMIC",
+        "selectedTool": "explain",
+        "allowedTools": [
+          "knowledge_search",
+          "explain",
+          "study_notes"
+        ],
+        "retrievedChunkCount": 8,
+        "model": "@cf/meta/llama-3.2-3b-instruct",
+        "provider": "workers_ai_fallback",
+        "providerAttempt": 1,
+        "codeLineCount": 0,
+        "generationStatus": "workers_ai_fallback_success",
+        "personality": {
+          "tone": "clear/teacher-like",
+          "humorLevel": "minimal",
+          "teasingLevel": "none",
+          "academicPriority": "immediate",
+          "supportive": false
+        },
+        "timingsMs": {
+          "intentDetection": 0,
+          "adsRetrieval": 0,
+          "aiGeneration": 663,
+          "total": 663
+        },
+        "adsPipelineStatus": "executed",
+        "xaiDiagnostic": "failed: HTTP 400: {\"code\":\"invalid-argument\",\"error\":\"Incorrect API key provided. You can obtain an API key from https://console.x.ai.\"}"
+      }
+    },
+    "chat_time_ms": 2241
+  },
+  {
+    "query": "What is linear probing in hashing?",
+    "search": {
+      "query": "What is linear probing in hashing?",
+      "results": [
+        {
+          "content": "SUBJECT: Advanced Data Structures | UNIT: 1 | TOPIC: COLLISION RESOLUTION TECHNIQUES | SOURCE: sample_real_lecture_unit1.pdf | PAGES: Page 3\n\nWhen two distinct keys produce the same hash index, a collision occurs. Standard collision handling techniques include: 1. Open Addressing (Linear Probing, Quadratic Probing, Double Hashing) and 2. Separate Chaining where each slot contains a linked list. Average case search is O(1) time complexity.",
+          "title": "Advanced Data Structures - Unit I: Dictionaries & Hashing Techniques",
+          "subject": "Advanced Data Structures",
+          "unit": 1,
+          "hybridScore": 0.652,
+          "scoring": {
+            "normalizedAds": 1,
+            "normalizedVector": 0.7201,
+            "normalizedGraph": 0,
+            "weights": {
+              "ads": 0.4,
+              "vector": 0.35,
+              "graph": 0.25
+            }
+          }
+        },
+        {
+          "content": "SUBJECT: Advanced Data Structures | UNIT: 1 | TOPIC: HASH TABLES AND HASH FUNCTIONS | SOURCE: sample_real_lecture_unit1.pdf | PAGES: Page 2\n\nA Hash Table is a data structure that maps keys to array indices using a hash function. A good hash function should be easy to compute and distribute keys uniformly across the table. Hash function methods include Division Method (h(k) = k mod m), Multiplication Method, and Mid-Square Method.",
+          "title": "Advanced Data Structures - Unit I: Dictionaries & Hashing Techniques",
+          "subject": "Advanced Data Structures",
+          "unit": 1,
+          "hybridScore": 0.4091,
+          "scoring": {
+            "normalizedAds": 0.4984,
+            "normalizedVector": 0.5994,
+            "normalizedGraph": 0,
+            "weights": {
+              "ads": 0.4,
+              "vector": 0.35,
+              "graph": 0.25
+            }
+          }
+        },
+        {
+          "content": "SUBJECT: Advanced Data Structures | UNIT: 1 | TOPIC: DICTIONARIES AND HASHING | SOURCE: sample_real_lecture_unit1.pdf | PAGES: Page 1\n\nDefinition of Dictionary: A dictionary is an abstract data type that stores key-value pairs where each key is unique. Dictionaries support three primary operations: insertion, deletion, and searching. Applications include symbol tables in compilers, spell checkers, database indexing, and cache management systems.",
+          "title": "Advanced Data Structures - Unit I: Dictionaries & Hashing Techniques",
+          "subject": "Advanced Data Structures",
+          "unit": 1,
+          "hybridScore": 0.3603,
+          "scoring": {
+            "normalizedAds": 0.4341,
+            "normalizedVector": 0.5335,
+            "normalizedGraph": 0,
+            "weights": {
+              "ads": 0.4,
+              "vector": 0.35,
+              "graph": 0.25
+            }
+          }
+        },
+        {
+          "content": "UNIT II: LINKED LISTS  A linked list is a linear data structure consisting of nodes. Each node contains data and a link or pointer to the next node. Unlike arrays, linked list elements are not necessarily stored in contiguous memory locations.  Main advantages of linked lists include dynamic memory allocation and efficient insertion and deletion. A major disadvantage is that elements cannot normally be accessed directly by index; traversal is required.",
+          "title": "Data Structures - Unit II: Linked Lists",
+          "subject": "Data Structures",
+          "unit": 2,
+          "hybridScore": 0.2027,
+          "scoring": {
+            "normalizedAds": 0.0965,
+            "normalizedVector": 0.469,
+            "normalizedGraph": 0,
+            "weights": {
+              "ads": 0.4,
+              "vector": 0.35,
+              "graph": 0.25
+            }
+          }
+        },
+        {
+          "content": "APPLICATIONS OF LINKED LISTS  Linked lists are used in: - Dynamic memory management - Implementation of stacks - Implementation of queues - Graph adjacency lists - Polynomial representation - Round-robin scheduling using circular linked lists - Browser navigation and similar bidirectional navigation using doubly linked lists",
+          "title": "Data Structures - Unit II: Linked Lists",
+          "subject": "Data Structures",
+          "unit": 2,
+          "hybridScore": 0.1852,
+          "scoring": {
+            "normalizedAds": 0,
+            "normalizedVector": 0.5293,
+            "normalizedGraph": 0,
+            "weights": {
+              "ads": 0.4,
+              "vector": 0.35,
+              "graph": 0.25
+            }
+          }
+        },
+        {
+          "content": "DOUBLY LINKED LIST  A doubly linked list contains nodes with three parts: 1. Pointer to the previous node 2. Data 3. Pointer to the next node  Unlike a singly linked list, traversal can occur in both forward and backward directions.  Advantages: - Bidirectional traversal - Easier deletion when a node is known  Disadvantages: - Extra memory is required for the previous pointer. - Operations require maintaining both previous and next links.",
+          "title": "Data Structures - Unit II: Linked Lists",
+          "subject": "Data Structures",
+          "unit": 2,
+          "hybridScore": 0.1781,
+          "scoring": {
+            "normalizedAds": 0,
+            "normalizedVector": 0.509,
+            "normalizedGraph": 0,
+            "weights": {
+              "ads": 0.4,
+              "vector": 0.35,
+              "graph": 0.25
+            }
+          }
+        },
+        {
+          "content": "LINKED LIST OPERATIONS AND COMPLEXITY  Common operations on linked lists include traversal, searching, insertion, and deletion.  Typical time complexities: - Accessing an element by position: O(n) - Searching: O(n) - Insertion at the beginning: O(1) - Deletion at the beginning: O(1)  Insertion or deletion at other positions may require traversal to locate the required node, resulting in O(n) time.",
+          "title": "Data Structures - Unit II: Linked Lists",
+          "subject": "Data Structures",
+          "unit": 2,
+          "hybridScore": 0.1778,
+          "scoring": {
+            "normalizedAds": 0,
+            "normalizedVector": 0.5081,
+            "normalizedGraph": 0,
+            "weights": {
+              "ads": 0.4,
+              "vector": 0.35,
+              "graph": 0.25
+            }
+          }
+        },
+        {
+          "content": "SUBJECT: Software Engineering | UNIT: 2 | TOPIC: INTERFACES & RUNTIME POLYMORPHISM IN JAVA\n\nAim: 5b) Write a JAVA program to implement Interface.\ninterface Add { int addition(int i, int j); }\ninterface Sub { int substraction(int i, int j); }\nclass Mul implements Add, Sub {\n  public int addition(int i, int j) { return (i + j); }\n  public int substraction(int i, int j) { return (i - j); }\n  public static void main(String args[]) {\n    Mul m1 = new Mul();\n    System.out.println(\"Addition: \" + m1.addition(5, 10));\n    System.out.println(\"Substraction: \" + m1.substraction(5, 10));\n  }\n}\n\nAim: 5c) Write a JAVA program that implements Run time polymorphism\nclass A { public void display() { System.out.println(\"Inside A's display method\"); } }\nclass B extends A { public void display() { System.out.println(\"Inside B's display method\"); } }\nclass C extends B { public void display() { System.out.println(\"Inside C's display method\"); } }\nclass Ex8a {\n  public static void main(String args[]) {\n    A a1 = new A();\n    B b1 = new B();\n    C c1 = new C();\n    A ref;\n    ref = a1; ref.display();\n    ref = b1; ref.display();\n    ref = c1; ref.display();\n  }\n}",
+          "title": "Software Engineering - Unit II: Java Inheritance & Polymorphism Exercises",
+          "subject": "Software Engineering",
+          "unit": 2,
+          "hybridScore": 0.1708,
+          "scoring": {
+            "normalizedAds": 0,
+            "normalizedVector": 0.488,
+            "normalizedGraph": 0,
+            "weights": {
+              "ads": 0.4,
+              "vector": 0.35,
+              "graph": 0.25
+            }
+          }
+        },
+        {
+          "content": "SINGLY LINKED LIST  A singly linked list consists of nodes where each node contains data and a pointer or reference to the next node. The last node points to NULL.  A typical node contains: 1. Data 2. Next pointer  Traversal starts from the head node and continues through the next pointers until NULL is reached.  Common operations include: - Insertion at the beginning - Insertion at the end - Insertion at a specific position - Deletion from the beginning - Deletion from the end - Deletion of a specific node - Traversal - Searching",
+          "title": "Data Structures - Unit II: Linked Lists",
+          "subject": "Data Structures",
+          "unit": 2,
+          "hybridScore": 0.1655,
+          "scoring": {
+            "normalizedAds": 0,
+            "normalizedVector": 0.4729,
+            "normalizedGraph": 0,
+            "weights": {
+              "ads": 0.4,
+              "vector": 0.35,
+              "graph": 0.25
+            }
+          }
+        },
+        {
+          "content": "SUBJECT: Software Engineering | UNIT: 2 | TOPIC: ABSTRACT CLASSES IN JAVA\n\nAim: 4(c) Write a JAVA program for abstract class to find areas of different shapes\nimport java.util.Scanner;\nabstract class CalcArea {\n  abstract void findTriangle(double b, double h);\n  abstract void findRectangle(double l, double b);\n  abstract void findSquare(double s);\n  abstract void findCircle(double r);\n}\nclass FindArea extends CalcArea {\n  void findTriangle(double b, double h) { double area = (b * h) / 2; System.out.println(\"Area of Triangle: \" + area); }\n  void findRectangle(double l, double b) { double area = l * b; System.out.println(\"Area of Rectangle: \" + area); }\n  void findSquare(double s) { double area = s * s; System.out.println(\"Area of Square: \" + area); }\n  void findCircle(double r) { double area = 3.14 * r * r; System.out.println(\"Area of Circle: \" + area); }\n}\nclass Area {\n  public static void main(String args[]) {\n    FindArea area = new FindArea();\n    area.findTriangle(10, 5);\n    area.findRectangle(10, 20);\n    area.findSquare(5);\n    area.findCircle(7);\n  }\n}",
+          "title": "Software Engineering - Unit II: Java Inheritance & Polymorphism Exercises",
+          "subject": "Software Engineering",
+          "unit": 2,
+          "hybridScore": 0.1607,
+          "scoring": {
+            "normalizedAds": 0,
+            "normalizedVector": 0.4592,
+            "normalizedGraph": 0,
+            "weights": {
+              "ads": 0.4,
+              "vector": 0.35,
+              "graph": 0.25
+            }
+          }
+        }
+      ],
+      "retrieval": {
+        "mode": "hybrid_semantic_ads",
+        "adsResultCount": 4,
+        "vectorResultCount": 15,
+        "hybridCandidates": 15
+      },
+      "pipeline": {
+        "hashLookups": [
+          {
+            "term": "linear",
+            "matchesFound": 2
+          },
+          {
+            "term": "probing",
+            "matchesFound": 1
+          },
+          {
+            "term": "hashing",
+            "matchesFound": 3
+          }
+        ],
+        "avlPrefixMatches": [
+          {
+            "prefix": "linear",
+            "topicsFound": []
+          },
+          {
+            "prefix": "probing",
+            "topicsFound": []
+          },
+          {
+            "prefix": "hashing",
+            "topicsFound": [
+              "hashing"
+            ]
+          }
+        ],
+        "graphRelatedConcepts": [
+          {
+            "concept": "linear probing",
+            "boostWeight": 1
+          },
+          {
+            "concept": "separate chaining",
+            "boostWeight": 0.4
+          },
+          {
+            "concept": "quadratic probing",
+            "boostWeight": 1
+          },
+          {
+            "concept": "unit 1: dictionaries & hashing",
+            "boostWeight": 1
+          },
+          {
+            "concept": "dictionaries",
+            "boostWeight": 0.5
+          },
+          {
+            "concept": "hash tables",
+            "boostWeight": 0.5
+          },
+          {
+            "concept": "collision resolution",
+            "boostWeight": 0.5
+          },
+          {
+            "concept": "advanced data structures - unit i: dictionaries & hashing techniques",
+            "boostWeight": 1
+          }
+        ],
+        "candidateCountBeforeHeap": 4,
+        "heapTopKExtracted": 4,
+        "sortingAlgorithm": "Divide-and-Conquer Stable Merge Sort (O(n log n))",
+        "timingsMs": {
+          "hashLookup": 0,
+          "avlLookup": 0,
+          "graphTraversal": 0,
+          "heapRanking": 0,
+          "mergeSort": 0,
+          "totalPipeline": 0
+        },
+        "adsVivaMetadata": {
+          "hashTableCapacity": 673,
+          "hashTableEntries": 287,
+          "avlTreeNodes": 15,
+          "avlTreeHeight": 5,
+          "avlRotations": {
+            "ll": 2,
+            "rr": 1,
+            "lr": 0,
+            "rl": 3
+          },
+          "graphVertices": 26,
+          "graphEdges": 36
+        }
+      },
+      "vectorize": {
+        "status": "success",
+        "embeddingModel": "@cf/baai/bge-small-en-v1.5",
+        "queryDimension": 384,
+        "timingMs": 193,
+        "candidateCount": 15
+      }
+    },
+    "search_time_ms": 4483,
+    "chat": {
+      "answer": "Linear probing is a collision resolution technique used in open addressing methods. When a collision occurs, linear probing searches for the next available slot in the table by probing each slot sequentially, starting from the next index. The probing sequence is calculated using the formula: (index + 1) mod m, where 'm' is the size of the hash table. This process continues until an empty slot is found, at which point the key-value pair is inserted into that slot.",
+      "tool": "explain",
+      "sources": [
+        {
+          "title": "Advanced Data Structures - Unit I: Dictionaries & Hashing Techniques",
+          "subject": "Advanced Data Structures",
+          "unit": 1,
+          "topic": "COLLISION RESOLUTION TECHNIQUES",
+          "source": "sample_real_lecture_unit1.pdf",
+          "page_info": "Page 3"
+        },
+        {
+          "title": "Advanced Data Structures - Unit I: Dictionaries & Hashing Techniques",
+          "subject": "Advanced Data Structures",
+          "unit": 1,
+          "topic": "HASH TABLES AND HASH FUNCTIONS",
+          "source": "sample_real_lecture_unit1.pdf",
+          "page_info": "Page 2"
+        },
+        {
+          "title": "Advanced Data Structures - Unit I: Dictionaries & Hashing Techniques",
+          "subject": "Advanced Data Structures",
+          "unit": 1,
+          "topic": "DICTIONARIES AND HASHING",
+          "source": "sample_real_lecture_unit1.pdf",
+          "page_info": "Page 1"
+        },
+        {
+          "title": "Data Structures - Unit II: Linked Lists",
+          "subject": "Data Structures",
+          "unit": 2,
+          "source": "BVC Academic Base",
+          "page_info": "Page N/A"
+        }
+      ],
+      "debug": {
+        "detectedIntent": "ACADEMIC",
+        "selectedTool": "explain",
+        "allowedTools": [
+          "knowledge_search",
+          "explain",
+          "study_notes"
+        ],
+        "retrievedChunkCount": 4,
+        "model": "@cf/meta/llama-3.2-3b-instruct",
+        "provider": "workers_ai_fallback",
+        "providerAttempt": 1,
+        "codeLineCount": 0,
+        "generationStatus": "workers_ai_fallback_success",
+        "personality": {
+          "tone": "clear/teacher-like",
+          "humorLevel": "minimal",
+          "teasingLevel": "none",
+          "academicPriority": "immediate",
+          "supportive": false
+        },
+        "timingsMs": {
+          "intentDetection": 0,
+          "adsRetrieval": 0,
+          "aiGeneration": 538,
+          "total": 538
+        },
+        "adsPipelineStatus": "executed",
+        "xaiDiagnostic": "failed: HTTP 400: {\"code\":\"invalid-argument\",\"error\":\"Incorrect API key provided. You can obtain an API key from https://console.x.ai.\"}"
+      }
+    },
+    "chat_time_ms": 1159
+  },
+  {
+    "query": "What is the difference between singly and doubly linked lists?",
+    "search": {
+      "query": "What is the difference between singly and doubly linked lists?",
+      "results": [
+        {
+          "content": "DOUBLY LINKED LIST  A doubly linked list contains nodes with three parts: 1. Pointer to the previous node 2. Data 3. Pointer to the next node  Unlike a singly linked list, traversal can occur in both forward and backward directions.  Advantages: - Bidirectional traversal - Easier deletion when a node is known  Disadvantages: - Extra memory is required for the previous pointer. - Operations require maintaining both previous and next links.",
+          "title": "Data Structures - Unit II: Linked Lists",
+          "subject": "Data Structures",
+          "unit": 2,
+          "hybridScore": 0.6799,
+          "scoring": {
+            "normalizedAds": 1,
+            "normalizedVector": 0.7997,
+            "normalizedGraph": 0,
+            "weights": {
+              "ads": 0.4,
+              "vector": 0.35,
+              "graph": 0.25
+            }
+          }
+        },
+        {
+          "content": "CIRCULAR LINKED LIST  In a circular linked list, the last node does not point to NULL. Instead, it points back to the first node, creating a circular structure.  A circular linked list can be singly circular or doubly circular.  Applications include situations where data or processes must be repeatedly traversed in a cycle, such as round-robin scheduling.",
+          "title": "Data Structures - Unit II: Linked Lists",
+          "subject": "Data Structures",
+          "unit": 2,
+          "hybridScore": 0.5959,
+          "scoring": {
+            "normalizedAds": 0.8689,
+            "normalizedVector": 0.7095,
+            "normalizedGraph": 0,
+            "weights": {
+              "ads": 0.4,
+              "vector": 0.35,
+              "graph": 0.25
+            }
+          }
+        },
+        {
+          "content": "APPLICATIONS OF LINKED LISTS  Linked lists are used in: - Dynamic memory management - Implementation of stacks - Implementation of queues - Graph adjacency lists - Polynomial representation - Round-robin scheduling using circular linked lists - Browser navigation and similar bidirectional navigation using doubly linked lists",
+          "title": "Data Structures - Unit II: Linked Lists",
+          "subject": "Data Structures",
+          "unit": 2,
+          "hybridScore": 0.5948,
+          "scoring": {
+            "normalizedAds": 0.9016,
+            "normalizedVector": 0.6691,
+            "normalizedGraph": 0,
+            "weights": {
+              "ads": 0.4,
+              "vector": 0.35,
+              "graph": 0.25
+            }
+          }
+        },
+        {
+          "content": "SINGLY LINKED LIST  A singly linked list consists of nodes where each node contains data and a pointer or reference to the next node. The last node points to NULL.  A typical node contains: 1. Data 2. Next pointer  Traversal starts from the head node and continues through the next pointers until NULL is reached.  Common operations include: - Insertion at the beginning - Insertion at the end - Insertion at a specific position - Deletion from the beginning - Deletion from the end - Deletion of a specific node - Traversal - Searching",
+          "title": "Data Structures - Unit II: Linked Lists",
+          "subject": "Data Structures",
+          "unit": 2,
+          "hybridScore": 0.5745,
+          "scoring": {
+            "normalizedAds": 0.7705,
+            "normalizedVector": 0.7608,
+            "normalizedGraph": 0,
+            "weights": {
+              "ads": 0.4,
+              "vector": 0.35,
+              "graph": 0.25
+            }
+          }
+        },
+        {
+          "content": "LINKED LIST OPERATIONS AND COMPLEXITY  Common operations on linked lists include traversal, searching, insertion, and deletion.  Typical time complexities: - Accessing an element by position: O(n) - Searching: O(n) - Insertion at the beginning: O(1) - Deletion at the beginning: O(1)  Insertion or deletion at other positions may require traversal to locate the required node, resulting in O(n) time.",
+          "title": "Data Structures - Unit II: Linked Lists",
+          "subject": "Data Structures",
+          "unit": 2,
+          "hybridScore": 0.4531,
+          "scoring": {
+            "normalizedAds": 0.541,
+            "normalizedVector": 0.6762,
+            "normalizedGraph": 0,
+            "weights": {
+              "ads": 0.4,
+              "vector": 0.35,
+              "graph": 0.25
+            }
+          }
+        },
+        {
+          "content": "ARRAY VS LINKED LIST  Array: - Elements are stored in contiguous memory locations. - Size is generally fixed after creation. - Random access using an index is efficient. - Insertion and deletion can require shifting elements.  Linked List: - Nodes can be stored at different memory locations. - Size can grow or shrink dynamically. - Elements are accessed sequentially by traversal. - Insertion and deletion can be efficient when the required node position is known.",
+          "title": "Data Structures - Unit II: Linked Lists",
+          "subject": "Data Structures",
+          "unit": 2,
+          "hybridScore": 0.4524,
+          "scoring": {
+            "normalizedAds": 0.541,
+            "normalizedVector": 0.6744,
+            "normalizedGraph": 0,
+            "weights": {
+              "ads": 0.4,
+              "vector": 0.35,
+              "graph": 0.25
+            }
+          }
+        },
+        {
+          "content": "UNIT II: LINKED LISTS  A linked list is a linear data structure consisting of nodes. Each node contains data and a link or pointer to the next node. Unlike arrays, linked list elements are not necessarily stored in contiguous memory locations.  Main advantages of linked lists include dynamic memory allocation and efficient insertion and deletion. A major disadvantage is that elements cannot normally be accessed directly by index; traversal is required.",
+          "title": "Data Structures - Unit II: Linked Lists",
+          "subject": "Data Structures",
+          "unit": 2,
+          "hybridScore": 0.4469,
+          "scoring": {
+            "normalizedAds": 0.541,
+            "normalizedVector": 0.6587,
+            "normalizedGraph": 0,
+            "weights": {
+              "ads": 0.4,
+              "vector": 0.35,
+              "graph": 0.25
+            }
+          }
+        },
+        {
+          "content": "SUBJECT: Advanced Data Structures | UNIT: 1 | TOPIC: COLLISION RESOLUTION TECHNIQUES | SOURCE: sample_real_lecture_unit1.pdf | PAGES: Page 3\n\nWhen two distinct keys produce the same hash index, a collision occurs. Standard collision handling techniques include: 1. Open Addressing (Linear Probing, Quadratic Probing, Double Hashing) and 2. Separate Chaining where each slot contains a linked list. Average case search is O(1) time complexity.",
+          "title": "Advanced Data Structures - Unit I: Dictionaries & Hashing Techniques",
+          "subject": "Advanced Data Structures",
+          "unit": 1,
+          "hybridScore": 0.2751,
+          "scoring": {
+            "normalizedAds": 0.1885,
+            "normalizedVector": 0.5706,
+            "normalizedGraph": 0,
+            "weights": {
+              "ads": 0.4,
+              "vector": 0.35,
+              "graph": 0.25
+            }
+          }
+        },
+        {
+          "content": "SUBJECT: Software Engineering | UNIT: 2 | TOPIC: INTERFACES & RUNTIME POLYMORPHISM IN JAVA\n\nAim: 5b) Write a JAVA program to implement Interface.\ninterface Add { int addition(int i, int j); }\ninterface Sub { int substraction(int i, int j); }\nclass Mul implements Add, Sub {\n  public int addition(int i, int j) { return (i + j); }\n  public int substraction(int i, int j) { return (i - j); }\n  public static void main(String args[]) {\n    Mul m1 = new Mul();\n    System.out.println(\"Addition: \" + m1.addition(5, 10));\n    System.out.println(\"Substraction: \" + m1.substraction(5, 10));\n  }\n}\n\nAim: 5c) Write a JAVA program that implements Run time polymorphism\nclass A { public void display() { System.out.println(\"Inside A's display method\"); } }\nclass B extends A { public void display() { System.out.println(\"Inside B's display method\"); } }\nclass C extends B { public void display() { System.out.println(\"Inside C's display method\"); } }\nclass Ex8a {\n  public static void main(String args[]) {\n    A a1 = new A();\n    B b1 = new B();\n    C c1 = new C();\n    A ref;\n    ref = a1; ref.display();\n    ref = b1; ref.display();\n    ref = c1; ref.display();\n  }\n}",
+          "title": "Software Engineering - Unit II: Java Inheritance & Polymorphism Exercises",
+          "subject": "Software Engineering",
+          "unit": 2,
+          "hybridScore": 0.1952,
+          "scoring": {
+            "normalizedAds": 0,
+            "normalizedVector": 0.5577,
+            "normalizedGraph": 0,
+            "weights": {
+              "ads": 0.4,
+              "vector": 0.35,
+              "graph": 0.25
+            }
+          }
+        },
+        {
+          "content": "SUBJECT: Advanced Data Structures | UNIT: 1 | TOPIC: HASH TABLES AND HASH FUNCTIONS | SOURCE: sample_real_lecture_unit1.pdf | PAGES: Page 2\n\nA Hash Table is a data structure that maps keys to array indices using a hash function. A good hash function should be easy to compute and distribute keys uniformly across the table. Hash function methods include Division Method (h(k) = k mod m), Multiplication Method, and Mid-Square Method.",
+          "title": "Advanced Data Structures - Unit I: Dictionaries & Hashing Techniques",
+          "subject": "Advanced Data Structures",
+          "unit": 1,
+          "hybridScore": 0.187,
+          "scoring": {
+            "normalizedAds": 0,
+            "normalizedVector": 0.5344,
+            "normalizedGraph": 0,
+            "weights": {
+              "ads": 0.4,
+              "vector": 0.35,
+              "graph": 0.25
+            }
+          }
+        }
+      ],
+      "retrieval": {
+        "mode": "hybrid_semantic_ads",
+        "adsResultCount": 8,
+        "vectorResultCount": 15,
+        "hybridCandidates": 15
+      },
+      "pipeline": {
+        "hashLookups": [
+          {
+            "term": "difference",
+            "matchesFound": 0
+          },
+          {
+            "term": "between",
+            "matchesFound": 0
+          },
+          {
+            "term": "singly",
+            "matchesFound": 3
+          },
+          {
+            "term": "doubly",
+            "matchesFound": 3
+          },
+          {
+            "term": "linked",
+            "matchesFound": 8
+          },
+          {
+            "term": "lists",
+            "matchesFound": 7
+          }
+        ],
+        "avlPrefixMatches": [
+          {
+            "prefix": "difference",
+            "topicsFound": []
+          },
+          {
+            "prefix": "between",
+            "topicsFound": []
+          },
+          {
+            "prefix": "singly",
+            "topicsFound": []
+          },
+          {
+            "prefix": "doubly",
+            "topicsFound": []
+          },
+          {
+            "prefix": "linked",
+            "topicsFound": [
+              "linked"
+            ]
+          },
+          {
+            "prefix": "lists",
+            "topicsFound": [
+              "lists"
+            ]
+          }
+        ],
+        "graphRelatedConcepts": [
+          {
+            "concept": "singly linked list",
+            "boostWeight": 1
+          },
+          {
+            "concept": "doubly linked list",
+            "boostWeight": 1
+          },
+          {
+            "concept": "separate chaining",
+            "boostWeight": 0.45
+          },
+          {
+            "concept": "circular linked list",
+            "boostWeight": 1
+          },
+          {
+            "concept": "linear probing",
+            "boostWeight": 0.24000000000000002
+          },
+          {
+            "concept": "unit 2: linked lists",
+            "boostWeight": 1
+          },
+          {
+            "concept": "data structures - unit ii: linked lists",
+            "boostWeight": 1
+          }
+        ],
+        "candidateCountBeforeHeap": 8,
+        "heapTopKExtracted": 8,
+        "sortingAlgorithm": "Divide-and-Conquer Stable Merge Sort (O(n log n))",
+        "timingsMs": {
+          "hashLookup": 0,
+          "avlLookup": 0,
+          "graphTraversal": 0,
+          "heapRanking": 0,
+          "mergeSort": 0,
+          "totalPipeline": 0
+        },
+        "adsVivaMetadata": {
+          "hashTableCapacity": 673,
+          "hashTableEntries": 287,
+          "avlTreeNodes": 15,
+          "avlTreeHeight": 5,
+          "avlRotations": {
+            "ll": 2,
+            "rr": 1,
+            "lr": 0,
+            "rl": 3
+          },
+          "graphVertices": 26,
+          "graphEdges": 36
+        }
+      },
+      "vectorize": {
+        "status": "success",
+        "embeddingModel": "@cf/baai/bge-small-en-v1.5",
+        "queryDimension": 384,
+        "timingMs": 210,
+        "candidateCount": 15
+      }
+    },
+    "search_time_ms": 882,
+    "chat": {
+      "answer": "A doubly linked list contains nodes with three parts: a pointer to the previous node, data, and a pointer to the next node. This allows for bidirectional traversal, making it easier to delete nodes when their position is known. In contrast, a singly linked list only contains a pointer to the next node, requiring traversal to access previous nodes. This results in extra memory being required for the previous pointer in doubly linked lists, but also enables easier deletion and traversal in both forward and backward directions.",
+      "tool": "explain",
+      "sources": [
+        {
+          "title": "Data Structures - Unit II: Linked Lists",
+          "subject": "Data Structures",
+          "unit": 2,
+          "source": "BVC Academic Base",
+          "page_info": "Page N/A"
+        },
+        {
+          "title": "Data Structures - Unit II: Linked Lists",
+          "subject": "Data Structures",
+          "unit": 2,
+          "source": "BVC Academic Base",
+          "page_info": "Page N/A"
+        },
+        {
+          "title": "Data Structures - Unit II: Linked Lists",
+          "subject": "Data Structures",
+          "unit": 2,
+          "source": "BVC Academic Base",
+          "page_info": "Page N/A"
+        },
+        {
+          "title": "Data Structures - Unit II: Linked Lists",
+          "subject": "Data Structures",
+          "unit": 2,
+          "source": "BVC Academic Base",
+          "page_info": "Page N/A"
+        },
+        {
+          "title": "Data Structures - Unit II: Linked Lists",
+          "subject": "Data Structures",
+          "unit": 2,
+          "source": "BVC Academic Base",
+          "page_info": "Page N/A"
+        },
+        {
+          "title": "Data Structures - Unit II: Linked Lists",
+          "subject": "Data Structures",
+          "unit": 2,
+          "source": "BVC Academic Base",
+          "page_info": "Page N/A"
+        },
+        {
+          "title": "Data Structures - Unit II: Linked Lists",
+          "subject": "Data Structures",
+          "unit": 2,
+          "source": "BVC Academic Base",
+          "page_info": "Page N/A"
+        },
+        {
+          "title": "Advanced Data Structures - Unit I: Dictionaries & Hashing Techniques",
+          "subject": "Advanced Data Structures",
+          "unit": 1,
+          "topic": "COLLISION RESOLUTION TECHNIQUES",
+          "source": "sample_real_lecture_unit1.pdf",
+          "page_info": "Page 3"
+        }
+      ],
+      "debug": {
+        "detectedIntent": "ACADEMIC",
+        "selectedTool": "explain",
+        "allowedTools": [
+          "knowledge_search",
+          "explain",
+          "study_notes"
+        ],
+        "retrievedChunkCount": 8,
+        "model": "@cf/meta/llama-3.2-3b-instruct",
+        "provider": "workers_ai_fallback",
+        "providerAttempt": 1,
+        "codeLineCount": 0,
+        "generationStatus": "workers_ai_fallback_success",
+        "personality": {
+          "tone": "clear/teacher-like",
+          "humorLevel": "minimal",
+          "teasingLevel": "none",
+          "academicPriority": "immediate",
+          "supportive": false
+        },
+        "timingsMs": {
+          "intentDetection": 0,
+          "adsRetrieval": 0,
+          "aiGeneration": 1096,
+          "total": 1096
+        },
+        "adsPipelineStatus": "executed",
+        "xaiDiagnostic": "failed: HTTP 400: {\"code\":\"invalid-argument\",\"error\":\"Incorrect API key provided. You can obtain an API key from https://console.x.ai.\"}"
+      }
+    },
+    "chat_time_ms": 1724
+  },
+  {
+    "query": "hi",
+    "search": {
+      "query": "hi",
+      "results": [
+        {
+          "content": "SINGLY LINKED LIST  A singly linked list consists of nodes where each node contains data and a pointer or reference to the next node. The last node points to NULL.  A typical node contains: 1. Data 2. Next pointer  Traversal starts from the head node and continues through the next pointers until NULL is reached.  Common operations include: - Insertion at the beginning - Insertion at the end - Insertion at a specific position - Deletion from the beginning - Deletion from the end - Deletion of a specific node - Traversal - Searching",
+          "title": "Data Structures - Unit II: Linked Lists",
+          "subject": "Data Structures",
+          "unit": 2,
+          "hybridScore": 0.5667,
+          "scoring": {
+            "normalizedAds": 1,
+            "normalizedVector": 0.4762,
+            "normalizedGraph": 0,
+            "weights": {
+              "ads": 0.4,
+              "vector": 0.35,
+              "graph": 0.25
+            }
+          }
+        },
+        {
+          "content": "SUBJECT: Software Engineering | UNIT: 2 | TOPIC: SUPER KEYWORD IN JAVA\n\nExercise - 5 Aim: 5a) Write a JAVA program give example for \"super\" keyword.\nProgram:\nclass A {\n  int i = 10;\n  A() { System.out.println(\"Constructor in A class\"); }\n  void view() {\n    System.out.println(\"View Method in A class\");\n    System.out.println(\"i value : \" + i);\n  }\n}\nclass B extends A {\n  int j;\n  B(int j) {\n    super();\n    this.j = j;\n  }\n  void display() {\n    super.view();\n    System.out.println(\"display Method in B class\");\n    System.out.println(\"i value is \" + super.i);\n    System.out.println(\"j value is \" + j);\n  }\n}\nclass Super1 {\n  public static void main(String args[]) {\n    B b = new B(10);\n    b.display();\n  }\n}",
+          "title": "Software Engineering - Unit II: Java Inheritance & Polymorphism Exercises",
+          "subject": "Software Engineering",
+          "unit": 2,
+          "hybridScore": 0.5493,
+          "scoring": {
+            "normalizedAds": 1,
+            "normalizedVector": 0.4267,
+            "normalizedGraph": 0,
+            "weights": {
+              "ads": 0.4,
+              "vector": 0.35,
+              "graph": 0.25
+            }
+          }
+        },
+        {
+          "content": "LINKED LIST OPERATIONS AND COMPLEXITY  Common operations on linked lists include traversal, searching, insertion, and deletion.  Typical time complexities: - Accessing an element by position: O(n) - Searching: O(n) - Insertion at the beginning: O(1) - Deletion at the beginning: O(1)  Insertion or deletion at other positions may require traversal to locate the required node, resulting in O(n) time.",
+          "title": "Data Structures - Unit II: Linked Lists",
+          "subject": "Data Structures",
+          "unit": 2,
+          "hybridScore": 0.5489,
+          "scoring": {
+            "normalizedAds": 1,
+            "normalizedVector": 0.4255,
+            "normalizedGraph": 0,
+            "weights": {
+              "ads": 0.4,
+              "vector": 0.35,
+              "graph": 0.25
+            }
+          }
+        },
+        {
+          "content": "ARRAY VS LINKED LIST  Array: - Elements are stored in contiguous memory locations. - Size is generally fixed after creation. - Random access using an index is efficient. - Insertion and deletion can require shifting elements.  Linked List: - Nodes can be stored at different memory locations. - Size can grow or shrink dynamically. - Elements are accessed sequentially by traversal. - Insertion and deletion can be efficient when the required node position is known.",
+          "title": "Data Structures - Unit II: Linked Lists",
+          "subject": "Data Structures",
+          "unit": 2,
+          "hybridScore": 0.546,
+          "scoring": {
+            "normalizedAds": 1,
+            "normalizedVector": 0.4171,
+            "normalizedGraph": 0,
+            "weights": {
+              "ads": 0.4,
+              "vector": 0.35,
+              "graph": 0.25
+            }
+          }
+        },
+        {
+          "content": "SUBJECT: Software Engineering | UNIT: 2 | TOPIC: MULTILEVEL INHERITANCE IN JAVA\n\nAim: 4(b) Write a JAVA program to implement Multilevel Inheritance\nProgram:\nclass A {\n  String str = \" \";\n  A() { str = \"This\"; }\n}\nclass B extends A {\n  B() { str = str.concat(\" is\"); }\n}\nclass C extends B {\n  C() { str = str.concat(\" multilevel\"); }\n}\nclass D extends C {\n  D() { str = str.concat(\" Inheritance\"); }\n  void display() { System.out.println(str); }\n}\nclass Multilevel {\n  public static void main(String args[]) {\n    D d = new D();\n    d.display();\n  }\n}",
+          "title": "Software Engineering - Unit II: Java Inheritance & Polymorphism Exercises",
+          "subject": "Software Engineering",
+          "unit": 2,
+          "hybridScore": 0.545,
+          "scoring": {
+            "normalizedAds": 1,
+            "normalizedVector": 0.4143,
+            "normalizedGraph": 0,
+            "weights": {
+              "ads": 0.4,
+              "vector": 0.35,
+              "graph": 0.25
+            }
+          }
+        },
+        {
+          "content": "SUBJECT: Advanced Data Structures | UNIT: 1 | TOPIC: DICTIONARIES AND HASHING | SOURCE: sample_real_lecture_unit1.pdf | PAGES: Page 1\n\nDefinition of Dictionary: A dictionary is an abstract data type that stores key-value pairs where each key is unique. Dictionaries support three primary operations: insertion, deletion, and searching. Applications include symbol tables in compilers, spell checkers, database indexing, and cache management systems.",
+          "title": "Advanced Data Structures - Unit I: Dictionaries & Hashing Techniques",
+          "subject": "Advanced Data Structures",
+          "unit": 1,
+          "hybridScore": 0.5424,
+          "scoring": {
+            "normalizedAds": 1,
+            "normalizedVector": 0.407,
+            "normalizedGraph": 0,
+            "weights": {
+              "ads": 0.4,
+              "vector": 0.35,
+              "graph": 0.25
+            }
+          }
+        },
+        {
+          "content": "SUBJECT: Advanced Data Structures | UNIT: 1 | TOPIC: HASH TABLES AND HASH FUNCTIONS | SOURCE: sample_real_lecture_unit1.pdf | PAGES: Page 2\n\nA Hash Table is a data structure that maps keys to array indices using a hash function. A good hash function should be easy to compute and distribute keys uniformly across the table. Hash function methods include Division Method (h(k) = k mod m), Multiplication Method, and Mid-Square Method.",
+          "title": "Advanced Data Structures - Unit I: Dictionaries & Hashing Techniques",
+          "subject": "Advanced Data Structures",
+          "unit": 1,
+          "hybridScore": 0.5424,
+          "scoring": {
+            "normalizedAds": 1,
+            "normalizedVector": 0.4069,
+            "normalizedGraph": 0,
+            "weights": {
+              "ads": 0.4,
+              "vector": 0.35,
+              "graph": 0.25
+            }
+          }
+        },
+        {
+          "content": "SUBJECT: Software Engineering | UNIT: 2 | TOPIC: SINGLE INHERITANCE IN JAVA\n\nExercise - 4 Aim: 4a) Write a JAVA program to implement single Inheritance\nProgram:\nclass A {\n  int a, b;\n  void show() {\n    System.out.println(\"The values of A and B: \" + a + \",\" + b);\n  }\n}\nclass B extends A {\n  int c;\n  void display() {\n    System.out.println(\"The values of C: \" + c);\n  }\n  void sum() {\n    System.out.println(\"The values of a+b+c: \" + (a + b + c));\n  }\n}\nclass SingleInh {\n  public static void main(String args[]) {\n    A a1 = new A();\n    a1.a = 10;\n    a1.b = 20;\n    System.out.println(\"Content of superclass object only\");\n    a1.show();\n    B b1 = new B();\n    b1.a = 1;\n    b1.b = 2;\n    b1.c = 3;\n    System.out.println(\"Content of subclass object only\");\n    b1.show();\n    b1.display();\n    b1.sum();\n  }\n}",
+          "title": "Software Engineering - Unit II: Java Inheritance & Polymorphism Exercises",
+          "subject": "Software Engineering",
+          "unit": 2,
+          "hybridScore": 0.5407,
+          "scoring": {
+            "normalizedAds": 1,
+            "normalizedVector": 0.4021,
+            "normalizedGraph": 0,
+            "weights": {
+              "ads": 0.4,
+              "vector": 0.35,
+              "graph": 0.25
+            }
+          }
+        },
+        {
+          "content": "SUBJECT: Software Engineering | UNIT: 2 | TOPIC: INTERFACES & RUNTIME POLYMORPHISM IN JAVA\n\nAim: 5b) Write a JAVA program to implement Interface.\ninterface Add { int addition(int i, int j); }\ninterface Sub { int substraction(int i, int j); }\nclass Mul implements Add, Sub {\n  public int addition(int i, int j) { return (i + j); }\n  public int substraction(int i, int j) { return (i - j); }\n  public static void main(String args[]) {\n    Mul m1 = new Mul();\n    System.out.println(\"Addition: \" + m1.addition(5, 10));\n    System.out.println(\"Substraction: \" + m1.substraction(5, 10));\n  }\n}\n\nAim: 5c) Write a JAVA program that implements Run time polymorphism\nclass A { public void display() { System.out.println(\"Inside A's display method\"); } }\nclass B extends A { public void display() { System.out.println(\"Inside B's display method\"); } }\nclass C extends B { public void display() { System.out.println(\"Inside C's display method\"); } }\nclass Ex8a {\n  public static void main(String args[]) {\n    A a1 = new A();\n    B b1 = new B();\n    C c1 = new C();\n    A ref;\n    ref = a1; ref.display();\n    ref = b1; ref.display();\n    ref = c1; ref.display();\n  }\n}",
+          "title": "Software Engineering - Unit II: Java Inheritance & Polymorphism Exercises",
+          "subject": "Software Engineering",
+          "unit": 2,
+          "hybridScore": 0.5373,
+          "scoring": {
+            "normalizedAds": 1,
+            "normalizedVector": 0.3922,
+            "normalizedGraph": 0,
+            "weights": {
+              "ads": 0.4,
+              "vector": 0.35,
+              "graph": 0.25
+            }
+          }
+        },
+        {
+          "content": "SUBJECT: Advanced Data Structures | UNIT: 1 | TOPIC: COLLISION RESOLUTION TECHNIQUES | SOURCE: sample_real_lecture_unit1.pdf | PAGES: Page 3\n\nWhen two distinct keys produce the same hash index, a collision occurs. Standard collision handling techniques include: 1. Open Addressing (Linear Probing, Quadratic Probing, Double Hashing) and 2. Separate Chaining where each slot contains a linked list. Average case search is O(1) time complexity.",
+          "title": "Advanced Data Structures - Unit I: Dictionaries & Hashing Techniques",
+          "subject": "Advanced Data Structures",
+          "unit": 1,
+          "hybridScore": 0.5346,
+          "scoring": {
+            "normalizedAds": 1,
+            "normalizedVector": 0.3845,
+            "normalizedGraph": 0,
+            "weights": {
+              "ads": 0.4,
+              "vector": 0.35,
+              "graph": 0.25
+            }
+          }
+        }
+      ],
+      "retrieval": {
+        "mode": "hybrid_semantic_ads",
+        "adsResultCount": 11,
+        "vectorResultCount": 15,
+        "hybridCandidates": 15
+      },
+      "pipeline": {
+        "hashLookups": [],
+        "avlPrefixMatches": [],
+        "graphRelatedConcepts": [],
+        "candidateCountBeforeHeap": 11,
+        "heapTopKExtracted": 11,
+        "sortingAlgorithm": "Divide-and-Conquer Stable Merge Sort (O(n log n))",
+        "timingsMs": {
+          "hashLookup": 0,
+          "avlLookup": 0,
+          "graphTraversal": 0,
+          "heapRanking": 0,
+          "mergeSort": 0,
+          "totalPipeline": 0
+        },
+        "adsVivaMetadata": {
+          "hashTableCapacity": 673,
+          "hashTableEntries": 287,
+          "avlTreeNodes": 15,
+          "avlTreeHeight": 5,
+          "avlRotations": {
+            "ll": 2,
+            "rr": 1,
+            "lr": 0,
+            "rl": 3
+          },
+          "graphVertices": 26,
+          "graphEdges": 36
+        }
+      },
+      "vectorize": {
+        "status": "success",
+        "embeddingModel": "@cf/baai/bge-small-en-v1.5",
+        "queryDimension": 384,
+        "timingMs": 235,
+        "candidateCount": 15
+      }
+    },
+    "search_time_ms": 869,
+    "chat": {
+      "answer": "Hello! It seems like we're starting fresh. What topic would you like to explore in computer science or engineering today? Are you looking for help with a specific problem, or do you want to discuss a concept you're struggling with?",
+      "tool": "explain",
+      "sources": [],
+      "debug": {
+        "detectedIntent": "GREETING",
+        "selectedTool": "explain",
+        "allowedTools": [
+          "knowledge_search",
+          "explain",
+          "study_notes"
+        ],
+        "retrievedChunkCount": 0,
+        "model": "@cf/meta/llama-3.2-3b-instruct",
+        "provider": "workers_ai_fallback",
+        "providerAttempt": 1,
+        "codeLineCount": 0,
+        "generationStatus": "workers_ai_fallback_success",
+        "personality": {
+          "tone": "friendly",
+          "humorLevel": "light",
+          "teasingLevel": "occasional",
+          "academicPriority": "conversational",
+          "supportive": false
+        },
+        "timingsMs": {
+          "intentDetection": 0,
+          "adsRetrieval": 0,
+          "aiGeneration": 437,
+          "total": 437
+        },
+        "adsPipelineStatus": "skipped_for_casual",
+        "xaiDiagnostic": "failed: HTTP 400: {\"code\":\"invalid-argument\",\"error\":\"Incorrect API key provided. You can obtain an API key from https://console.x.ai.\"}"
+      }
+    },
+    "chat_time_ms": 2616
+  }
+]

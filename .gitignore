@@ -129,3 +129,6 @@ dist/
 release/
 .wrangler/
 **/.wrangler/
+node_modules/
+**/node_modules/
+nexora/

@@ -20,6 +20,10 @@ import { semanticSearch } from './rag/semantic_search';
 import { mergeRetrievalSignals, calculateHybridScores } from './rag/hybrid_ranker';
 import { backfillChunksToVectorize, syncChunkToVectorize } from './rag/vector_sync';
 import { EMBEDDING_CONFIG } from './rag/embedding_service';
+import { FirebaseAuthGuard } from './bvc/firebase_auth_guard';
+import { BVCService } from './bvc/bvc_service';
+import { BVCStorage } from './bvc/bvc_storage';
+import { BVCNormalizer } from './bvc/bvc_normalizer';
 
 export interface Env extends EnvAIConfig {
   ENVIRONMENT?: string;
@@ -1351,6 +1355,144 @@ export default {
           }
 
           return jsonResponse({ success: true, message: 'Removed (preview mode)' });
+        }
+      }
+
+      // 8d. Private Student BVC Academic Profile Routes
+      if (path.startsWith('/student/')) {
+        const studentUser = await FirebaseAuthGuard.authenticate(request);
+        if (!studentUser) {
+          return jsonResponse(
+            {
+              success: false,
+              error: 'Unauthorized',
+              message: 'Valid Firebase student authentication required. Pass Authorization: Bearer <Firebase_ID_Token>.',
+            },
+            401
+          );
+        }
+
+        if (!env.DB) {
+          return jsonResponse({ success: false, error: 'Database Unavailable', message: 'D1 database binding is required.' }, 503);
+        }
+
+        // POST /student/bvc/connect - Link BVC Roll Number & Sync
+        if (request.method === 'POST' && path === '/student/bvc/connect') {
+          let bBody: any;
+          try {
+            bBody = await request.json();
+          } catch {
+            return jsonResponse({ success: false, error: 'Bad Request', message: 'Invalid JSON body. Required: { rollNumber }' }, 400);
+          }
+
+          const rawRoll = bBody?.rollNumber;
+          if (!rawRoll || typeof rawRoll !== 'string') {
+            return jsonResponse({ success: false, error: 'Validation Error', message: 'rollNumber is required and must be a string.' }, 400);
+          }
+
+          const normalizedRoll = BVCNormalizer.normalizeRollNumber(rawRoll);
+          if (!BVCNormalizer.isValidRollNumber(normalizedRoll)) {
+            return jsonResponse({
+              success: false,
+              error: 'Invalid Roll Number',
+              message: `The roll number '${rawRoll}' does not match the valid BVC format (e.g. 25221A0568).`,
+            }, 400);
+          }
+
+          try {
+            const syncResult = await BVCService.syncStudent({
+              firebaseUid: studentUser.uid,
+              rollNumber: normalizedRoll,
+              password: bBody?.password,
+              useLiveClient: bBody?.useLiveClient === true,
+              db: env.DB,
+            });
+
+            return jsonResponse({
+              success: true,
+              message: `BVC Academic Profile connected for ${normalizedRoll}.`,
+              sync: syncResult,
+            });
+          } catch (syncErr: any) {
+            return jsonResponse({ success: false, error: 'Connection Error', message: syncErr?.message || String(syncErr) }, 500);
+          }
+        }
+
+        // POST /student/bvc/sync - Re-sync with latest BVC data
+        if (request.method === 'POST' && path === '/student/bvc/sync') {
+          const profile = await BVCStorage.getStudentProfile(env.DB, studentUser.uid);
+          if (!profile || !profile.connected) {
+            return jsonResponse({ success: false, error: 'Not Connected', message: 'No linked BVC profile found. Please connect your profile first.' }, 404);
+          }
+
+          try {
+            let bBody: any = {};
+            try { bBody = await request.json(); } catch (_) {}
+
+            const syncResult = await BVCService.syncStudent({
+              firebaseUid: studentUser.uid,
+              rollNumber: profile.roll_number,
+              password: bBody?.password,
+              useLiveClient: bBody?.useLiveClient === true,
+              db: env.DB,
+            });
+
+            return jsonResponse({
+              success: true,
+              message: `BVC Academic Profile refreshed successfully.`,
+              sync: syncResult,
+            });
+          } catch (syncErr: any) {
+            return jsonResponse({ success: false, error: 'Sync Error', message: syncErr?.message || String(syncErr) }, 500);
+          }
+        }
+
+        // DELETE /student/bvc/disconnect - Unlink BVC account
+        if (request.method === 'DELETE' && path === '/student/bvc/disconnect') {
+          await BVCStorage.disconnectStudent(env.DB, studentUser.uid);
+          return jsonResponse({
+            success: true,
+            message: 'BVC academic profile disconnected successfully and private records cleared.',
+          });
+        }
+
+        // GET /student/profile - Retrieve personal profile
+        if (request.method === 'GET' && path === '/student/profile') {
+          const profile = await BVCStorage.getStudentProfile(env.DB, studentUser.uid);
+          if (!profile) {
+            return jsonResponse({ success: false, connected: false, message: 'No BVC profile linked.' });
+          }
+          return jsonResponse({ success: true, connected: Boolean(profile.connected), profile });
+        }
+
+        // GET /student/attendance - Retrieve personal attendance
+        if (request.method === 'GET' && path === '/student/attendance') {
+          const attendance = await BVCStorage.getStudentAttendance(env.DB, studentUser.uid);
+          return jsonResponse({ success: true, attendance });
+        }
+
+        // GET /student/results - Retrieve semester marks & results
+        if (request.method === 'GET' && path === '/student/results') {
+          const results = await BVCStorage.getStudentResults(env.DB, studentUser.uid);
+          return jsonResponse({ success: true, results });
+        }
+
+        // GET /student/subjects - Retrieve enrolled subjects
+        if (request.method === 'GET' && path === '/student/subjects') {
+          const subjects = await BVCStorage.getStudentSubjects(env.DB, studentUser.uid);
+          return jsonResponse({ success: true, subjects });
+        }
+
+        // GET /student/timetable - Retrieve weekly timetable
+        if (request.method === 'GET' && path === '/student/timetable') {
+          const timetable = await BVCStorage.getStudentTimetable(env.DB, studentUser.uid);
+          return jsonResponse({ success: true, timetable });
+        }
+
+        // GET /student/fees - Retrieve fee records
+        if (request.method === 'GET' && path === '/student/fees') {
+          const fees = await BVCStorage.getStudentFees(env.DB, studentUser.uid);
+          return jsonResponse({ success: true, fees });
         }
       }
 

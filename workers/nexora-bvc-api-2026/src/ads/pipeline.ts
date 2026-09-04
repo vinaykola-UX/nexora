@@ -103,7 +103,7 @@ export class ADSSearchPipeline {
     'tell', 'about', 'write', 'implement', 'give', 'bvcec', 'bvc',
   ]);
 
-  private constructor() {}
+  private constructor() { }
 
   /**
    * Singleton accessor for in-memory worker reuse across requests.
