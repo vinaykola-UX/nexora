@@ -1,3 +1,5 @@
+import '../../features/notifications/presentation/screens/notifications_screen.dart';
+import '../../features/results/presentation/screens/results_screen.dart';
 import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
 import '../../features/onboarding/presentation/screens/onboarding_screen.dart';
@@ -26,6 +28,8 @@ class RoutePaths {
   static const String chat = '/chat';
   static const String chatDetail = '/chat/:chatId';
   static const String profile = '/profile';
+  static const String notifications = '/notifications';
+  static const String results = '/results';
 }
 
 /// Global router configuration
@@ -101,6 +105,18 @@ final GoRouter appRouter = GoRouter(
           },
         ),
       ],
+    ),
+
+    // Notifications Center
+    GoRoute(
+      path: RoutePaths.notifications,
+      builder: (context, state) => const NotificationsScreen(),
+    ),
+
+    // Academic Results View
+    GoRoute(
+      path: RoutePaths.results,
+      builder: (context, state) => const ResultsScreen(),
     ),
 
     // Profile

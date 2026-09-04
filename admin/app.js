@@ -1428,3 +1428,249 @@ document.addEventListener('DOMContentLoaded', () => {
   checkWorkerHealth();
   loadDocuments();
 });
+
+// ---------------------------------------------------------------------------
+// Phase N: Smart Notifications & Result Ingestion Handlers
+// ---------------------------------------------------------------------------
+
+function switchAdminTab(tab) {
+  const kTab = document.getElementById('knowledgeTabContent');
+  const nTab = document.getElementById('notificationsTabContent');
+  const kBtn = document.getElementById('tabBtnKnowledge');
+  const nBtn = document.getElementById('tabBtnNotifications');
+
+  if (tab === 'notifications') {
+    if (kTab) kTab.style.display = 'none';
+    if (nTab) nTab.style.display = 'block';
+    if (kBtn) kBtn.classList.remove('active');
+    if (nBtn) nBtn.classList.add('active');
+    loadNotificationStats();
+  } else {
+    if (kTab) kTab.style.display = 'block';
+    if (nTab) nTab.style.display = 'none';
+    if (kBtn) kBtn.classList.add('active');
+    if (nBtn) nBtn.classList.remove('active');
+  }
+}
+
+async function loadNotificationStats() {
+  try {
+    const res = await fetch(`${state.apiUrl}/admin/notifications/stats`, {
+      headers: {
+        'Authorization': `Bearer ${state.adminSecret}`,
+        'X-Admin-Key': state.adminSecret,
+      }
+    });
+    if (res.ok) {
+      const data = await res.json();
+      if (data.stats) {
+        document.getElementById('statNotifTotal').textContent = data.stats.total_notifications ?? 0;
+        document.getElementById('statNotifToday').textContent = data.stats.sent_today ?? 0;
+        document.getElementById('statActiveDevices').textContent = data.stats.active_devices ?? 0;
+        document.getElementById('statUnreadNotifs').textContent = data.stats.unread_notifications ?? 0;
+      }
+    }
+  } catch (err) {
+    console.warn('[Admin] Failed to load notification stats:', err);
+  }
+}
+
+// Result Ingestion Sample Loader
+document.addEventListener('DOMContentLoaded', () => {
+  const loadSampleBtn = document.getElementById('loadSampleResultsBtn');
+  if (loadSampleBtn) {
+    loadSampleBtn.addEventListener('click', () => {
+      const sample = [
+        {
+          "roll_number": "25221A0569",
+          "semester": 2,
+          "subject_code": "CS201",
+          "subject_name": "Data Structures",
+          "grade": "A+",
+          "credits": 3,
+          "grade_points": 10,
+          "sgpa": 8.5,
+          "status": "PASS",
+          "exam_month_year": "MAY 2026"
+        },
+        {
+          "roll_number": "25221A0570",
+          "semester": 2,
+          "subject_code": "CS201",
+          "subject_name": "Data Structures",
+          "grade": "A",
+          "credits": 3,
+          "grade_points": 9,
+          "sgpa": 8.0,
+          "status": "PASS",
+          "exam_month_year": "MAY 2026"
+        }
+      ];
+      document.getElementById('resultJsonInput').value = JSON.stringify(sample, null, 2);
+    });
+  }
+
+  // Handle Result Upload Button
+  const uploadResultsBtn = document.getElementById('uploadResultsBtn');
+  if (uploadResultsBtn) {
+    uploadResultsBtn.addEventListener('click', async () => {
+      const rawJson = document.getElementById('resultJsonInput').value.trim();
+      if (!rawJson) {
+        alert('Please paste or load result JSON records.');
+        return;
+      }
+
+      let parsed;
+      try {
+        parsed = JSON.parse(rawJson);
+      } catch (e) {
+        alert('Invalid JSON format: ' + e.message);
+        return;
+      }
+
+      const records = Array.isArray(parsed) ? parsed : (parsed.records || []);
+      if (records.length === 0) {
+        alert('No result records found in JSON.');
+        return;
+      }
+
+      uploadResultsBtn.disabled = true;
+      uploadResultsBtn.textContent = 'Ingesting & Matching...';
+
+      try {
+        const res = await fetch(`${state.apiUrl}/admin/results/upload`, {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            'Authorization': `Bearer ${state.adminSecret}`,
+            'X-Admin-Key': state.adminSecret,
+          },
+          body: JSON.stringify({ records })
+        });
+
+        const data = await res.json();
+        const reportBox = document.getElementById('resultReportBox');
+        const metricsBox = document.getElementById('reportMetrics');
+        const detailsBox = document.getElementById('reportDetails');
+
+        if (data.success && data.report) {
+          const r = data.report;
+          reportBox.style.display = 'block';
+          metricsBox.innerHTML = `
+            <div class="report-metric-item"><div class="report-metric-num">${r.total_processed}</div><div class="report-metric-label">Processed</div></div>
+            <div class="report-metric-item"><div class="report-metric-num" style="color:#10B981">${r.matched_students}</div><div class="report-metric-label">Matched Profiles</div></div>
+            <div class="report-metric-item"><div class="report-metric-num" style="color:#6366F1">${r.notifications_queued}</div><div class="report-metric-label">Notifs Queued</div></div>
+            <div class="report-metric-item"><div class="report-metric-num" style="color:#F59E0B">${r.unmatched_roll_numbers?.length || 0}</div><div class="report-metric-label">Unmatched</div></div>
+            <div class="report-metric-item"><div class="report-metric-num" style="color:#94A3B8">${r.duplicates_skipped}</div><div class="report-metric-label">Duplicates Skipped</div></div>
+          `;
+
+          let detailsHtml = `<strong>Matched Students:</strong><br/>`;
+          if (r.matched_profiles && r.matched_profiles.length > 0) {
+            detailsHtml += r.matched_profiles.map(p => `• ${p.roll_number} (${p.name || 'Verified Student'} - ${p.branch || 'B.Tech'})`).join('<br/>');
+          } else {
+            detailsHtml += `None (No registered students found matching these roll numbers)<br/>`;
+          }
+
+          if (r.unmatched_roll_numbers && r.unmatched_roll_numbers.length > 0) {
+            detailsHtml += `<br/><strong>Unmatched Roll Numbers (Saved in D1 Authoritative Store):</strong><br/>` +
+              r.unmatched_roll_numbers.join(', ');
+          }
+
+          detailsBox.innerHTML = detailsHtml;
+          loadNotificationStats();
+        } else {
+          alert('Upload failed: ' + (data.message || data.error));
+        }
+      } catch (err) {
+        alert('Network error during result upload: ' + err.message);
+      } finally {
+        uploadResultsBtn.disabled = false;
+        uploadResultsBtn.innerHTML = '<span class="icon">🚀</span> Ingest & Auto-Notify Students';
+      }
+    });
+  }
+
+  // Handle Target Scope changes
+  const scopeSelect = document.getElementById('notifScopeSelect');
+  const scopeFilterRow = document.getElementById('scopeFilterRow');
+  const scopeBranchGroup = document.getElementById('scopeBranchGroup');
+  const scopeYearGroup = document.getElementById('scopeYearGroup');
+
+  if (scopeSelect) {
+    scopeSelect.addEventListener('change', () => {
+      const val = scopeSelect.value;
+      if (val === 'BRANCH') {
+        scopeFilterRow.style.display = 'flex';
+        scopeBranchGroup.style.display = 'block';
+        scopeYearGroup.style.display = 'none';
+      } else if (val === 'YEAR') {
+        scopeFilterRow.style.display = 'flex';
+        scopeBranchGroup.style.display = 'none';
+        scopeYearGroup.style.display = 'block';
+      } else if (val === 'BRANCH_YEAR') {
+        scopeFilterRow.style.display = 'flex';
+        scopeBranchGroup.style.display = 'block';
+        scopeYearGroup.style.display = 'block';
+      } else {
+        scopeFilterRow.style.display = 'none';
+      }
+    });
+  }
+
+  // Handle Send Broadcast Button
+  const sendBroadcastBtn = document.getElementById('sendBroadcastBtn');
+  if (sendBroadcastBtn) {
+    sendBroadcastBtn.addEventListener('click', async () => {
+      const title = document.getElementById('notifTitleInput').value.trim();
+      const message = document.getElementById('notifBodyInput').value.trim();
+      const type = document.getElementById('notifTypeSelect').value;
+      const scope = document.getElementById('notifScopeSelect').value;
+      const branch = document.getElementById('scopeBranchSelect').value;
+      const year = document.getElementById('scopeYearSelect').value;
+      const statusDiv = document.getElementById('broadcastStatusMsg');
+
+      if (!title || !message) {
+        alert('Please provide a title and message.');
+        return;
+      }
+
+      sendBroadcastBtn.disabled = true;
+      sendBroadcastBtn.textContent = 'Sending Broadcast...';
+      statusDiv.innerHTML = '';
+
+      try {
+        const res = await fetch(`${state.apiUrl}/admin/notifications/send`, {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            'Authorization': `Bearer ${state.adminSecret}`,
+            'X-Admin-Key': state.adminSecret,
+          },
+          body: JSON.stringify({
+            title,
+            message,
+            type,
+            scope,
+            branch: (scope === 'BRANCH' || scope === 'BRANCH_YEAR') ? branch : null,
+            year: (scope === 'YEAR' || scope === 'BRANCH_YEAR') ? year : null,
+          })
+        });
+
+        const data = await res.json();
+        if (data.success) {
+          statusDiv.innerHTML = `<span style="color:#10B981;font-weight:600;">✓ Broadcast dispatched! Targets resolved: ${data.targets_resolved}, Queued: ${data.notifications_queued}, Duplicates skipped: ${data.duplicates_skipped}.</span>`;
+          document.getElementById('notifTitleInput').value = '';
+          document.getElementById('notifBodyInput').value = '';
+          loadNotificationStats();
+        } else {
+          statusDiv.innerHTML = `<span style="color:#EF4444;font-weight:600;">Failed: ${data.message || data.error}</span>`;
+        }
+      } catch (err) {
+        statusDiv.innerHTML = `<span style="color:#EF4444;">Network error: ${err.message}</span>`;
+      } finally {
+        sendBroadcastBtn.disabled = false;
+        sendBroadcastBtn.innerHTML = '<span class="icon">📤</span> Send Broadcast Notification';
+      }
+    });
+  }
+});

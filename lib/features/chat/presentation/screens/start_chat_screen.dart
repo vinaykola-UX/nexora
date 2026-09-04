@@ -1,3 +1,5 @@
+import 'package:flutter_riverpod/flutter_riverpod.dart';
+import '../../../../services/notification_service.dart';
 import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
 import '../../../../core/theme/colors.dart';
@@ -9,14 +11,14 @@ import '../widgets/history_drawer.dart';
 
 /// Start Chat screen matching Figma Mobile UI ("How can I help you today?")
 /// Includes drawer access to view and resume persistent chat history
-class StartChatScreen extends StatefulWidget {
+class StartChatScreen extends ConsumerStatefulWidget {
   const StartChatScreen({Key? key}) : super(key: key);
 
   @override
-  State<StartChatScreen> createState() => _StartChatScreenState();
+  ConsumerState<StartChatScreen> createState() => _StartChatScreenState();
 }
 
-class _StartChatScreenState extends State<StartChatScreen> {
+class _StartChatScreenState extends ConsumerState<StartChatScreen> {
   final GlobalKey<ScaffoldState> _scaffoldKey = GlobalKey<ScaffoldState>();
 
   void _navigateToChat([String? initialPrompt]) {
@@ -90,6 +92,46 @@ class _StartChatScreenState extends State<StartChatScreen> {
           ),
         ),
         actions: [
+          // Notification Bell with Unread Badge
+          Consumer(
+            builder: (context, ref, _) {
+              final unreadCountAsync = ref.watch(unreadNotificationCountProvider);
+              final unread = unreadCountAsync.valueOrNull ?? 0;
+
+              return Stack(
+                alignment: Alignment.center,
+                children: [
+                  IconButton(
+                    icon: const Icon(Icons.notifications_outlined, color: Color(NexoraColors.text), size: 24),
+                    tooltip: 'Notifications',
+                    onPressed: () => context.push(RoutePaths.notifications),
+                  ),
+                  if (unread > 0)
+                    Positioned(
+                      top: 10,
+                      right: 10,
+                      child: Container(
+                        padding: const EdgeInsets.all(3),
+                        decoration: const BoxDecoration(
+                          color: Color(0xFF818CF8),
+                          shape: BoxShape.circle,
+                        ),
+                        constraints: const BoxConstraints(minWidth: 16, minHeight: 16),
+                        child: Text(
+                          unread > 9 ? '9+' : '$unread',
+                          textAlign: TextAlign.center,
+                          style: const TextStyle(
+                            color: Colors.white,
+                            fontSize: 9,
+                            fontWeight: FontWeight.bold,
+                          ),
+                        ),
+                      ),
+                    ),
+                ],
+              );
+            },
+          ),
           IconButton(
             icon: const Icon(Icons.person_outline, color: Color(NexoraColors.text)),
             tooltip: 'Profile',

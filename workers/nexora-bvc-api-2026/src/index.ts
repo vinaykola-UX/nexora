@@ -1,3 +1,8 @@
+import { NotificationStorage } from './notifications/notification_storage';
+import { TargetingEngine } from './notifications/targeting_engine';
+import { ResultProcessor } from './notifications/result_processor';
+import { FCMV1Service } from './notifications/fcm_v1_service';
+import { NotificationTarget, RawResultInputRecord } from './notifications/notification_types';
 /**
  * Nexora BVC AI — Cloudflare Worker Backend & RAG Management API
  * Service: nexora-bvc-api-2026
@@ -1359,6 +1364,202 @@ export default {
       }
 
       // 8d. Private Student BVC Academic Profile Routes
+      
+        // POST /admin/results/upload - Admin result dataset ingestion & auto-matching
+        if (request.method === 'POST' && path === '/admin/results/upload') {
+          if (!verifyAdminAuth(request, env)) {
+            return jsonResponse({ success: false, error: 'Unauthorized', message: 'Admin authentication required.' }, 401);
+          }
+          if (!env.DB) {
+            return jsonResponse({ success: false, error: 'Database Unavailable' }, 503);
+          }
+
+          let body: any;
+          try {
+            body = await request.json();
+          } catch {
+            return jsonResponse({ success: false, error: 'Bad Request', message: 'Invalid JSON body. Expected array of records or { records: [...] }' }, 400);
+          }
+
+          let records: RawResultInputRecord[] = [];
+          if (Array.isArray(body)) {
+            records = body;
+          } else if (Array.isArray(body?.records)) {
+            records = body.records;
+          } else {
+            return jsonResponse({ success: false, error: 'Validation Error', message: 'No valid records array found in request body.' }, 400);
+          }
+
+          try {
+            const report = await ResultProcessor.processResultUpload(env.DB, env, records);
+            return jsonResponse({
+              success: true,
+              message: `Processed ${report.total_processed} records. Matched ${report.matched_students} students, queued ${report.notifications_queued} notifications.`,
+              report,
+            });
+          } catch (procErr: any) {
+            return jsonResponse({ success: false, error: 'Processing Error', message: procErr?.message || String(procErr) }, 500);
+          }
+        }
+
+        // POST /admin/notifications/send - Send targeted announcement
+        if (request.method === 'POST' && path === '/admin/notifications/send') {
+          if (!verifyAdminAuth(request, env)) {
+            return jsonResponse({ success: false, error: 'Unauthorized' }, 401);
+          }
+          if (!env.DB) {
+            return jsonResponse({ success: false, error: 'Database Unavailable' }, 503);
+          }
+
+          let body: any;
+          try { body = await request.json(); } catch {
+            return jsonResponse({ success: false, error: 'Bad Request', message: 'Invalid JSON body.' }, 400);
+          }
+
+          const { title, message, scope, branch, year, semester, section, customRollNumbers, type } = body || {};
+          if (!title || !message) {
+            return jsonResponse({ success: false, error: 'Validation Error', message: 'Title and message are required.' }, 400);
+          }
+
+          const notifType = type || 'CIRCULAR';
+          const target: NotificationTarget = {
+            scope: scope || 'ALL',
+            branch: branch || null,
+            year: year ? parseInt(String(year), 10) : null,
+            semester: semester ? parseInt(String(semester), 10) : null,
+            section: section || null,
+            custom_roll_numbers: Array.isArray(customRollNumbers) ? customRollNumbers : [],
+          };
+
+          const targetUids = await TargetingEngine.resolveTargetUids(env.DB, target);
+          let queuedCount = 0;
+          let duplicateCount = 0;
+          const broadcastRef = `BROADCAST:${Date.now()}`;
+
+          for (const uid of targetUids) {
+            const notifRes = await NotificationStorage.createNotificationIdempotent(env.DB, {
+              firebase_uid: uid,
+              type: notifType,
+              title,
+              body: message,
+              data_json: JSON.stringify({ type: notifType, route: '/notifications' }),
+              reference_id: `${broadcastRef}:${uid}`,
+            });
+
+            if (notifRes.created) queuedCount++;
+            else if (notifRes.duplicate) duplicateCount++;
+          }
+
+          // Fetch active tokens and batch send push
+          if (targetUids.length > 0) {
+            const devices = await NotificationStorage.getActiveDeviceTokens(env.DB, targetUids);
+            if (devices.length > 0) {
+              const pushItems = devices.map((d) => ({
+                fcm_token: d.fcm_token,
+                title,
+                body: message,
+                type: notifType,
+                route: '/notifications',
+              }));
+              await FCMV1Service.batchSend(env, pushItems);
+            }
+          }
+
+          return jsonResponse({
+            success: true,
+            target_scope: target.scope,
+            targets_resolved: targetUids.length,
+            notifications_queued: queuedCount,
+            duplicates_skipped: duplicateCount,
+          });
+        }
+
+        // POST /admin/notifications/event - Send event notification
+        if (request.method === 'POST' && path === '/admin/notifications/event') {
+          if (!verifyAdminAuth(request, env)) {
+            return jsonResponse({ success: false, error: 'Unauthorized' }, 401);
+          }
+          if (!env.DB) {
+            return jsonResponse({ success: false, error: 'Database Unavailable' }, 503);
+          }
+
+          let body: any;
+          try { body = await request.json(); } catch {
+            return jsonResponse({ success: false, error: 'Bad Request' }, 400);
+          }
+
+          const { title, description, venue, eventDate, eventTime, scope, branch, year, semester, section } = body || {};
+          if (!title || !description) {
+            return jsonResponse({ success: false, error: 'Validation Error', message: 'title and description are required.' }, 400);
+          }
+
+          const target: NotificationTarget = {
+            scope: scope || 'ALL',
+            branch: branch || null,
+            year: year ? parseInt(String(year), 10) : null,
+            semester: semester ? parseInt(String(semester), 10) : null,
+            section: section || null,
+          };
+
+          const targetUids = await TargetingEngine.resolveTargetUids(env.DB, target);
+          const eventRef = `EVENT:${Date.now()}`;
+          let queuedCount = 0;
+
+          const dataJson = JSON.stringify({
+            type: 'EVENT',
+            venue: venue || null,
+            event_date: eventDate || null,
+            event_time: eventTime || null,
+            route: '/events',
+          });
+
+          for (const uid of targetUids) {
+            const notifRes = await NotificationStorage.createNotificationIdempotent(env.DB, {
+              firebase_uid: uid,
+              type: 'EVENT',
+              title,
+              body: description,
+              data_json: dataJson,
+              reference_id: `${eventRef}:${uid}`,
+            });
+            if (notifRes.created) queuedCount++;
+          }
+
+          if (targetUids.length > 0) {
+            const devices = await NotificationStorage.getActiveDeviceTokens(env.DB, targetUids);
+            if (devices.length > 0) {
+              const pushItems = devices.map((d) => ({
+                fcm_token: d.fcm_token,
+                title: `Event: ${title}`,
+                body: description,
+                type: 'EVENT',
+                route: '/events',
+              }));
+              await FCMV1Service.batchSend(env, pushItems);
+            }
+          }
+
+          return jsonResponse({
+            success: true,
+            targets_resolved: targetUids.length,
+            notifications_queued: queuedCount,
+          });
+        }
+
+        // GET /admin/notifications/stats - Notification aggregate statistics
+        if (request.method === 'GET' && path === '/admin/notifications/stats') {
+          if (!verifyAdminAuth(request, env)) {
+            return jsonResponse({ success: false, error: 'Unauthorized' }, 401);
+          }
+          if (!env.DB) {
+            return jsonResponse({ success: false, error: 'Database Unavailable' }, 503);
+          }
+
+          const stats = await NotificationStorage.getNotificationStats(env.DB);
+          return jsonResponse({ success: true, stats });
+        }
+
+
       if (path.startsWith('/student/')) {
         const studentUser = await FirebaseAuthGuard.authenticate(request);
         if (!studentUser) {
@@ -1494,9 +1695,82 @@ export default {
           const fees = await BVCStorage.getStudentFees(env.DB, studentUser.uid);
           return jsonResponse({ success: true, fees });
         }
+      
+        // POST /student/devices/register - Register FCM Device Token
+        if (request.method === 'POST' && path === '/student/devices/register') {
+          let bBody: any;
+          try { bBody = await request.json(); } catch {
+            return jsonResponse({ success: false, error: 'Bad Request', message: 'Invalid JSON body. Required: { fcm_token }' }, 400);
+          }
+
+          const fcmToken = bBody?.fcm_token || bBody?.fcmToken;
+          if (!fcmToken || typeof fcmToken !== 'string') {
+            return jsonResponse({ success: false, error: 'Validation Error', message: 'fcm_token is required.' }, 400);
+          }
+
+          const success = await NotificationStorage.registerDevice(env.DB, {
+            firebase_uid: studentUser.uid,
+            fcm_token: fcmToken.trim(),
+            platform: bBody?.platform || 'android',
+            device_name: bBody?.device_name || bBody?.deviceName,
+            app_version: bBody?.app_version || bBody?.appVersion,
+          });
+
+          return jsonResponse({ success, message: success ? 'Device token registered successfully.' : 'Failed to register device.' });
+        }
+
+        // POST /student/devices/unregister - Unregister FCM Device Token
+        if (request.method === 'POST' && path === '/student/devices/unregister') {
+          let bBody: any;
+          try { bBody = await request.json(); } catch {
+            return jsonResponse({ success: false, error: 'Bad Request' }, 400);
+          }
+
+          const fcmToken = bBody?.fcm_token || bBody?.fcmToken;
+          if (!fcmToken) {
+            return jsonResponse({ success: false, error: 'Validation Error', message: 'fcm_token is required.' }, 400);
+          }
+
+          const success = await NotificationStorage.unregisterDevice(env.DB, studentUser.uid, fcmToken.trim());
+          return jsonResponse({ success, message: 'Device token deactivated.' });
+        }
+
+        // GET /student/notifications - Fetch In-App Notifications
+        if (request.method === 'GET' && path === '/student/notifications') {
+          const limit = parseInt(url.searchParams.get('limit') || '50', 10);
+          const offset = parseInt(url.searchParams.get('offset') || '0', 10);
+          const unreadOnly = url.searchParams.get('unread') === 'true';
+
+          const notifs = await NotificationStorage.getStudentNotifications(env.DB, studentUser.uid, limit, offset, unreadOnly);
+          return jsonResponse({ success: true, count: notifs.length, notifications: notifs });
+        }
+
+        // POST /student/notifications/:id/read - Mark Single Notification Read
+        if (request.method === 'POST' && path.startsWith('/student/notifications/') && path.endsWith('/read')) {
+          const idStr = path.replace('/student/notifications/', '').replace('/read', '');
+          const notifId = parseInt(idStr, 10);
+          if (isNaN(notifId)) {
+            return jsonResponse({ success: false, error: 'Invalid ID' }, 400);
+          }
+
+          const success = await NotificationStorage.markAsRead(env.DB, studentUser.uid, notifId);
+          return jsonResponse({ success, message: success ? 'Notification marked as read.' : 'Notification not found or already read.' });
+        }
+
+        // POST /student/notifications/read-all - Mark All Read
+        if (request.method === 'POST' && path === '/student/notifications/read-all') {
+          const marked = await NotificationStorage.markAllAsRead(env.DB, studentUser.uid);
+          return jsonResponse({ success: true, marked_count: marked, message: `Marked ${marked} notifications as read.` });
+        }
+
+        // GET /student/notification-count - Get Unread Count Badge
+        if (request.method === 'GET' && path === '/student/notification-count') {
+          const counts = await NotificationStorage.getUnreadCount(env.DB, studentUser.uid);
+          return jsonResponse({ success: true, ...counts });
+        }
       }
 
-      // 9. Grounded Conversational AI Route (POST /chat and POST /ask)
+      // 9. Grounded Conversational AI Route
       if (request.method === 'POST' && (path === '/chat' || path === '/ask')) {
         let body: any;
         try {

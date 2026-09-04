@@ -51,7 +51,23 @@
 
     <!-- Main Container -->
     <main class="main-content">
+
+    <!-- Tab Navigation Switcher -->
+    <div class="tabs-container">
+      <div class="nav-tabs-bar">
+        <button class="tab-btn active" id="tabBtnKnowledge" onclick="switchAdminTab('knowledge')">
+          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M4 19.5A2.5 2.5 0 0 1 6.5 17H20"></path><path d="M6.5 2H20v20H6.5A2.5 2.5 0 0 1 4 19.5v-15A2.5 2.5 0 0 1 6.5 2z"></path></svg>
+          Knowledge Base & RAG
+        </button>
+        <button class="tab-btn" id="tabBtnNotifications" onclick="switchAdminTab('notifications')">
+          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M18 8A6 6 0 0 0 6 8c0 7-3 9-3 9h18s-3-2-3-9"></path><path d="M13.73 21a2 2 0 0 1-3.46 0"></path></svg>
+          Smart Notifications & Results <span class="badge-new">Phase N</span>
+        </button>
+      </div>
+    </div>
+
       <!-- Top Overview Banner -->
+      <div class="tab-content" id="knowledgeTabContent">
       <section class="overview-banner">
         <div class="overview-info">
           <h1>Manage Nexora Knowledge Base</h1>
@@ -494,6 +510,180 @@
           </div>
         </div>
       </div>
+    
+    </div>
+
+    <!-- Notifications & Results Tab Content -->
+    <div class="tab-content" id="notificationsTabContent" style="display: none;">
+      <!-- Stats Banner -->
+      <div class="tab-content" id="knowledgeTabContent">
+      <section class="overview-banner">
+        <div class="overview-info">
+          <h1>Smart Push Notifications & Result Matcher</h1>
+          <p>
+            Upload semester results to automatically match student profiles by roll number and push personalized notifications.
+            Broadcast events and targeted circulars across branches, years, or custom student groups with zero duplicate spam.
+          </p>
+        </div>
+        <div class="overview-stats">
+          <div class="stat-card">
+            <div class="stat-value" id="statNotifTotal">0</div>
+            <div class="stat-label">Total Sent</div>
+          </div>
+          <div class="stat-card">
+            <div class="stat-value" id="statNotifToday">0</div>
+            <div class="stat-label">Sent Today</div>
+          </div>
+          <div class="stat-card">
+            <div class="stat-value" id="statActiveDevices">0</div>
+            <div class="stat-label">Active FCM Devices</div>
+          </div>
+          <div class="stat-card">
+            <div class="stat-value" id="statUnreadNotifs">0</div>
+            <div class="stat-label">Unread Inboxes</div>
+          </div>
+        </div>
+      </section>
+
+      <div class="dashboard-grid">
+        <!-- Column 1: Result Ingestion & Matcher -->
+        <div class="card card-glow">
+          <div class="card-header">
+            <div class="card-title">
+              <span class="icon">📊</span> Automatic Result Ingestion & Matcher
+            </div>
+            <button class="btn btn-secondary btn-sm" id="loadSampleResultsBtn" type="button">
+              Load Sample Data
+            </button>
+          </div>
+          <div class="card-body">
+            <p class="form-help">
+              Upload semester results JSON. The backend normalizes roll numbers, deterministically matches existing student profiles, saves authorized records to private storage, and queues FCM push alerts.
+            </p>
+
+            <div class="form-group">
+              <label for="resultSemesterSelect">Semester</label>
+              <select id="resultSemesterSelect" class="form-control">
+                <option value="1">Semester 1 (I-I)</option>
+                <option value="2" selected>Semester 2 (I-II)</option>
+                <option value="3">Semester 3 (II-I)</option>
+                <option value="4">Semester 4 (II-II)</option>
+                <option value="5">Semester 5 (III-I)</option>
+                <option value="6">Semester 6 (III-II)</option>
+                <option value="7">Semester 7 (IV-I)</option>
+                <option value="8">Semester 8 (IV-II)</option>
+              </select>
+            </div>
+
+            <div class="form-group">
+              <label for="resultJsonInput">Results Dataset (JSON Array)</label>
+              <textarea id="resultJsonInput" class="form-control code-editor" rows="9" placeholder='[
+  {
+    "roll_number": "25221A0569",
+    "semester": 2,
+    "subject_code": "CS201",
+    "subject_name": "Data Structures",
+    "grade": "A+",
+    "credits": 3,
+    "grade_points": 10,
+    "sgpa": 8.2,
+    "status": "PASS"
+  }
+]'></textarea>
+            </div>
+
+            <div class="button-row">
+              <button class="btn btn-primary" id="uploadResultsBtn" type="button">
+                <span class="icon">🚀</span> Ingest & Auto-Notify Students
+              </button>
+            </div>
+
+            <!-- Ingest Report Box -->
+            <div class="report-box" id="resultReportBox" style="display: none; margin-top: 1.5rem;">
+              <h4>Ingestion & Matching Summary</h4>
+              <div class="report-metrics" id="reportMetrics"></div>
+              <div class="report-details" id="reportDetails"></div>
+            </div>
+          </div>
+        </div>
+
+        <!-- Column 2: Event & Announcement Composer -->
+        <div class="card">
+          <div class="card-header">
+            <div class="card-title">
+              <span class="icon">📢</span> Targeted Announcement & Event Composer
+            </div>
+          </div>
+          <div class="card-body">
+            <div class="form-group">
+              <label for="notifTypeSelect">Notification Category</label>
+              <select id="notifTypeSelect" class="form-control">
+                <option value="EVENT">Event Alert</option>
+                <option value="CIRCULAR" selected>Official Circular</option>
+                <option value="EXAM">Examination Notice</option>
+                <option value="ATTENDANCE">Attendance Warning</option>
+                <option value="GENERAL">General Broadcast</option>
+              </select>
+            </div>
+
+            <div class="form-group">
+              <label for="notifScopeSelect">Target Audience Scope</label>
+              <select id="notifScopeSelect" class="form-control">
+                <option value="ALL">All Enrolled Students (College-Wide)</option>
+                <option value="BRANCH">Specific Branch</option>
+                <option value="YEAR">Specific Year</option>
+                <option value="BRANCH_YEAR">Branch + Year</option>
+                <option value="SECTION">Specific Section</option>
+                <option value="CUSTOM_STUDENTS">Custom Roll Numbers</option>
+              </select>
+            </div>
+
+            <div class="form-row" id="scopeFilterRow" style="display: none;">
+              <div class="form-group" id="scopeBranchGroup">
+                <label for="scopeBranchSelect">Branch</label>
+                <select id="scopeBranchSelect" class="form-control">
+                  <option value="CSE">CSE</option>
+                  <option value="ECE">ECE</option>
+                  <option value="EEE">EEE</option>
+                  <option value="AI&ML">AI&ML</option>
+                  <option value="IT">IT</option>
+                  <option value="MECH">MECH</option>
+                  <option value="CIVIL">CIVIL</option>
+                </select>
+              </div>
+              <div class="form-group" id="scopeYearGroup">
+                <label for="scopeYearSelect">Year</label>
+                <select id="scopeYearSelect" class="form-control">
+                  <option value="1">1st Year</option>
+                  <option value="2" selected>2nd Year</option>
+                  <option value="3">3rd Year</option>
+                  <option value="4">4th Year</option>
+                </select>
+              </div>
+            </div>
+
+            <div class="form-group">
+              <label for="notifTitleInput">Notification Title</label>
+              <input type="text" id="notifTitleInput" class="form-control" placeholder="e.g. Annual Tech Symposium 2026 Registration Open" />
+            </div>
+
+            <div class="form-group">
+              <label for="notifBodyInput">Message Body</label>
+              <textarea id="notifBodyInput" class="form-control" rows="4" placeholder="Enter message details..."></textarea>
+            </div>
+
+            <div class="button-row">
+              <button class="btn btn-primary" id="sendBroadcastBtn" type="button">
+                <span class="icon">📤</span> Send Broadcast Notification
+              </button>
+            </div>
+
+            <div id="broadcastStatusMsg" style="margin-top: 1rem;"></div>
+          </div>
+        </div>
+      </div>
+    </div>
+
     </main>
 
     <!-- Footer -->
