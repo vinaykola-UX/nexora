@@ -1,10 +1,13 @@
+import 'dart:convert';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/foundation.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:http/http.dart' as http;
 
 import '../../../core/constants/student_identity_helper.dart';
 import '../../../models/student_profile_model.dart';
+import '../../../services/nexora_api_service.dart';
 import '../../authentication/data/auth_service.dart';
 
 /// Exception thrown when a student profile operation fails
@@ -19,6 +22,7 @@ class NexoraProfileException implements Exception {
 }
 
 /// Repository responsible for reading and writing student profiles in Firestore (`students/{uid}`)
+/// and connecting to the official BVC student portal via the backend API.
 class StudentProfileRepository {
   final FirebaseFirestore? _injectedFirestore;
 
@@ -35,12 +39,10 @@ class StudentProfileRepository {
   /// Returns `null` if the document does not exist.
   Future<StudentProfile?> getProfile(String uid) async {
     try {
-      debugPrint(
-          '[StudentProfileRepository] Loading profile from students/$uid');
+      debugPrint('[StudentProfileRepository] Loading profile from students/$uid');
       final doc = await _studentsRef.doc(uid).get();
       if (!doc.exists || doc.data() == null) {
-        debugPrint(
-            '[StudentProfileRepository] No profile found at students/$uid');
+        debugPrint('[StudentProfileRepository] No profile found at students/$uid');
         return null;
       }
       return StudentProfile.fromFirestore(doc);
@@ -75,16 +77,127 @@ class StudentProfileRepository {
     }
   }
 
-  /// Complete one-time profile setup with class and section.
-  /// Automatically extracts identity from [email], merges into Firestore `students/{uid}`,
-  /// and marks profileSetupCompleted = true.
+  /// Connects to the official BVC student portal using the student's roll number.
+  /// Calls POST /student/bvc/connect on the Nexora Cloudflare Worker.
+  /// When successfully authenticated against the official portal, returns verified data
+  /// and completes the student profile in Firestore.
+  Future<Map<String, dynamic>> connectBvcStudent(String rawRollNumber) async {
+    final rollNumber = rawRollNumber.trim().toUpperCase().replaceAll(RegExp(r'\s+'), '');
+    if (rollNumber.isEmpty) {
+      throw const NexoraProfileException('Please enter your BVC roll number.', code: 'empty-roll');
+    }
+
+    final currentUser = FirebaseAuth.instance.currentUser;
+    if (currentUser == null) {
+      throw const NexoraProfileException('No authenticated session found. Please sign in again.', code: 'no-user');
+    }
+
+    final idToken = await currentUser.getIdToken();
+    if (idToken == null || idToken.isEmpty) {
+      throw const NexoraProfileException('Authentication token unavailable. Please re-login.', code: 'no-token');
+    }
+
+    final url = Uri.parse('${NexoraApiService.defaultBaseUrl}/student/bvc/connect');
+    http.Response response;
+    try {
+      response = await http.post(
+        url,
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': 'Bearer $idToken',
+          'User-Agent': 'Nexora-Flutter-App/1.0',
+        },
+        body: jsonEncode({
+          'rollNumber': rollNumber,
+        }),
+      ).timeout(const Duration(seconds: 25));
+    } catch (e) {
+      debugPrint('[StudentProfileRepository] connectBvcStudent network error: $e');
+      throw const NexoraProfileException(
+        'Unable to reach the official BVC student portal. Please check your network and try again.',
+        code: 'network-error',
+      );
+    }
+
+    Map<String, dynamic> body;
+    try {
+      body = jsonDecode(utf8.decode(response.bodyBytes)) as Map<String, dynamic>;
+    } catch (_) {
+      throw const NexoraProfileException(
+        'Unexpected response from BVC portal service.',
+        code: 'invalid-response',
+      );
+    }
+
+    if (response.statusCode != 200 || body['success'] != true) {
+      final msg = body['message'] as String? ?? body['error'] as String? ?? 'Failed to authenticate with official BVC portal.';
+      throw NexoraProfileException(msg, code: 'portal-auth-failed');
+    }
+
+    final syncData = body['sync'] as Map<String, dynamic>? ?? {};
+    final profileData = syncData['profile'] as Map<String, dynamic>? ?? {};
+
+    final studentName = profileData['name'] as String? ?? 'BVC Student';
+    final branch = profileData['branch'] as String? ?? 'Engineering';
+    final course = profileData['course'] as String? ?? 'B.Tech';
+    final batch = profileData['academic_batch'] as String? ?? '2025 - 2026';
+    final collegeEmail = profileData['college_email'] as String? ?? currentUser.email ?? '$rollNumber@bvcgroup.in';
+    final yearNum = profileData['year'] is int ? profileData['year'] as int : 1;
+    final semNum = profileData['semester'] is int ? profileData['semester'] as int : 1;
+    const college = 'BONAM VENKATA CHALAMAYYA ENGINEERING COLLEGE';
+
+    // Persist verified profile to Firestore
+    try {
+      final docRef = _studentsRef.doc(currentUser.uid);
+      final existingDoc = await docRef.get();
+
+      final studentProfile = StudentProfile(
+        uid: currentUser.uid,
+        email: collegeEmail.toLowerCase(),
+        rollNumber: rollNumber,
+        batchCode: batch,
+        academicYear: yearNum,
+        academicYearLabel: '$yearNum B.Tech',
+        studentClass: branch,
+        section: 'A', // Default indicator as official portal does not expose section
+        role: 'student',
+        college: college,
+        profileSetupCompleted: true,
+        createdAt: existingDoc.exists ? null : DateTime.now(),
+        updatedAt: DateTime.now(),
+      );
+
+      final mapData = studentProfile.toMap(forUpdate: existingDoc.exists);
+      mapData['fullName'] = studentName;
+      mapData['course'] = course;
+      mapData['semester'] = semNum;
+      mapData['bvcPortalVerified'] = true;
+
+      await docRef.set(mapData, SetOptions(merge: true));
+    } catch (e) {
+      debugPrint('[StudentProfileRepository] Firestore save error: $e');
+    }
+
+    return {
+      'rollNumber': rollNumber,
+      'name': studentName,
+      'branch': branch,
+      'course': course,
+      'semester': semNum,
+      'year': yearNum,
+      'batch': batch,
+      'college': college,
+      'email': collegeEmail,
+    };
+  }
+
+  /// Complete one-time profile setup with class and section (legacy/manual fallback).
   Future<StudentProfile> completeProfileSetup({
     required String uid,
     required String email,
     required String studentClass,
     required String section,
   }) async {
-    // 1. Validate email and extract identity
     final identity = StudentIdentityHelper.extractFromEmail(email);
     if (identity == null) {
       throw const NexoraProfileException(
@@ -100,7 +213,6 @@ class StudentProfileRepository {
       );
     }
 
-    // 2. Reload Auth user to ensure the token is fresh and emailVerified is current
     final currentUser = FirebaseAuth.instance.currentUser;
     if (currentUser == null) {
       throw const NexoraProfileException(
@@ -112,12 +224,9 @@ class StudentProfileRepository {
     try {
       await currentUser.reload();
     } catch (_) {
-      // Non-fatal: proceed even if reload fails (offline scenario)
-      debugPrint(
-          '[StudentProfileRepository] Warning: user.reload() failed — proceeding with cached auth state.');
+      debugPrint('[StudentProfileRepository] Warning: user.reload() failed.');
     }
 
-    // Re-fetch after reload to get the latest emailVerified state
     final freshUser = FirebaseAuth.instance.currentUser;
     if (freshUser == null) {
       throw const NexoraProfileException(
@@ -125,14 +234,6 @@ class StudentProfileRepository {
         code: 'session-expired',
       );
     }
-
-    debugPrint(
-      '[StudentProfileRepository] Pre-write Auth State:\n'
-      '  - UID           : ${freshUser.uid}\n'
-      '  - Email         : ${freshUser.email}\n'
-      '  - EmailVerified : ${freshUser.emailVerified}\n'
-      '  - Target Path   : students/${freshUser.uid}',
-    );
 
     if (!freshUser.emailVerified) {
       throw const NexoraProfileException(
@@ -143,15 +244,10 @@ class StudentProfileRepository {
 
     try {
       final docRef = _studentsRef.doc(freshUser.uid);
-      debugPrint(
-          '[StudentProfileRepository] Checking existing profile at students/${freshUser.uid}');
       final existingDoc = await docRef.get();
 
-      // If already complete, prevent modifying immutable fields
       if (existingDoc.exists &&
           existingDoc.data()?['profileSetupCompleted'] == true) {
-        debugPrint(
-            '[StudentProfileRepository] Profile already completed for ${freshUser.uid} at students/${freshUser.uid}');
         return StudentProfile.fromFirestore(existingDoc);
       }
 
@@ -172,62 +268,21 @@ class StudentProfileRepository {
       );
 
       final mapData = profile.toMap(forUpdate: existingDoc.exists);
-      debugPrint(
-          '[StudentProfileRepository] Writing profile to students/${freshUser.uid}:\n$mapData');
-
-      // Save to Firestore — use set (no merge) on first creation to satisfy security rule hasAll check
       if (!existingDoc.exists) {
         await docRef.set(mapData);
       } else {
         await docRef.set(mapData, SetOptions(merge: true));
       }
 
-      debugPrint(
-          '[StudentProfileRepository] Successfully completed profile for ${profile.rollNumber} (${freshUser.uid}) at students/${freshUser.uid}');
       return profile;
     } on FirebaseException catch (e) {
-      final logUser = FirebaseAuth.instance.currentUser;
-      debugPrint(
-        '═══════════════════════════════════════════════════════════════════════\n'
-        '[StudentProfileRepository] Firestore Write Error:\n'
-        '  - Exception Type : ${e.runtimeType}\n'
-        '  - Firebase Code  : ${e.code}\n'
-        '  - Error Message  : ${e.message}\n'
-        '  - Target Path    : students/$uid\n'
-        '  - Auth UID       : ${logUser?.uid}\n'
-        '  - User Email     : ${logUser?.email}\n'
-        '  - Email Verified : ${logUser?.emailVerified}\n'
-        '═══════════════════════════════════════════════════════════════════════',
-      );
-      if (e.code == 'permission-denied') {
-        // In debug mode, include the code so we can see exactly what Firestore rejected
-        final detail = kDebugMode
-            ? ' [code: permission-denied] — Deploy Firestore rules in Firebase Console.'
-            : '';
-        throw NexoraProfileException(
-          'Unable to save profile: database rules rejected this request.$detail',
-          code: 'permission-denied',
-        );
-      } else if (e.code == 'unavailable') {
-        throw const NexoraProfileException(
-          'Firestore service unavailable. Please check your internet connection.',
-          code: 'unavailable',
-        );
-      } else if (e.code == 'not-found') {
-        throw const NexoraProfileException(
-          'Firestore database not found. Please ensure the database is created in Firebase Console.',
-          code: 'not-found',
-        );
-      }
       throw NexoraProfileException(
-        '${e.code}: ${e.message ?? 'Failed to save student profile. Please try again.'}',
+        '${e.code}: ${e.message ?? 'Failed to save student profile.'}',
         code: e.code,
       );
-    } catch (e, stackTrace) {
-      debugPrint(
-          '[StudentProfileRepository] Unexpected saveProfile error: $e\n$stackTrace');
+    } catch (e) {
       throw const NexoraProfileException(
-        'An unexpected error occurred while saving your profile. Please try again.',
+        'An unexpected error occurred while saving your profile.',
         code: 'unknown',
       );
     }

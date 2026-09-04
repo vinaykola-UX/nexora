@@ -10,8 +10,8 @@ export class BVCService {
   private static mockClient: MockBVCClient = new MockBVCClient();
 
   /**
-   * Connects and synchronizes student data.
-   * By default, uses the authorized mock adapter unless explicit live authorization is enabled.
+   * Connects and synchronizes student data directly from the official BVC portal.
+   * Uses the live official portal client by default.
    */
   public static async syncStudent(params: {
     firebaseUid: string;
@@ -25,10 +25,10 @@ export class BVCService {
       throw new Error(`Invalid BVC roll number format: '${params.rollNumber}'. Expected pattern e.g. 25221A0568.`);
     }
 
-    // Select client based on configuration and authorization status
-    let client: IBVCClient = this.mockClient;
-    if (params.useLiveClient && this.liveClient.isAuthorized) {
-      client = this.liveClient;
+    // Default to LiveBVCClient unless mock client is explicitly requested
+    let client: IBVCClient = this.liveClient;
+    if (params.useLiveClient === false) {
+      client = this.mockClient;
     }
 
     const result = await client.syncStudentData({

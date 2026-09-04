@@ -3,15 +3,22 @@ import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
 
 import '../../../../app/router/app_router.dart';
-import '../../../../core/constants/student_identity_helper.dart';
 import '../../../../core/theme/colors.dart';
 import '../../../../core/theme/spacing.dart';
 import '../../../../core/widgets/nexora_button.dart';
+import '../../../../core/widgets/nexora_textfield.dart';
 import '../../data/student_profile_repository.dart';
 
-/// One-time Class and Section setup screen.
-/// Automatically extracts Roll Number, Batch, and Academic Year from the student email.
-/// Asks the student only for Class (Branch) and Section.
+/// Connect BVC Student Portal Screen
+///
+/// Replaces manual branch & section selection with automated official BVC portal authentication.
+/// Flow:
+/// 1. Student enters official roll number (e.g. 25221A0568)
+/// 2. Automatic uppercase normalization
+/// 3. Authenticates against https://www.bvcecautonomous.com/SBLogin.aspx
+/// 4. Retrieves official student information (Name, Branch, Course, Batch, etc.)
+/// 5. Shows BVC STUDENT VERIFIED card
+/// 6. Continue navigates to Terms & Conditions -> Home
 class ClassSetupScreen extends StatefulWidget {
   const ClassSetupScreen({Key? key}) : super(key: key);
 
@@ -20,232 +27,92 @@ class ClassSetupScreen extends StatefulWidget {
 }
 
 class _ClassSetupScreenState extends State<ClassSetupScreen> {
+  final _rollController = TextEditingController();
+  final _rollFocus = FocusNode();
   final StudentProfileRepository _repository = StudentProfileRepository();
-
-  StudentIdentity? _identity;
-  String? _selectedBranchCode;
-  String? _selectedSection;
 
   bool _isLoading = false;
   String? _errorMessage;
+  Map<String, dynamic>? _verifiedProfile;
 
   @override
   void initState() {
     super.initState();
-    _extractIdentity();
-  }
-
-  void _extractIdentity() {
-    final user = FirebaseAuth.instance.currentUser;
-    if (user != null && user.email != null) {
-      final id = StudentIdentityHelper.extractFromEmail(user.email);
-      setState(() {
-        _identity = id;
-        if (id == null) {
-          _errorMessage =
-              'Could not extract student identity from ${user.email}. Please ensure you are logged in with your @bvcgroup.in email.';
-        }
-      });
-    } else {
-      setState(() {
-        _errorMessage = 'No authenticated student found. Please sign in again.';
-      });
+    // Pre-fill roll number from logged-in user email if available
+    final currentUser = FirebaseAuth.instance.currentUser;
+    if (currentUser != null && currentUser.email != null) {
+      final emailPrefix = currentUser.email!.split('@').first.trim();
+      final rollPattern = RegExp(r'^[0-9]{2}[0-9A-Za-z]{2}[0-9A-Za-z][0-9A-Za-z0-9]{4,5}$');
+      if (rollPattern.hasMatch(emailPrefix)) {
+        _rollController.text = emailPrefix.toUpperCase();
+      }
     }
   }
 
-  void _showConfirmationDialog() {
-    if (_selectedBranchCode == null || _selectedSection == null) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: const Text('Please select both your Class/Branch and Section.'),
-          backgroundColor: const Color(NexoraColors.error),
-          behavior: SnackBarBehavior.floating,
-          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
-        ),
-      );
+  @override
+  void dispose() {
+    _rollController.dispose();
+    _rollFocus.dispose();
+    super.dispose();
+  }
+
+  // ---------------------------------------------------------------------------
+  // Action: Connect with Official BVC Portal
+  // ---------------------------------------------------------------------------
+
+  Future<void> _onConnectBvc() async {
+    final rawRoll = _rollController.text.trim();
+    if (rawRoll.isEmpty) {
+      setState(() => _errorMessage = 'Please enter your official BVC roll number.');
       return;
     }
 
-    final branch = kBvcBranches.firstWhere(
-      (b) => b.code == _selectedBranchCode,
-      orElse: () => BvcBranch(code: _selectedBranchCode!, name: ''),
-    );
-
-    showDialog(
-      context: context,
-      barrierDismissible: false,
-      builder: (dialogContext) => AlertDialog(
-        backgroundColor: const Color(NexoraColors.surface),
-        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
-        title: const Row(
-          children: [
-            Icon(Icons.info_outline, color: Color(NexoraColors.primary), size: 28),
-            SizedBox(width: NexoraSpacing.sm),
-            Text(
-              'Confirm Details',
-              style: TextStyle(
-                fontSize: 18,
-                fontWeight: FontWeight.bold,
-                color: Color(NexoraColors.text),
-              ),
-            ),
-          ],
-        ),
-        content: Column(
-          mainAxisSize: MainAxisSize.min,
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            const Text(
-              'Are you sure these details are correct?',
-              style: TextStyle(
-                fontSize: 14,
-                color: Color(NexoraColors.textSecondary),
-              ),
-            ),
-            const SizedBox(height: NexoraSpacing.md),
-            Container(
-              padding: const EdgeInsets.all(NexoraSpacing.md),
-              decoration: BoxDecoration(
-                color: const Color(NexoraColors.background),
-                borderRadius: BorderRadius.circular(12),
-                border: Border.all(color: const Color(NexoraColors.border)),
-              ),
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  _buildConfirmRow('Roll Number:', _identity?.rollNumber ?? 'N/A'),
-                  const SizedBox(height: 6),
-                  _buildConfirmRow('Academic Year:', _identity?.academicYearLabel ?? 'N/A'),
-                  const SizedBox(height: 6),
-                  _buildConfirmRow('Class / Branch:', '${branch.code} (${branch.name})'),
-                  const SizedBox(height: 6),
-                  _buildConfirmRow('Section:', _selectedSection!),
-                ],
-              ),
-            ),
-            const SizedBox(height: NexoraSpacing.md),
-            const Text(
-              'You cannot change these details later.',
-              style: TextStyle(
-                fontSize: 13,
-                fontWeight: FontWeight.w600,
-                color: Color(NexoraColors.error),
-              ),
-            ),
-          ],
-        ),
-        actionsPadding: const EdgeInsets.symmetric(
-          horizontal: NexoraSpacing.lg,
-          vertical: NexoraSpacing.md,
-        ),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(dialogContext),
-            child: const Text(
-              'Cancel',
-              style: TextStyle(
-                color: Color(NexoraColors.textSecondary),
-                fontWeight: FontWeight.w600,
-              ),
-            ),
-          ),
-          ElevatedButton(
-            onPressed: () {
-              Navigator.pop(dialogContext);
-              _saveProfile();
-            },
-            style: ElevatedButton.styleFrom(
-              backgroundColor: const Color(0xFF171717),
-              foregroundColor: Colors.white,
-              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(100)),
-              padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 12),
-              elevation: 0,
-            ),
-            child: const Text(
-              'Confirm & Continue',
-              style: TextStyle(fontWeight: FontWeight.bold),
-            ),
-          ),
-        ],
-      ),
-    );
-  }
-
-  Widget _buildConfirmRow(String label, String value) {
-    return Row(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        SizedBox(
-          width: 110,
-          child: Text(
-            label,
-            style: const TextStyle(
-              fontSize: 13,
-              fontWeight: FontWeight.w600,
-              color: Color(NexoraColors.textSecondary),
-            ),
-          ),
-        ),
-        Expanded(
-          child: Text(
-            value,
-            style: const TextStyle(
-              fontSize: 13,
-              fontWeight: FontWeight.bold,
-              color: Color(NexoraColors.text),
-            ),
-          ),
-        ),
-      ],
-    );
-  }
-
-  Future<void> _saveProfile() async {
-    final user = FirebaseAuth.instance.currentUser;
-    if (user == null || user.email == null) {
-      _showError('No authenticated user session found.');
+    final normalizedRoll = rawRoll.toUpperCase().replaceAll(RegExp(r'\s+'), '');
+    final rollPattern = RegExp(r'^[0-9]{2}[0-9A-Z]{2}[0-9A-Z][0-9A-Z0-9]{4,5}$');
+    if (!rollPattern.hasMatch(normalizedRoll)) {
+      setState(() => _errorMessage = 'Invalid roll number format. Example: 25221A0568');
       return;
     }
 
-    if (_selectedBranchCode == null || _selectedSection == null) {
-      _showError('Please select both Class and Section.');
-      return;
-    }
-
-    setState(() => _isLoading = true);
+    setState(() {
+      _isLoading = true;
+      _errorMessage = null;
+    });
 
     try {
-      await _repository.completeProfileSetup(
-        uid: user.uid,
-        email: user.email!,
-        studentClass: _selectedBranchCode!,
-        section: _selectedSection!,
-      );
-
+      final verifiedData = await _repository.connectBvcStudent(normalizedRoll);
       if (!mounted) return;
 
-      // Navigate to Terms screen (or main chat)
-      context.go(RoutePaths.terms);
+      setState(() {
+        _verifiedProfile = verifiedData;
+        _isLoading = false;
+      });
     } on NexoraProfileException catch (e) {
-      if (mounted) _showError(e.message);
+      if (!mounted) return;
+      setState(() {
+        _isLoading = false;
+        _errorMessage = e.message;
+      });
     } catch (e) {
-      if (mounted) _showError('Failed to save profile. Please try again.');
-    } finally {
-      if (mounted) setState(() => _isLoading = false);
+      if (!mounted) return;
+      setState(() {
+        _isLoading = false;
+        _errorMessage = 'An unexpected connection error occurred. Please try again.';
+      });
     }
   }
 
-  void _showError(String message) {
-    ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(
-        content: Text(message),
-        backgroundColor: const Color(NexoraColors.error),
-        behavior: SnackBarBehavior.floating,
-        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
-        duration: const Duration(seconds: 4),
-      ),
-    );
+  // ---------------------------------------------------------------------------
+  // Action: Continue to Terms & Conditions
+  // ---------------------------------------------------------------------------
+
+  void _onContinueToTerms() {
+    context.go(RoutePaths.terms);
   }
+
+  // ---------------------------------------------------------------------------
+  // Build
+  // ---------------------------------------------------------------------------
 
   @override
   Widget build(BuildContext context) {
@@ -260,11 +127,32 @@ class _ClassSetupScreenState extends State<ClassSetupScreen> {
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
+              const SizedBox(height: NexoraSpacing.md),
+
+              // Back button if editing or returning
+              if (Navigator.of(context).canPop())
+                GestureDetector(
+                  onTap: () => Navigator.of(context).pop(),
+                  child: Container(
+                    padding: const EdgeInsets.all(8),
+                    decoration: BoxDecoration(
+                      color: const Color(NexoraColors.surface),
+                      borderRadius: BorderRadius.circular(12),
+                      border: Border.all(color: const Color(NexoraColors.border)),
+                    ),
+                    child: const Icon(
+                      Icons.arrow_back,
+                      size: 20,
+                      color: Color(NexoraColors.text),
+                    ),
+                  ),
+                ),
+
               const SizedBox(height: NexoraSpacing.lg),
 
-              // Header
+              // -- Headline & Subtitle --------------------------------------
               const Text(
-                'Student Profile Setup',
+                'Connect to BVC',
                 style: TextStyle(
                   fontSize: 28,
                   fontWeight: FontWeight.bold,
@@ -274,7 +162,7 @@ class _ClassSetupScreenState extends State<ClassSetupScreen> {
               ),
               const SizedBox(height: NexoraSpacing.xs),
               const Text(
-                'Your academic identity is automatically verified from your college email.',
+                'Connect your BVC student account using your official BVC student portal credentials.',
                 style: TextStyle(
                   fontSize: 14,
                   color: Color(NexoraColors.textSecondary),
@@ -283,23 +171,30 @@ class _ClassSetupScreenState extends State<ClassSetupScreen> {
               ),
               const SizedBox(height: NexoraSpacing.xl),
 
-              // Error State banner if email extraction failed
+              // -- Error Banner ---------------------------------------------
               if (_errorMessage != null) ...[
                 Container(
                   padding: const EdgeInsets.all(NexoraSpacing.md),
                   decoration: BoxDecoration(
-                    color: const Color(NexoraColors.errorLight),
+                    color: const Color(NexoraColors.errorLight).withOpacity(0.5),
                     borderRadius: BorderRadius.circular(12),
-                    border: Border.all(color: const Color(NexoraColors.error).withOpacity(0.5)),
+                    border: Border.all(
+                      color: const Color(NexoraColors.error).withOpacity(0.4),
+                    ),
                   ),
                   child: Row(
+                    crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
                       const Icon(Icons.error_outline, color: Color(NexoraColors.error), size: 20),
                       const SizedBox(width: NexoraSpacing.sm),
                       Expanded(
                         child: Text(
                           _errorMessage!,
-                          style: const TextStyle(fontSize: 13, color: Color(NexoraColors.error)),
+                          style: const TextStyle(
+                            fontSize: 13,
+                            color: Color(NexoraColors.error),
+                            fontWeight: FontWeight.w500,
+                          ),
                         ),
                       ),
                     ],
@@ -308,253 +203,167 @@ class _ClassSetupScreenState extends State<ClassSetupScreen> {
                 const SizedBox(height: NexoraSpacing.lg),
               ],
 
-              // -- Read-Only Identity Card -----------------------------------
-              Container(
-                width: double.infinity,
-                padding: const EdgeInsets.all(NexoraSpacing.lg),
-                decoration: BoxDecoration(
-                  color: const Color(NexoraColors.surface),
-                  borderRadius: BorderRadius.circular(16),
-                  border: Border.all(
-                    color: const Color(NexoraColors.border),
-                    width: 1,
-                  ),
-                  boxShadow: [
-                    BoxShadow(
-                      color: Colors.black.withOpacity(0.02),
-                      blurRadius: 10,
-                      offset: const Offset(0, 4),
-                    ),
-                  ],
+              // -- Pre-Verification Form vs Verified Card --------------------
+              if (_verifiedProfile == null) ...[
+                // Roll Number Input
+                NexoraTextField(
+                  label: 'Roll Number',
+                  hint: 'e.g. 25221A0568',
+                  controller: _rollController,
+                  focusNode: _rollFocus,
+                  prefixIcon: Icons.badge_outlined,
+                  textInputAction: TextInputAction.done,
+                  textCapitalization: TextCapitalization.characters,
+                  onChanged: (val) {
+                    if (_errorMessage != null) {
+                      setState(() => _errorMessage = null);
+                    }
+                  },
                 ),
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Row(
-                      mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                      children: [
-                        const Text(
-                          'Verified Identity',
-                          style: TextStyle(
-                            fontSize: 15,
-                            fontWeight: FontWeight.bold,
-                            color: Color(NexoraColors.text),
-                          ),
-                        ),
-                        Container(
-                          padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
-                          decoration: BoxDecoration(
-                            color: const Color(0xFFE8F5E9),
-                            borderRadius: BorderRadius.circular(6),
-                          ),
-                          child: const Row(
-                            mainAxisSize: MainAxisSize.min,
-                            children: [
-                              Icon(Icons.check_circle, color: Color(0xFF2E7D32), size: 12),
-                              SizedBox(width: 4),
-                              Text(
-                                'Verified',
-                                style: TextStyle(
-                                  fontSize: 11,
-                                  fontWeight: FontWeight.w600,
-                                  color: Color(0xFF2E7D32),
-                                ),
-                              ),
-                            ],
-                          ),
-                        ),
-                      ],
-                    ),
-                    const Divider(color: Color(NexoraColors.divider), height: 20),
-                    _buildIdentityDetailRow('Roll Number', _identity?.rollNumber ?? '�'),
-                    const SizedBox(height: 8),
-                    _buildIdentityDetailRow('Batch', '${_identity?.batchCode ?? '�'} Batch'),
-                    const SizedBox(height: 8),
-                    _buildIdentityDetailRow('Current Year', _identity?.academicYearLabel ?? '�'),
-                    const SizedBox(height: 8),
-                    _buildIdentityDetailRow('College', _identity?.college ?? 'BVC Engineering College'),
-                  ],
-                ),
-              ),
-              const SizedBox(height: NexoraSpacing.xxl),
-
-              // -- Class / Branch Selection ----------------------------------
-              const Text(
-                'Select Your Class / Branch',
-                style: TextStyle(
-                  fontSize: 16,
-                  fontWeight: FontWeight.bold,
-                  color: Color(NexoraColors.text),
-                ),
-              ),
-              const SizedBox(height: NexoraSpacing.xs),
-              const Text(
-                'Select your department from the official BVC branch list',
-                style: TextStyle(
-                  fontSize: 13,
-                  color: Color(NexoraColors.textSecondary),
-                ),
-              ),
-              const SizedBox(height: NexoraSpacing.md),
-
-              // Branch dropdown selector with clean styling
-              Container(
-                padding: const EdgeInsets.symmetric(horizontal: NexoraSpacing.lg, vertical: 4),
-                decoration: BoxDecoration(
-                  color: const Color(NexoraColors.surface),
-                  borderRadius: BorderRadius.circular(12),
-                  border: Border.all(
-                    color: _selectedBranchCode != null
-                        ? const Color(NexoraColors.primary)
-                        : const Color(NexoraColors.border),
-                    width: _selectedBranchCode != null ? 1.5 : 1.0,
+                const SizedBox(height: NexoraSpacing.sm),
+                const Text(
+                  'Your roll number will be normalized to uppercase automatically.',
+                  style: TextStyle(
+                    fontSize: 12,
+                    color: Color(NexoraColors.textMuted),
                   ),
                 ),
-                child: DropdownButtonHideUnderline(
-                  child: DropdownButton<String>(
-                    value: _selectedBranchCode,
-                    hint: const Text(
-                      'Choose Branch (e.g. CSE, CSM, ECE...)',
-                      style: TextStyle(
-                        fontSize: 14,
-                        color: Color(NexoraColors.textMuted),
+                const SizedBox(height: NexoraSpacing.xl),
+
+                // Official Portal Info Note
+                Container(
+                  padding: const EdgeInsets.all(NexoraSpacing.md),
+                  decoration: BoxDecoration(
+                    color: const Color(NexoraColors.surface),
+                    borderRadius: BorderRadius.circular(14),
+                    border: Border.all(color: const Color(NexoraColors.border)),
+                  ),
+                  child: const Row(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Icon(
+                        Icons.verified_user_outlined,
+                        size: 20,
+                        color: Color(NexoraColors.primary),
                       ),
-                    ),
-                    isExpanded: true,
-                    icon: const Icon(Icons.arrow_drop_down, color: Color(NexoraColors.text)),
-                    items: kBvcBranches.map((branch) {
-                      return DropdownMenuItem<String>(
-                        value: branch.code,
+                      SizedBox(width: NexoraSpacing.sm),
+                      Expanded(
                         child: Text(
-                          '${branch.code} � ${branch.name}',
-                          style: const TextStyle(
-                            fontSize: 14,
-                            fontWeight: FontWeight.w500,
-                            color: Color(NexoraColors.text),
+                          'Nexora verifies directly with the official BVC Autonomous Student Portal (bvcecautonomous.com). '
+                          'Your portal password is used only for authentication and is never permanently stored.',
+                          style: TextStyle(
+                            fontSize: 12.5,
+                            color: Color(NexoraColors.textSecondary),
+                            height: 1.4,
                           ),
-                          overflow: TextOverflow.ellipsis,
                         ),
-                      );
-                    }).toList(),
-                    onChanged: (val) {
-                      setState(() => _selectedBranchCode = val);
-                    },
+                      ),
+                    ],
                   ),
                 ),
-              ),
+                const SizedBox(height: NexoraSpacing.xxl),
+
+                // Connect BVC Button
+                NexoraButton(
+                  label: 'Connect BVC',
+                  onPressed: _onConnectBvc,
+                  isLoading: _isLoading,
+                  isEnabled: !_isLoading,
+                  width: double.infinity,
+                  height: 54,
+                  backgroundColor: const Color(0xFF171717),
+                  foregroundColor: Colors.white,
+                  borderRadius: 100,
+                  textStyle: const TextStyle(
+                    fontSize: 16,
+                    fontWeight: FontWeight.bold,
+                    color: Colors.white,
+                  ),
+                ),
+              ] else ...[
+                // =============================================================
+                // Verified Official Student Card
+                // =============================================================
+                Container(
+                  width: double.infinity,
+                  padding: const EdgeInsets.all(NexoraSpacing.lg),
+                  decoration: BoxDecoration(
+                    color: const Color(NexoraColors.surface),
+                    borderRadius: BorderRadius.circular(16),
+                    border: Border.all(
+                      color: const Color(NexoraColors.success).withOpacity(0.5),
+                      width: 1.5,
+                    ),
+                  ),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      // Header with green verified badge
+                      Row(
+                        children: [
+                          Container(
+                            padding: const EdgeInsets.all(6),
+                            decoration: BoxDecoration(
+                              color: const Color(NexoraColors.success).withOpacity(0.15),
+                              shape: BoxShape.circle,
+                            ),
+                            child: const Icon(
+                              Icons.check_circle_rounded,
+                              color: Color(NexoraColors.success),
+                              size: 24,
+                            ),
+                          ),
+                          const SizedBox(width: NexoraSpacing.sm),
+                          const Expanded(
+                            child: Text(
+                              'BVC STUDENT VERIFIED',
+                              style: TextStyle(
+                                fontSize: 16,
+                                fontWeight: FontWeight.bold,
+                                color: Color(NexoraColors.success),
+                                letterSpacing: 0.5,
+                              ),
+                            ),
+                          ),
+                        ],
+                      ),
+                      const SizedBox(height: NexoraSpacing.md),
+                      const Divider(color: Color(NexoraColors.divider)),
+                      const SizedBox(height: NexoraSpacing.sm),
+
+                      // Verified Fields from Official Portal
+                      _buildProfileRow('Roll Number', _verifiedProfile!['rollNumber'] ?? ''),
+                      _buildProfileRow('Student Name', _verifiedProfile!['name'] ?? ''),
+                      _buildProfileRow('Branch', _verifiedProfile!['branch'] ?? ''),
+                      _buildProfileRow('Course', _verifiedProfile!['course'] ?? 'B.Tech'),
+                      if (_verifiedProfile!['semester'] != null)
+                        _buildProfileRow('Semester', 'Semester ${_verifiedProfile!['semester']}'),
+                      if (_verifiedProfile!['batch'] != null)
+                        _buildProfileRow('Batch', _verifiedProfile!['batch'] ?? ''),
+                      _buildProfileRow('College', _verifiedProfile!['college'] ?? 'BVC Engineering College'),
+                    ],
+                  ),
+                ),
+                const SizedBox(height: NexoraSpacing.xxl),
+
+                // Continue Button
+                NexoraButton(
+                  label: 'Continue to Terms',
+                  onPressed: _onContinueToTerms,
+                  width: double.infinity,
+                  height: 54,
+                  backgroundColor: const Color(0xFF171717),
+                  foregroundColor: Colors.white,
+                  borderRadius: 100,
+                  textStyle: const TextStyle(
+                    fontSize: 16,
+                    fontWeight: FontWeight.bold,
+                    color: Colors.white,
+                  ),
+                ),
+              ],
+
               const SizedBox(height: NexoraSpacing.xl),
-
-              // -- Section Selection -----------------------------------------
-              const Text(
-                'Select Your Section',
-                style: TextStyle(
-                  fontSize: 16,
-                  fontWeight: FontWeight.bold,
-                  color: Color(NexoraColors.text),
-                ),
-              ),
-              const SizedBox(height: NexoraSpacing.xs),
-              const Text(
-                'Choose your assigned classroom section',
-                style: TextStyle(
-                  fontSize: 13,
-                  color: Color(NexoraColors.textSecondary),
-                ),
-              ),
-              const SizedBox(height: NexoraSpacing.md),
-
-              // Section Chips
-              Wrap(
-                spacing: 8,
-                runSpacing: 8,
-                children: kBvcSections.map((section) {
-                  final isSelected = _selectedSection == section;
-                  return ChoiceChip(
-                    label: Text(
-                      section,
-                      style: TextStyle(
-                        fontSize: 13,
-                        fontWeight: isSelected ? FontWeight.bold : FontWeight.w500,
-                        color: isSelected ? Colors.white : const Color(NexoraColors.text),
-                      ),
-                    ),
-                    selected: isSelected,
-                    selectedColor: const Color(0xFF171717),
-                    backgroundColor: const Color(NexoraColors.surface),
-                    shape: RoundedRectangleBorder(
-                      borderRadius: BorderRadius.circular(100),
-                      side: BorderSide(
-                        color: isSelected ? const Color(0xFF171717) : const Color(NexoraColors.border),
-                        width: 1,
-                      ),
-                    ),
-                    onSelected: (selected) {
-                      setState(() {
-                        _selectedSection = selected ? section : null;
-                      });
-                    },
-                  );
-                }).toList(),
-              ),
-              const SizedBox(height: NexoraSpacing.xxl),
-
-              // -- Permanent Warning Card ------------------------------------
-              Container(
-                padding: const EdgeInsets.all(NexoraSpacing.lg),
-                decoration: BoxDecoration(
-                  color: const Color(NexoraColors.errorLight).withOpacity(0.5),
-                  borderRadius: BorderRadius.circular(14),
-                  border: Border.all(
-                    color: const Color(NexoraColors.error).withOpacity(0.3),
-                    width: 1,
-                  ),
-                ),
-                child: const Row(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Icon(
-                      Icons.info_outline,
-                      color: Color(NexoraColors.error),
-                      size: 20,
-                    ),
-                    SizedBox(width: NexoraSpacing.sm),
-                    Expanded(
-                      child: Text(
-                        'Please make sure your Class and Section are correct. These details cannot be changed later.',
-                        style: TextStyle(
-                          fontSize: 13,
-                          fontWeight: FontWeight.w600,
-                          color: Color(NexoraColors.error),
-                          height: 1.4,
-                        ),
-                      ),
-                    ),
-                  ],
-                ),
-              ),
-              const SizedBox(height: NexoraSpacing.xxxl),
-
-              // -- Continue Button -------------------------------------------
-              NexoraButton(
-                label: 'Continue',
-                onPressed: _showConfirmationDialog,
-                isLoading: _isLoading,
-                isEnabled: !_isLoading &&
-                    _identity != null &&
-                    _selectedBranchCode != null &&
-                    _selectedSection != null,
-                width: double.infinity,
-                height: 54,
-                backgroundColor: const Color(0xFF171717),
-                foregroundColor: Colors.white,
-                borderRadius: 100,
-                textStyle: const TextStyle(
-                  fontSize: 16,
-                  fontWeight: FontWeight.bold,
-                  color: Colors.white,
-                ),
-              ),
-              const SizedBox(height: NexoraSpacing.lg),
             ],
           ),
         ),
@@ -562,27 +371,36 @@ class _ClassSetupScreenState extends State<ClassSetupScreen> {
     );
   }
 
-  Widget _buildIdentityDetailRow(String label, String value) {
-    return Row(
-      mainAxisAlignment: MainAxisAlignment.spaceBetween,
-      children: [
-        Text(
-          label,
-          style: const TextStyle(
-            fontSize: 13,
-            color: Color(NexoraColors.textSecondary),
+  Widget _buildProfileRow(String label, String value) {
+    if (value.isEmpty) return const SizedBox.shrink();
+    return Padding(
+      padding: const EdgeInsets.symmetric(vertical: 6),
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        mainAxisAlignment: MainAxisAlignment.spaceBetween,
+        children: [
+          Text(
+            label,
+            style: const TextStyle(
+              fontSize: 13,
+              color: Color(NexoraColors.textSecondary),
+              fontWeight: FontWeight.w500,
+            ),
           ),
-        ),
-        Text(
-          value,
-          style: const TextStyle(
-            fontSize: 14,
-            fontWeight: FontWeight.w600,
-            color: Color(NexoraColors.text),
+          const SizedBox(width: NexoraSpacing.md),
+          Expanded(
+            child: Text(
+              value,
+              textAlign: TextAlign.right,
+              style: const TextStyle(
+                fontSize: 14,
+                fontWeight: FontWeight.w600,
+                color: Color(NexoraColors.text),
+              ),
+            ),
           ),
-        ),
-      ],
+        ],
+      ),
     );
   }
 }
-
