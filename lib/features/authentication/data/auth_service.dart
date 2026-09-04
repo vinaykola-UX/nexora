@@ -419,6 +419,14 @@ class AuthService {
   }
 
   /// Check if the currently cached Firebase user is valid and has an authorized domain
+  /// Get the Firebase ID token for the current user.
+  /// Returns null if no user is signed in.
+  Future<String?> getIdToken() async {
+    final user = _firebaseAuth.currentUser;
+    if (user == null) return null;
+    return await user.getIdToken();
+  }
+
   bool get isAuthenticatedAndValid {
     final user = currentUser;
     return user != null && isAllowedDomain(user.email);

@@ -4,6 +4,7 @@ class AppConstants {
 
   // API Configuration
   static const String cloudflareApiBaseUrl = 'https://api.nexora.ai'; // TODO: Update with actual URL
+  static const String workerBaseUrl = 'https://nexora-bvc-api-2026.vkola306.workers.dev';
   static const String healthEndpoint = '/health';
   static const Duration apiTimeout = Duration(seconds: 30);
 

@@ -136,7 +136,7 @@ class ResultsScreen extends ConsumerWidget {
                 if (latestSgpa != null)
                   Container(
                     padding: const EdgeInsets.all(20),
-                    margin: const EdgeInsets.bottom(16),
+                    margin: const EdgeInsets.only(bottom: 16),
                     decoration: BoxDecoration(
                       gradient: const LinearGradient(
                         colors: [Color(0xFF4F46E5), Color(0xFF818CF8)],
