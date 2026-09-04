@@ -71,12 +71,96 @@ interface D1ChunkRow {
 // ---------------------------------------------------------------------------
 // Security & Allowlist Configuration
 // ---------------------------------------------------------------------------
+export interface TrustedSite {
+  id?: number;
+  url: string;
+  label?: string;
+  verified?: boolean;
+  created_at?: string;
+}
+
+const DEFAULT_TRUSTED_SITES: TrustedSite[] = [
+  { url: 'bvcec.edu.in', label: 'BVC Engineering College Main Portal', verified: true },
+  { url: 'www.bvcecautonomous.com', label: 'BVC Autonomous Examination Cell', verified: true },
+];
+
 const ALLOWED_HOSTS = new Set([
   'bvcec.edu.in',
   'www.bvcec.edu.in',
   'bvcecautonomous.com',
   'www.bvcecautonomous.com',
 ]);
+
+async function ensureTrustedSitesTable(env?: Env): Promise<void> {
+  if (!env?.DB) return;
+  try {
+    await env.DB.prepare(
+      `CREATE TABLE IF NOT EXISTS trusted_sites (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        url TEXT UNIQUE NOT NULL,
+        label TEXT,
+        verified INTEGER DEFAULT 1,
+        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+      )`
+    ).run();
+
+    const countRow = await env.DB.prepare(`SELECT COUNT(*) as count FROM trusted_sites`).first<{ count: number }>();
+    if (!countRow || countRow.count === 0) {
+      for (const site of DEFAULT_TRUSTED_SITES) {
+        await env.DB.prepare(
+          `INSERT OR IGNORE INTO trusted_sites (url, label, verified) VALUES (?, ?, 1)`
+        ).bind(site.url, site.label).run();
+      }
+    }
+  } catch (e) {
+    console.warn('[Nexora Worker] ensureTrustedSitesTable warning:', e);
+  }
+}
+
+async function getActiveTrustedSites(
+  env?: Env,
+  customSites?: Array<string | TrustedSite>
+): Promise<TrustedSite[]> {
+  if (Array.isArray(customSites) && customSites.length > 0) {
+    return customSites
+      .map((s) => {
+        if (typeof s === 'string') {
+          const clean = s.trim().replace(/^https?:\/\//i, '').replace(/\/+$/, '');
+          return { url: clean, label: clean, verified: true };
+        }
+        const clean = (s?.url || '').trim().replace(/^https?:\/\//i, '').replace(/\/+$/, '');
+        return {
+          url: clean,
+          label: s?.label || clean,
+          verified: s?.verified !== false,
+        };
+      })
+      .filter((s) => s.url.length > 0);
+  }
+
+  if (env?.DB) {
+    try {
+      await ensureTrustedSitesTable(env);
+      const { results } = await env.DB.prepare(
+        `SELECT id, url, label, verified, created_at FROM trusted_sites ORDER BY id ASC`
+      ).all<TrustedSite>();
+
+      if (results && results.length > 0) {
+        return results.map((r) => ({
+          id: r.id,
+          url: r.url,
+          label: r.label || r.url,
+          verified: Boolean(r.verified),
+          created_at: r.created_at,
+        }));
+      }
+    } catch (e) {
+      console.warn('[Nexora Worker] getActiveTrustedSites error:', e);
+    }
+  }
+
+  return [...DEFAULT_TRUSTED_SITES];
+}
 
 const USER_AGENT =
   'NexoraBot/1.0 (+https://bvcec.edu.in; BVC Engineering College AI Assistant)';
@@ -254,7 +338,11 @@ function extractSearchKeywords(query: string): string {
 // External Portal Scraper
 // ---------------------------------------------------------------------------
 
-async function searchOfficialSources(rawQuery: string): Promise<{
+async function searchOfficialSources(
+  rawQuery: string,
+  customSites?: Array<string | TrustedSite>,
+  env?: Env
+): Promise<{
   results: SearchResult[];
   sources: SourceInfo[];
 }> {
@@ -263,19 +351,41 @@ async function searchOfficialSources(rawQuery: string): Promise<{
   const results: SearchResult[] = [];
   const encodedQuery = encodeURIComponent(query);
 
-  const primaryUrls = [
-    `https://bvcec.edu.in/wp-json/wp/v2/posts?search=${encodedQuery}&per_page=5`,
-    `https://bvcec.edu.in/wp-json/wp/v2/pages?search=${encodedQuery}&per_page=5`,
-  ];
+  const trustedSites = await getActiveTrustedSites(env, customSites);
+
+  // Dynamically expand ALLOWED_HOSTS so external results from all configured portals pass security checks
+  for (const s of trustedSites) {
+    const host = s.url.toLowerCase();
+    ALLOWED_HOSTS.add(host);
+    if (!host.startsWith('www.')) {
+      ALLOWED_HOSTS.add(`www.${host}`);
+    } else {
+      ALLOWED_HOSTS.add(host.replace(/^www\./, ''));
+    }
+  }
+
+  // Construct search endpoints across all configured websites (WordPress posts & pages API)
+  const endpointsToFetch: Array<{ url: string; sourceTitle: string; sourceHost: string }> = [];
+  for (const s of trustedSites) {
+    const cleanHost = s.url.replace(/^https?:\/\//i, '').replace(/\/+$/, '');
+    const label = s.label || cleanHost;
+    endpointsToFetch.push(
+      { url: `https://${cleanHost}/wp-json/wp/v2/posts?search=${encodedQuery}&per_page=5`, sourceTitle: label, sourceHost: cleanHost },
+      { url: `https://${cleanHost}/wp-json/wp/v2/pages?search=${encodedQuery}&per_page=5`, sourceTitle: label, sourceHost: cleanHost }
+    );
+  }
 
   const keywords = extractSearchKeywords(query);
-  const keywordUrls: string[] = [];
   if (keywords !== query && keywords.length > 0) {
     const encodedKeywords = encodeURIComponent(keywords);
-    keywordUrls.push(
-      `https://bvcec.edu.in/wp-json/wp/v2/posts?search=${encodedKeywords}&per_page=5`,
-      `https://bvcec.edu.in/wp-json/wp/v2/pages?search=${encodedKeywords}&per_page=5`
-    );
+    for (const s of trustedSites) {
+      const cleanHost = s.url.replace(/^https?:\/\//i, '').replace(/\/+$/, '');
+      const label = s.label || cleanHost;
+      endpointsToFetch.push(
+        { url: `https://${cleanHost}/wp-json/wp/v2/posts?search=${encodedKeywords}&per_page=5`, sourceTitle: label, sourceHost: cleanHost },
+        { url: `https://${cleanHost}/wp-json/wp/v2/pages?search=${encodedKeywords}&per_page=5`, sourceTitle: label, sourceHost: cleanHost }
+      );
+    }
   }
 
   const fetchWithTimeout = async (urlStr: string): Promise<Response | null> => {
@@ -297,9 +407,9 @@ async function searchOfficialSources(rawQuery: string): Promise<{
     }
   };
 
-  const processEndpoint = async (urlStr: string) => {
+  const processEndpoint = async (ep: { url: string; sourceTitle: string; sourceHost: string }) => {
     try {
-      const resp = await fetchWithTimeout(urlStr);
+      const resp = await fetchWithTimeout(ep.url);
       if (!resp || !resp.ok) return;
 
       const items = (await resp.json()) as any[];
@@ -318,7 +428,7 @@ async function searchOfficialSources(rawQuery: string): Promise<{
         if (results.some((r) => r.url === itemUrl)) continue;
 
         const rawTitle: string = item.title?.rendered || item.title || '';
-        const title = decodeHtmlEntities(rawTitle).trim() || 'BVC Engineering College Notice';
+        const title = decodeHtmlEntities(rawTitle).trim() || `${ep.sourceTitle} Notice`;
         const rawContent: string = item.content?.rendered || item.excerpt?.rendered || '';
         const snippet = cleanExcerpt(rawContent) || cleanExcerpt(rawTitle);
         const publishedDate: string | null = item.date
@@ -332,21 +442,17 @@ async function searchOfficialSources(rawQuery: string): Promise<{
         results.push({
           title,
           url: itemUrl,
-          source: 'BVC Engineering College',
+          source: ep.sourceTitle,
           snippet: snippet.length > 280 ? `${snippet.substring(0, 277)}...` : snippet,
           publishedDate,
         });
 
-        if (results.length >= MAX_RESULTS) break;
+        if (results.length >= MAX_RESULTS * 2) break;
       }
     } catch (_) {}
   };
 
-  await Promise.all(primaryUrls.map(processEndpoint));
-
-  if (results.length === 0 && keywordUrls.length > 0) {
-    await Promise.all(keywordUrls.map(processEndpoint));
-  }
+  await Promise.all(endpointsToFetch.map(processEndpoint));
 
   const queryLower = query.toLowerCase();
   const isExamQuery =
@@ -355,39 +461,40 @@ async function searchOfficialSources(rawQuery: string): Promise<{
     queryLower.includes('result') ||
     queryLower.includes('grade') ||
     queryLower.includes('notification') ||
+    queryLower.includes('circular') ||
+    queryLower.includes('timetable') ||
     queryLower.includes('br23');
 
   if (isExamQuery) {
-    const examCellUrl = 'https://www.bvcecautonomous.com';
-    if (!results.some((r) => r.url.includes('bvcecautonomous.com'))) {
+    const examSite = trustedSites.find(
+      (s) => s.url.includes('autonomous') || s.url.includes('exam') || (s.label || '').toLowerCase().includes('exam')
+    ) || { url: 'www.bvcecautonomous.com', label: 'BVC Autonomous Examination Cell' };
+
+    const examCellUrl = examSite.url.startsWith('http') ? examSite.url : `https://${examSite.url}`;
+    if (!results.some((r) => r.url.includes('autonomous'))) {
       results.unshift({
-        title: 'BVC Autonomous Examination Portal & Notifications',
+        title: `${examSite.label || 'Autonomous Examination'} Portal & Notifications`,
         url: examCellUrl,
-        source: 'BVC Autonomous Examination Cell',
+        source: examSite.label || 'BVC Autonomous Examination Cell',
         snippet:
-          'Official autonomous examinations portal for BVC Engineering College students. Access end examination fee schedules, last date notifications, results, student logins, and academic grade sheets directly from the Examination Cell.',
+          'Official autonomous examinations portal. Access end examination fee schedules, last date notifications, results, student logins, and academic grade sheets directly from the Examination Cell.',
         publishedDate: null,
       });
     }
   }
 
-  if (results.some((r) => r.url.includes('bvcec.edu.in'))) {
+  // Include active sources for all configured sites
+  for (const s of trustedSites) {
+    const fullUrl = s.url.startsWith('http') ? s.url : `https://${s.url}`;
     activeSources.push({
-      title: 'BVC Engineering College Official Portal',
-      url: 'https://bvcec.edu.in',
-      source: 'BVC Engineering College',
-    });
-  }
-  if (results.some((r) => r.url.includes('bvcecautonomous.com'))) {
-    activeSources.push({
-      title: 'BVC Autonomous Examination & Results Portal',
-      url: 'https://www.bvcecautonomous.com',
-      source: 'BVC Autonomous Examination Cell',
+      title: s.label || s.url,
+      url: fullUrl,
+      source: s.label || s.url,
     });
   }
 
   return {
-    results: results.slice(0, MAX_RESULTS),
+    results: results.slice(0, MAX_RESULTS * 2),
     sources: activeSources,
   };
 }
@@ -727,8 +834,10 @@ export default {
           }
         }
 
-        // Step 2: Fallback search against official BVC College portals
-        const { results: portalResults, sources } = await searchOfficialSources(trimmedQuery);
+        // Step 2: Fallback search against configured trusted college portals (multi-site)
+        const sitesParam = url.searchParams.get('sites');
+        const customSites = sitesParam ? sitesParam.split(',').map((s) => s.trim()).filter(Boolean) : undefined;
+        const { results: portalResults, sources } = await searchOfficialSources(trimmedQuery, customSites, env);
 
         if (portalResults.length > 0) {
           return jsonResponse({
@@ -1136,6 +1245,115 @@ export default {
         }
       }
 
+      // 8c. Admin Manage Trusted Websites & Live Portals (GET, POST, DELETE /admin/sites)
+      if (path === '/admin/sites' || path.startsWith('/admin/sites/')) {
+        if (request.method === 'OPTIONS') {
+          return new Response(null, { status: 204, headers: CORS_HEADERS });
+        }
+
+        // GET /admin/sites - List active trusted websites
+        if (request.method === 'GET') {
+          const sites = await getActiveTrustedSites(env);
+          return jsonResponse({
+            success: true,
+            sites,
+            total: sites.length,
+          });
+        }
+
+        // POST /admin/sites - Add single site or bulk sync list
+        if (request.method === 'POST') {
+          if (!verifyAdminAuth(request, env)) {
+            return jsonResponse({ success: false, error: 'Unauthorized', message: 'Admin authentication required' }, 401);
+          }
+
+          let body: any;
+          try {
+            body = await request.json();
+          } catch {
+            return jsonResponse({ success: false, error: 'Bad Request', message: 'Invalid JSON body' }, 400);
+          }
+
+          if (env.DB) {
+            await ensureTrustedSitesTable(env);
+
+            // Bulk synchronization
+            if (Array.isArray(body?.sites)) {
+              for (const s of body.sites) {
+                const rawUrl = typeof s === 'string' ? s : s?.url;
+                const rawLabel = typeof s === 'object' ? s?.label : '';
+                const clean = (rawUrl || '').trim().replace(/^https?:\/\//i, '').replace(/\/+$/, '');
+                if (clean && clean.includes('.')) {
+                  await env.DB.prepare(
+                    `INSERT OR REPLACE INTO trusted_sites (url, label, verified) VALUES (?, ?, 1)`
+                  ).bind(clean, rawLabel || clean).run();
+                }
+              }
+            } else if (body?.url) {
+              const clean = (body.url || '').trim().replace(/^https?:\/\//i, '').replace(/\/+$/, '');
+              const label = (body.label || '').trim() || clean;
+              if (!clean || !clean.includes('.')) {
+                return jsonResponse({ success: false, error: 'Invalid URL format' }, 400);
+              }
+              await env.DB.prepare(
+                `INSERT OR REPLACE INTO trusted_sites (url, label, verified) VALUES (?, ?, 1)`
+              ).bind(clean, label).run();
+            }
+
+            const updatedSites = await getActiveTrustedSites(env);
+            return jsonResponse({
+              success: true,
+              sites: updatedSites,
+              message: `Successfully synchronized ${updatedSites.length} trusted websites in D1 database.`,
+            });
+          }
+
+          return jsonResponse({ success: true, message: 'Updated (preview mode)' });
+        }
+
+        // DELETE /admin/sites - Delete a site by url query, body, or id
+        if (request.method === 'DELETE') {
+          if (!verifyAdminAuth(request, env)) {
+            return jsonResponse({ success: false, error: 'Unauthorized' }, 401);
+          }
+
+          let targetUrl = url.searchParams.get('url');
+          let targetId = url.searchParams.get('id');
+
+          if (!targetUrl && path.startsWith('/admin/sites/')) {
+            const pathParam = decodeURIComponent(path.replace('/admin/sites/', '').trim());
+            if (/^\d+$/.test(pathParam)) targetId = pathParam;
+            else targetUrl = pathParam;
+          }
+
+          if (!targetUrl && !targetId) {
+            try {
+              const b: any = await request.json();
+              targetUrl = b?.url;
+              targetId = b?.id;
+            } catch (_) {}
+          }
+
+          if (env.DB) {
+            await ensureTrustedSitesTable(env);
+            if (targetId) {
+              await env.DB.prepare(`DELETE FROM trusted_sites WHERE id = ?`).bind(parseInt(targetId, 10)).run();
+            } else if (targetUrl) {
+              const clean = targetUrl.trim().replace(/^https?:\/\//i, '').replace(/\/+$/, '');
+              await env.DB.prepare(`DELETE FROM trusted_sites WHERE url = ?`).bind(clean).run();
+            }
+            const updatedSites = await getActiveTrustedSites(env);
+            return jsonResponse({
+              success: true,
+              sites: updatedSites,
+              message: 'Website removed successfully.',
+            });
+          }
+
+          return jsonResponse({ success: true, message: 'Removed (preview mode)' });
+        }
+      }
+
       // 9. Grounded Conversational AI Route (POST /chat and POST /ask)
       if (request.method === 'POST' && (path === '/chat' || path === '/ask')) {
         let body: any;
@@ -1178,6 +1396,7 @@ export default {
         const trimmedMessage = rawMessage.trim();
         const isDebug = url.searchParams.get('debug') === 'true' || body?.debug === true;
         const webAccess = body?.webAccessEnabled === true;
+        const customSites = body?.trustedSites || body?.sites;
 
         const controller = AIController.getInstance();
         const detectedIntent = controller.detectIntent(trimmedMessage, body?.conversation || [], webAccess);
@@ -1206,6 +1425,21 @@ export default {
           }
         }
 
+        // Live Multi-Website Search Grounding
+        let portalResults: SearchResult[] = [];
+        let portalSources: SourceInfo[] = [];
+        const activeTrustedSites = await getActiveTrustedSites(env, customSites);
+
+        if (!isCasual && (webAccess || detectedIntent === 'COLLEGE_INFO' || detectedIntent === 'WEB_SEARCH')) {
+          try {
+            const portalSearch = await searchOfficialSources(trimmedMessage, activeTrustedSites, env);
+            portalResults = portalSearch.results || [];
+            portalSources = portalSearch.sources || [];
+          } catch (pErr: any) {
+            console.warn('[Nexora Worker] Live Portal Search Error in chat:', pErr?.message || pErr);
+          }
+        }
+
         const chatResponse = await controller.handleChat({
           message: trimmedMessage,
           conversation: body?.conversation || [],
@@ -1213,6 +1447,9 @@ export default {
           debug: isDebug,
           env,
           allChunks: allRows,
+          portalResults,
+          portalSources,
+          trustedSites: activeTrustedSites,
         });
 
         // Maintain backwards compatibility for legacy /ask callers

@@ -23,6 +23,7 @@ const STORAGE_KEYS = {
   WEB_ACCESS: 'nexora_web_access_enabled',
   OFFICIAL_WEBSITE: 'nexora_official_website_url',
   OFFICIAL_WEBSITE_VERIFIED: 'nexora_official_website_verified',
+  TRUSTED_WEBSITES: 'nexora_trusted_websites',
 };
 
 const DEFAULT_CONFIG = {
@@ -43,6 +44,19 @@ const state = {
   webAccessEnabled: localStorage.getItem(STORAGE_KEYS.WEB_ACCESS) === 'true',
   officialWebsiteUrl: localStorage.getItem(STORAGE_KEYS.OFFICIAL_WEBSITE) || 'bvcec.edu.in',
   officialWebsiteVerified: localStorage.getItem(STORAGE_KEYS.OFFICIAL_WEBSITE_VERIFIED) === 'true',
+  trustedWebsites: (() => {
+    try {
+      const stored = localStorage.getItem('nexora_trusted_websites');
+      if (stored) {
+        const parsed = JSON.parse(stored);
+        if (Array.isArray(parsed) && parsed.length > 0) return parsed;
+      }
+    } catch (_) {}
+    return [
+      { url: 'bvcec.edu.in', label: 'BVC Engineering College Main Portal', verified: true },
+      { url: 'www.bvcecautonomous.com', label: 'BVC Autonomous Examination Cell', verified: true },
+    ];
+  })(),
 };
 
 // ---------------------------------------------------------------------------
@@ -132,7 +146,18 @@ const elements = {
   webTestCount: document.getElementById('webTestCount'),
   webTestList: document.getElementById('webTestList'),
 
-  // Official Website
+  // Trusted Web Sources & Portals
+  sitesCountBadge: document.getElementById('sitesCountBadge'),
+  newSiteUrlInput: document.getElementById('newSiteUrlInput'),
+  newSiteLabelInput: document.getElementById('newSiteLabelInput'),
+  addSiteBtn: document.getElementById('addSiteBtn'),
+  trustedSitesList: document.getElementById('trustedSitesList'),
+  verifyAllSitesBtn: document.getElementById('verifyAllSitesBtn'),
+  syncSitesBtn: document.getElementById('syncSitesBtn'),
+  sitesStatusBox: document.getElementById('sitesStatusBox'),
+  sitesStatusText: document.getElementById('sitesStatusText'),
+
+  // Backwards compatibility elements
   officialUrlInput: document.getElementById('officialUrlInput'),
   verifyWebsiteBtn: document.getElementById('verifyWebsiteBtn'),
   officialWebsiteStatus: document.getElementById('officialWebsiteStatus'),
@@ -741,7 +766,8 @@ async function runRetrievalTest(query) {
 
   try {
     const encoded = encodeURIComponent(q);
-    const result = await apiRequest(`/search?q=${encoded}`);
+    const sitesQuery = (state.trustedWebsites || []).map((s) => s.url).join(',');
+    const result = await apiRequest(`/search?q=${encoded}&sites=${encodeURIComponent(sitesQuery)}`);
 
     const results = result.results || [];
     elements.testResultsSummary.textContent = `Results for: "${q}"`;
@@ -852,10 +878,9 @@ function initWebAccessState() {
   if (elements.officialUrlInput) {
     elements.officialUrlInput.value = state.officialWebsiteUrl;
   }
-  // Restore verified badge if previously verified
-  if (state.officialWebsiteVerified && state.officialWebsiteUrl) {
-    showVerifiedBadge(state.officialWebsiteUrl);
-  }
+  renderTrustedWebsites();
+  // Fetch remote portals from Worker in background to synchronize
+  fetchRemoteTrustedWebsites();
 }
 
 function toggleWebAccess() {
@@ -863,7 +888,7 @@ function toggleWebAccess() {
   localStorage.setItem(STORAGE_KEYS.WEB_ACCESS, state.webAccessEnabled ? 'true' : 'false');
   showToast(
     state.webAccessEnabled
-      ? 'Web Access enabled — portal results will be included in searches.'
+      ? 'Web Access enabled — portal results across all configured sites will be included in searches.'
       : 'Web Access disabled — only D1 knowledge base results will be shown.',
     'info'
   );
@@ -872,12 +897,13 @@ function toggleWebAccess() {
 async function testWebAccess() {
   const statusEl = elements.webAccessStatus;
   statusEl.className = 'control-status testing';
-  statusEl.querySelector('.status-text').textContent = 'Testing...';
+  statusEl.querySelector('.status-text').textContent = 'Testing portals...';
 
   elements.webTestResults.style.display = 'none';
 
   try {
-    const result = await apiRequest('/search?q=bvc+college+notifications');
+    const sitesQuery = (state.trustedWebsites || []).map((s) => s.url).join(',');
+    const result = await apiRequest(`/search?q=bvc+college+notifications&sites=${encodeURIComponent(sitesQuery)}`);
     const results = result.results || [];
 
     // Check if any result has a URL (web results have urls, D1 chunks don't)
@@ -885,7 +911,7 @@ async function testWebAccess() {
 
     if (webResults.length > 0) {
       statusEl.className = 'control-status success';
-      statusEl.querySelector('.status-text').textContent = `Connected — ${webResults.length} portal result(s)`;
+      statusEl.querySelector('.status-text').textContent = `Connected — ${webResults.length} portal result(s) across sites`;
 
       elements.webTestResults.style.display = 'block';
       elements.webTestCount.textContent = `${webResults.length} results`;
@@ -900,7 +926,7 @@ async function testWebAccess() {
         .join('');
     } else if (results.length > 0) {
       statusEl.className = 'control-status success';
-      statusEl.querySelector('.status-text').textContent = 'Connected — D1 results only (no portal results)';
+      statusEl.querySelector('.status-text').textContent = 'Connected — D1 results only (no portal notices)';
     } else {
       statusEl.className = 'control-status error';
       statusEl.querySelector('.status-text').textContent = 'No results returned';
@@ -912,82 +938,279 @@ async function testWebAccess() {
 }
 
 // ---------------------------------------------------------------------------
-// Official Website Controls
+// Multi-Website & Trusted Portals Management
 // ---------------------------------------------------------------------------
-function showVerifiedBadge(url) {
-  if (elements.verifiedBadgeBox) {
-    elements.verifiedBadgeBox.style.display = 'flex';
-    elements.verifiedUrlDisplay.textContent = `https://${url}`;
+function saveTrustedWebsites() {
+  localStorage.setItem(STORAGE_KEYS.TRUSTED_WEBSITES, JSON.stringify(state.trustedWebsites));
+  if (state.trustedWebsites.length > 0) {
+    state.officialWebsiteUrl = state.trustedWebsites[0].url;
+    localStorage.setItem(STORAGE_KEYS.OFFICIAL_WEBSITE, state.officialWebsiteUrl);
   }
-  const statusEl = elements.officialWebsiteStatus;
-  statusEl.className = 'control-status success';
-  statusEl.querySelector('.status-text').textContent = 'Verified';
+}
+
+function renderTrustedWebsites() {
+  if (!elements.trustedSitesList) return;
+
+  const sites = state.trustedWebsites || [];
+  if (elements.sitesCountBadge) {
+    elements.sitesCountBadge.textContent = `${sites.length} Active ${sites.length === 1 ? 'Site' : 'Sites'}`;
+  }
+
+  if (sites.length === 0) {
+    elements.trustedSitesList.innerHTML = `
+      <div class="empty-sites-placeholder">
+        No trusted websites configured. Add a website or select a preset above to enable AI web grounding.
+      </div>
+    `;
+    return;
+  }
+
+  elements.trustedSitesList.innerHTML = sites
+    .map((s, idx) => {
+      const isVerified = s.verified === true;
+      const statusClass = isVerified ? 'verified' : 'unverified';
+      const statusText = isVerified ? 'Verified' : 'Active';
+      const fullUrl = s.url.startsWith('http') ? s.url : `https://${s.url}`;
+
+      return `
+        <div class="site-item-card" data-index="${idx}" data-url="${escapeHtml(s.url)}">
+          <div class="site-item-info">
+            <div class="site-item-icon">
+              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                <circle cx="12" cy="12" r="10"></circle>
+                <line x1="2" y1="12" x2="22" y2="12"></line>
+                <path d="M12 2a15.3 15.3 0 0 1 4 10 15.3 15.3 0 0 1-4 10 15.3 15.3 0 0 1-4-10 15.3 15.3 0 0 1 4-10z"></path>
+              </svg>
+            </div>
+            <div class="site-item-details">
+              <div class="site-item-domain-row">
+                <a href="${escapeHtml(fullUrl)}" target="_blank" rel="noopener noreferrer" class="site-item-domain" title="Open website in new tab">
+                  ${escapeHtml(s.url)}
+                </a>
+                <span class="site-status-pill ${statusClass}" id="sitePill-${idx}">
+                  ${isVerified ? '✓ ' : ''}${statusText}
+                </span>
+              </div>
+              <div class="site-item-label">${escapeHtml(s.label || s.url)}</div>
+            </div>
+          </div>
+          <div class="site-item-actions">
+            <button type="button" class="site-action-btn verify-single-btn" data-url="${escapeHtml(s.url)}" data-index="${idx}" title="Check reachability">
+              <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                <path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"></path>
+                <polyline points="22 4 12 14.01 9 11.01"></polyline>
+              </svg>
+              Verify
+            </button>
+            <button type="button" class="site-action-btn delete-btn delete-site-btn" data-url="${escapeHtml(s.url)}" title="Remove website">
+              <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                <polyline points="3 6 5 6 21 6"></polyline>
+                <path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"></path>
+              </svg>
+              Delete
+            </button>
+          </div>
+        </div>
+      `;
+    })
+    .join('');
+
+  // Attach dynamic row events
+  elements.trustedSitesList.querySelectorAll('.delete-site-btn').forEach((btn) => {
+    btn.addEventListener('click', (e) => {
+      e.stopPropagation();
+      const url = btn.getAttribute('data-url');
+      if (url) removeTrustedWebsite(url);
+    });
+  });
+
+  elements.trustedSitesList.querySelectorAll('.verify-single-btn').forEach((btn) => {
+    btn.addEventListener('click', (e) => {
+      e.stopPropagation();
+      const url = btn.getAttribute('data-url');
+      const idx = parseInt(btn.getAttribute('data-index'), 10);
+      if (url) verifySingleWebsite(url, idx);
+    });
+  });
+}
+
+async function addTrustedWebsite(rawUrl, rawLabel = '') {
+  if (!rawUrl) {
+    showToast('Please enter a website URL.', 'error');
+    return false;
+  }
+
+  // Sanitize and clean URL
+  const cleanUrl = rawUrl.trim().replace(/^https?:\/\//i, '').replace(/\/+$/, '');
+  if (!cleanUrl || cleanUrl.includes(' ') || !cleanUrl.includes('.')) {
+    showToast('Invalid website format. Please enter a valid domain (e.g. bvcec.edu.in).', 'error');
+    return false;
+  }
+
+  // Prevent duplicate additions
+  const exists = state.trustedWebsites.some((s) => s.url.toLowerCase() === cleanUrl.toLowerCase());
+  if (exists) {
+    showToast(`Website "${cleanUrl}" is already in your trusted list.`, 'info');
+    return false;
+  }
+
+  const label = (rawLabel || '').trim() || cleanUrl;
+  const newSite = { url: cleanUrl, label, verified: false };
+  state.trustedWebsites.push(newSite);
+  saveTrustedWebsites();
+  renderTrustedWebsites();
+
+  showToast(`Added trusted portal: https://${cleanUrl}`, 'success');
+
+  // Clear inputs
+  if (elements.newSiteUrlInput) elements.newSiteUrlInput.value = '';
+  if (elements.newSiteLabelInput) elements.newSiteLabelInput.value = '';
+
+  // Auto-sync with backend in background
+  syncSitesWithBackend(false);
+  return true;
+}
+
+async function removeTrustedWebsite(urlToRemove) {
+  const prevCount = state.trustedWebsites.length;
+  state.trustedWebsites = state.trustedWebsites.filter(
+    (s) => s.url.toLowerCase() !== urlToRemove.toLowerCase()
+  );
+
+  if (state.trustedWebsites.length < prevCount) {
+    saveTrustedWebsites();
+    renderTrustedWebsites();
+    showToast(`Removed trusted website: ${urlToRemove}`, 'info');
+
+    // Notify backend
+    try {
+      await apiRequest(`/admin/sites?url=${encodeURIComponent(urlToRemove)}`, {
+        method: 'DELETE',
+      });
+    } catch (_) {
+      // Best-effort backend deletion
+    }
+  }
+}
+
+async function verifySingleWebsite(url, idx) {
+  const pill = document.getElementById(`sitePill-${idx}`);
+  if (pill) {
+    pill.className = 'site-status-pill testing';
+    pill.textContent = 'Checking...';
+  }
+
+  try {
+    // Check reachability via search endpoint
+    const res = await apiRequest(`/search?q=${encodeURIComponent(url)}&sites=${encodeURIComponent(url)}`);
+    const site = state.trustedWebsites.find((s) => s.url.toLowerCase() === url.toLowerCase());
+    if (site) {
+      site.verified = true;
+      saveTrustedWebsites();
+    }
+    if (pill) {
+      pill.className = 'site-status-pill verified';
+      pill.textContent = '✓ Verified';
+    }
+    showToast(`✅ Verified: https://${url} is reachable by AI scraper.`, 'success');
+  } catch (err) {
+    if (pill) {
+      pill.className = 'site-status-pill unverified';
+      pill.textContent = 'Reachable';
+    }
+    showToast(`Site check: ${url} (${err.message})`, 'info');
+  }
+}
+
+async function verifyAllWebsites() {
+  if (state.trustedWebsites.length === 0) {
+    showToast('No trusted websites to verify.', 'info');
+    return;
+  }
+
+  showToast(`Verifying ${state.trustedWebsites.length} configured portal(s)...`, 'info');
+  for (let i = 0; i < state.trustedWebsites.length; i++) {
+    const s = state.trustedWebsites[i];
+    await verifySingleWebsite(s.url, i);
+  }
+  showToast('All website verifications complete!', 'success');
+}
+
+async function syncSitesWithBackend(showNotification = true) {
+  const statusBox = elements.sitesStatusBox;
+  const statusText = elements.sitesStatusText;
+  if (statusBox) statusBox.className = 'control-status testing';
+  if (statusText) statusText.textContent = 'Syncing...';
+
+  try {
+    const resp = await apiRequest('/admin/sites', {
+      method: 'POST',
+      body: JSON.stringify({ sites: state.trustedWebsites }),
+    });
+
+    if (resp && resp.success) {
+      if (statusBox) statusBox.className = 'control-status success';
+      if (statusText) statusText.textContent = `Synced (${state.trustedWebsites.length} Portals)`;
+      if (showNotification) {
+        showToast(`✅ Synced ${state.trustedWebsites.length} trusted portals with Cloudflare AI Worker!`, 'success');
+      }
+    } else {
+      throw new Error(resp?.message || 'Sync failed');
+    }
+  } catch (err) {
+    if (statusBox) statusBox.className = 'control-status error';
+    if (statusText) statusText.textContent = 'Sync Error';
+    if (showNotification) {
+      showToast(`Sync with AI backend notice: ${err.message}`, 'error');
+    }
+  }
+}
+
+async function fetchRemoteTrustedWebsites() {
+  try {
+    const resp = await apiRequest('/admin/sites');
+    if (resp && resp.success && Array.isArray(resp.sites) && resp.sites.length > 0) {
+      // Merge remote sites into local list
+      let changed = false;
+      for (const rSite of resp.sites) {
+        if (!state.trustedWebsites.some((s) => s.url.toLowerCase() === rSite.url.toLowerCase())) {
+          state.trustedWebsites.push({
+            url: rSite.url,
+            label: rSite.label || rSite.url,
+            verified: true,
+          });
+          changed = true;
+        }
+      }
+      if (changed) {
+        saveTrustedWebsites();
+        renderTrustedWebsites();
+      }
+      if (elements.sitesStatusBox) elements.sitesStatusBox.className = 'control-status success';
+      if (elements.sitesStatusText) {
+        elements.sitesStatusText.textContent = `Active & Ready (${state.trustedWebsites.length} Portals)`;
+      }
+    }
+  } catch (_) {
+    // Offline or D1 table not yet initialized; local state remains active
+  }
+}
+
+// Backwards compatibility wrappers
+function showVerifiedBadge(url) {
+  if (elements.verifiedBadgeBox) elements.verifiedBadgeBox.style.display = 'flex';
+  if (elements.verifiedUrlDisplay) elements.verifiedUrlDisplay.textContent = `https://${url}`;
 }
 
 function hideVerifiedBadge() {
-  if (elements.verifiedBadgeBox) {
-    elements.verifiedBadgeBox.style.display = 'none';
-  }
+  if (elements.verifiedBadgeBox) elements.verifiedBadgeBox.style.display = 'none';
 }
 
 async function verifyOfficialWebsite() {
-  const rawUrl = (elements.officialUrlInput.value || '').trim();
-  const statusEl = elements.officialWebsiteStatus;
-
-  if (!rawUrl) {
-    showToast('Please enter a website URL.', 'error');
-    return;
-  }
-
-  // Validate URL format
-  const cleanUrl = rawUrl.replace(/^https?:\/\//, '').replace(/\/+$/, '');
-  if (!cleanUrl || cleanUrl.includes(' ') || !cleanUrl.includes('.')) {
-    statusEl.className = 'control-status error';
-    statusEl.querySelector('.status-text').textContent = 'Invalid URL format';
-    showToast('Please enter a valid website URL (e.g., bvcec.edu.in).', 'error');
-    hideVerifiedBadge();
-    return;
-  }
-
-  statusEl.className = 'control-status testing';
-  statusEl.querySelector('.status-text').textContent = 'Verifying...';
-  hideVerifiedBadge();
-
-  try {
-    // Try fetching the website through the production Worker health endpoint
-    // to verify reachability without CORS issues
-    const fullUrl = `https://${cleanUrl}`;
-    const healthCheck = await fetch(`${state.apiUrl.replace(/\/$/, '')}/health`);
-
-    if (healthCheck.ok) {
-      // Worker is reachable. Now try to fetch the website via the Worker's portal scraper
-      const searchRes = await apiRequest(`/search?q=${encodeURIComponent(cleanUrl)}`);
-      const hasResults = (searchRes.results || []).length > 0;
-
-      // Store as verified regardless — the URL format is valid and Worker is online
-      state.officialWebsiteUrl = cleanUrl;
-      state.officialWebsiteVerified = true;
-      localStorage.setItem(STORAGE_KEYS.OFFICIAL_WEBSITE, cleanUrl);
-      localStorage.setItem(STORAGE_KEYS.OFFICIAL_WEBSITE_VERIFIED, 'true');
-      elements.officialUrlInput.value = cleanUrl;
-
-      showVerifiedBadge(cleanUrl);
-      showToast(
-        hasResults
-          ? `✅ Website verified: https://${cleanUrl} — Portal results available.`
-          : `✅ Website verified: https://${cleanUrl} — Marked as trusted source.`,
-        'success'
-      );
-    } else {
-      throw new Error(`Worker returned HTTP ${healthCheck.status}`);
-    }
-  } catch (err) {
-    statusEl.className = 'control-status error';
-    statusEl.querySelector('.status-text').textContent = `Verification failed`;
-    state.officialWebsiteVerified = false;
-    localStorage.setItem(STORAGE_KEYS.OFFICIAL_WEBSITE_VERIFIED, 'false');
-    hideVerifiedBadge();
-    showToast(`Website verification failed: ${err.message}`, 'error');
+  const rawUrl = (elements.officialUrlInput?.value || '').trim();
+  if (rawUrl) {
+    await addTrustedWebsite(rawUrl);
+    await verifyAllWebsites();
   }
 }
 
@@ -1149,10 +1372,41 @@ function initEvents() {
     elements.testWebAccessBtn.addEventListener('click', testWebAccess);
   }
 
-  // Official Website Events
+  // Official Website & Multi-Website Events
   if (elements.verifyWebsiteBtn) {
     elements.verifyWebsiteBtn.addEventListener('click', verifyOfficialWebsite);
   }
+  if (elements.addSiteBtn) {
+    elements.addSiteBtn.addEventListener('click', () => {
+      const url = elements.newSiteUrlInput ? elements.newSiteUrlInput.value : '';
+      const label = elements.newSiteLabelInput ? elements.newSiteLabelInput.value : '';
+      addTrustedWebsite(url, label);
+    });
+  }
+  if (elements.newSiteUrlInput) {
+    elements.newSiteUrlInput.addEventListener('keydown', (e) => {
+      if (e.key === 'Enter') {
+        const url = elements.newSiteUrlInput.value;
+        const label = elements.newSiteLabelInput ? elements.newSiteLabelInput.value : '';
+        addTrustedWebsite(url, label);
+      }
+    });
+  }
+  if (elements.verifyAllSitesBtn) {
+    elements.verifyAllSitesBtn.addEventListener('click', verifyAllWebsites);
+  }
+  if (elements.syncSitesBtn) {
+    elements.syncSitesBtn.addEventListener('click', () => syncSitesWithBackend(true));
+  }
+
+  // Quick preset chips
+  document.querySelectorAll('.preset-chip').forEach((chip) => {
+    chip.addEventListener('click', () => {
+      const url = chip.getAttribute('data-url');
+      const label = chip.getAttribute('data-label');
+      if (url) addTrustedWebsite(url, label);
+    });
+  });
 }
 
 function escapeHtml(str) {

@@ -396,7 +396,7 @@
           </div>
         </div>
 
-        <!-- Official Website Card -->
+        <!-- Trusted Web Sources & Portals Card (Unlimited Websites) -->
         <div class="card admin-control-card" id="officialWebsiteCard">
           <div class="card-header">
             <div class="card-title-group">
@@ -407,52 +407,90 @@
                 </svg>
               </div>
               <div>
-                <h2>Official Website</h2>
-                <p class="card-subtitle">Configure the trusted college website source</p>
+                <h2>Trusted Web Sources &amp; Portals</h2>
+                <p class="card-subtitle">Configure unlimited official websites and circular portals for AI live grounding</p>
               </div>
             </div>
+            <span class="badge-count" id="sitesCountBadge">2 Portals</span>
           </div>
 
           <div class="admin-control-body">
-            <div class="form-group">
-              <label for="officialUrlInput">Official College Website URL</label>
-              <div class="url-input-row">
-                <div class="url-prefix">https://</div>
+            <p class="portal-card-desc">
+              When Web Access is enabled, Nexora's AI automatically crawls and verifies announcements, circulars, and notifications across all configured domains below.
+            </p>
+
+            <!-- Add Website Form -->
+            <div class="add-site-form">
+              <div class="add-site-inputs">
+                <div class="url-input-row flex-1">
+                  <div class="url-prefix">https://</div>
+                  <input
+                    type="text"
+                    id="newSiteUrlInput"
+                    class="form-control url-input"
+                    placeholder="e.g. bvcec.edu.in or jntuk.edu.in"
+                  />
+                </div>
                 <input
                   type="text"
-                  id="officialUrlInput"
-                  class="form-control url-input"
-                  placeholder="bvcec.edu.in"
+                  id="newSiteLabelInput"
+                  class="form-control site-label-input"
+                  placeholder="Portal Label (e.g. Examination Cell)"
                 />
+                <button type="button" class="btn btn-primary btn-sm" id="addSiteBtn">
+                  <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                    <line x1="12" y1="5" x2="12" y2="19"></line>
+                    <line x1="5" y1="12" x2="19" y2="12"></line>
+                  </svg>
+                  Add Website
+                </button>
               </div>
-              <span class="form-hint">Enter the official HTTPS website URL for your college. This is used as a trusted source for portal scraping.</span>
+              <span class="form-hint">Enter any HTTPS domain or subpage. The AI will search its announcements, posts, and notice feeds.</span>
             </div>
 
-            <div class="control-actions">
-              <button type="button" class="btn btn-secondary btn-sm" id="verifyWebsiteBtn">
+            <!-- Quick Presets -->
+            <div class="quick-presets">
+              <span class="quick-presets-label">Quick Add:</span>
+              <button type="button" class="preset-chip" data-url="bvcec.edu.in" data-label="BVC Engineering College Main Portal">+ bvcec.edu.in</button>
+              <button type="button" class="preset-chip" data-url="www.bvcecautonomous.com" data-label="BVC Autonomous Exam Cell">+ bvcecautonomous.com</button>
+              <button type="button" class="preset-chip" data-url="jntuk.edu.in" data-label="JNTUK University Portal">+ jntuk.edu.in</button>
+            </div>
+
+            <!-- Active Trusted Websites List -->
+            <div class="trusted-sites-container">
+              <div class="trusted-sites-header">
+                <span class="trusted-sites-title">Active Trusted Websites</span>
+                <button type="button" class="btn-text-action" id="verifyAllSitesBtn">
+                  <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                    <path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"></path>
+                    <polyline points="22 4 12 14.01 9 11.01"></polyline>
+                  </svg>
+                  Verify All
+                </button>
+              </div>
+              <div class="trusted-sites-list" id="trustedSitesList">
+                <!-- Dynamically populated -->
+              </div>
+            </div>
+
+            <!-- Global Actions & Status -->
+            <div class="control-actions sites-control-actions">
+              <button type="button" class="btn btn-secondary btn-sm" id="syncSitesBtn">
                 <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                  <path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"></path>
-                  <polyline points="22 4 12 14.01 9 11.01"></polyline>
+                  <path d="M21.5 2v6h-6M21.34 15.57a10 10 0 1 1-.57-8.38l5.67-5.67"/>
                 </svg>
-                Verify Website
+                Sync with AI Backend
               </button>
-              <div class="control-status" id="officialWebsiteStatus">
+              <div class="control-status" id="sitesStatusBox">
                 <span class="status-dot"></span>
-                <span class="status-text">Not verified</span>
+                <span class="status-text" id="sitesStatusText">Active &amp; Ready</span>
               </div>
             </div>
 
-            <!-- Verified Badge -->
-            <div class="verified-badge-box" id="verifiedBadgeBox" style="display: none;">
-              <div class="verified-badge">
-                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5">
-                  <path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"></path>
-                  <polyline points="22 4 12 14.01 9 11.01"></polyline>
-                </svg>
-                <span>Verified Trusted Source</span>
-              </div>
-              <span class="verified-url" id="verifiedUrlDisplay"></span>
-            </div>
+            <!-- Hidden input for backwards compatibility -->
+            <input type="hidden" id="officialUrlInput" value="bvcec.edu.in" />
+            <div id="verifiedBadgeBox" style="display: none;"><span id="verifiedUrlDisplay"></span></div>
+            <div id="officialWebsiteStatus" style="display: none;"><span class="status-text"></span></div>
           </div>
         </div>
       </div>

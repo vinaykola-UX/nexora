@@ -274,9 +274,22 @@ export class AIController {
     debug?: boolean;
     env: any;
     allChunks: any[];
+    portalResults?: Array<{ title: string; url: string; source: string; snippet?: string; content?: string }>;
+    portalSources?: Array<{ title: string; url: string; source?: string }>;
+    trustedSites?: Array<string | { url: string; label?: string }>;
   }): Promise<ChatResponse> {
     const tStart = performance.now();
-    const { message, conversation = [], webAccessEnabled = false, debug = false, env, allChunks } = params;
+    const {
+      message,
+      conversation = [],
+      webAccessEnabled = false,
+      debug = false,
+      env,
+      allChunks,
+      portalResults = [],
+      portalSources = [],
+      trustedSites = [],
+    } = params;
 
     // 1. Intent Detection & Personality Policy Resolution
     const tIntentStart = performance.now();
@@ -423,16 +436,48 @@ export class AIController {
     }
     const tAdsEnd = performance.now();
 
+    // Stage D: Multi-Website & Live Portal Announcements Integration (Unlimited Sites)
+    if (portalResults && portalResults.length > 0) {
+      for (const p of portalResults) {
+        retrievedChunks.push({
+          content: `[LIVE OFFICIAL NOTICE]\nSource: ${p.source}\nTitle: ${p.title}\nLink: ${p.url}\n${p.snippet || p.content || ''}`,
+          title: p.title,
+          subject: p.source || 'College Portal Notice',
+          unit: 0,
+          relevanceScore: 1.0,
+        });
+      }
+    }
+
     // 3. Grounded Context Construction
     const { contextText, sources } = this.buildGroundedContext(retrievedChunks);
+
+    // Ensure all portal sources appear in citations
+    if (portalSources && portalSources.length > 0) {
+      for (const ps of portalSources) {
+        if (!sources.some((s) => s.url === ps.url)) {
+          sources.push({
+            title: ps.title,
+            url: ps.url,
+            source: ps.source || 'Official College Portal',
+          });
+        }
+      }
+    }
+
     const hasContext = contextText.length > 0 && retrievedChunks.length > 0;
 
     // 4. Grounding Validation & Strict Fallback Handling
     // If a college info inquiry was made but no verified circulars/dates exist:
     if (detectedIntent === 'COLLEGE_INFO' && !hasContext) {
+      const siteDisplayList = (trustedSites || [])
+        .map((s) => (typeof s === 'string' ? s : (s.label || s.url)))
+        .filter(Boolean)
+        .join(', ') || 'official college noticeboard (bvcec.edu.in)';
+
       return {
         answer:
-          "I don't have the verified schedule or official notification for that in the Nexora database yet. Please check the official BVC Engineering College noticeboard or website (bvcec.edu.in) for confirmed dates and circulars.",
+          `I don't have the verified schedule or official notification for that in the Nexora database or configured web portals yet. Please check the official college noticeboard or portals (${siteDisplayList}) for confirmed dates and circulars.`,
         tool: selectedTool,
         sources: [],
         debug: debug
