@@ -12,7 +12,7 @@ export class GeminiProvider implements AIProvider {
     const { question, officialContext, systemPrompt, apiKey } = params;
     const model = params.model || this.defaultModel;
 
-    if (!apiKey || apiKey.trim().isEmpty) {
+    if (!apiKey || apiKey.trim().length === 0) {
       throw new Error('GEMINI_API_KEY is not configured on the Cloudflare Worker.');
     }
 

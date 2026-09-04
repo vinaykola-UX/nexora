@@ -1050,9 +1050,9 @@ export default {
           subject,
           unit,
           topic,
-          chunksCreated: chunks.length,
-          previewChunks: chunks.slice(0, 3),
-          message: `Processed ${chunks.length} chunks successfully (D1 preview mode).`,
+          chunksCreated: chunkTexts.length,
+          previewChunks: chunkTexts.slice(0, 3),
+          message: `Processed ${chunkTexts.length} chunks successfully (D1 preview mode).`,
         });
       }
 

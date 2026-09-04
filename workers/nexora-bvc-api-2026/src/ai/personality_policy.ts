@@ -281,7 +281,7 @@ export class PersonalityPolicyEngine {
           intent,
           tone: 'engaging/examiner-like',
           humorLevel: 'light',
-          teasingLevel: 'minimal',
+          teasingLevel: 'low',
           academicPriority: 'high',
           responseDirectness: 'engaging',
           allowPlayfulOpener: false,

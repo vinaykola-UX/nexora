@@ -79,7 +79,7 @@ export function calculateHybridScores(
   const graphAvailable = options?.graphAvailable ?? true;
 
   // Select weight configuration
-  let weights = { ...HYBRID_WEIGHTS };
+  let weights: { ADS: number; VECTOR: number; GRAPH: number } = { ...HYBRID_WEIGHTS };
   if (!vectorAvailable && !graphAvailable) {
     weights = { ADS: 1.0, VECTOR: 0.0, GRAPH: 0.0 };
   } else if (!vectorAvailable) {

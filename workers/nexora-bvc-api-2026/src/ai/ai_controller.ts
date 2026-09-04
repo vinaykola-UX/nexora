@@ -66,11 +66,12 @@ export type UserIntent = ExtendedUserIntent | 'GENERAL_ACADEMIC' | 'EXPLAIN' | '
 
 export interface ChatSource {
   title: string;
-  subject: string;
-  unit: number;
+  subject?: string;
+  unit?: number;
   topic?: string;
   source?: string;
   page_info?: string;
+  url?: string;
 }
 
 export interface ChatResponse {
@@ -444,6 +445,7 @@ export class AIController {
           title: p.title,
           subject: p.source || 'College Portal Notice',
           unit: 0,
+          chunk_index: 0,
           relevanceScore: 1.0,
         });
       }
@@ -513,11 +515,11 @@ export class AIController {
     const systemInstruction = this.personalityEngine.buildSystemInstruction(policy, toolInstruction, hasContext);
 
     // Multi-turn message history integration (last 4 turns for context awareness)
-    const recentMessages = (conversation || [])
+    const recentMessages: XAIMessage[] = (conversation || [])
       .slice(-4)
       .filter((m) => m && m.role && m.content)
       .map((m) => ({
-        role: m.role === 'assistant' ? 'assistant' : 'user',
+        role: (m.role === 'assistant' ? 'assistant' : 'user') as 'assistant' | 'user',
         content: String(m.content).slice(0, 500),
       }));
 
