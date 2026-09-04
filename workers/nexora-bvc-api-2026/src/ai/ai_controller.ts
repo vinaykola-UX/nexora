@@ -100,6 +100,7 @@ export interface ChatResponse {
       total: number;
     };
     adsPipelineStatus: string;
+    xaiDiagnostic?: string;
   };
 }
 
@@ -434,10 +435,10 @@ export class AIController {
 
     // 6. Primary Generation: xAI Grok (Phase 5C Production LLM)
     const xaiProvider = XAIProvider.getInstance();
-    const hasXAIKeys = Boolean(
-      (env.XAI_API_KEY_1 && env.XAI_API_KEY_1.trim().length > 0) ||
-      (env.XAI_API_KEY_2 && env.XAI_API_KEY_2.trim().length > 0)
-    );
+    const hasKey1 = Boolean(env.XAI_API_KEY_1 && env.XAI_API_KEY_1.trim().length > 0);
+    const hasKey2 = Boolean(env.XAI_API_KEY_2 && env.XAI_API_KEY_2.trim().length > 0);
+    const hasXAIKeys = hasKey1 || hasKey2;
+    let xaiDiagnostic = hasXAIKeys ? '' : `keys_missing (k1:${hasKey1}, k2:${hasKey2})`;
 
     const messagesForLLM: XAIMessage[] = [
       { role: 'system', content: combinedSystemPrompt },
@@ -461,10 +462,12 @@ export class AIController {
         providerName = 'xai';
         providerAttempt = xaiResult.attempt;
         xaiUsage = xaiResult.usage;
+        xaiDiagnostic = `success (attempt ${xaiResult.attempt})`;
         aiErrorMessage = '';
       } else {
         console.warn('[AIController] xAI Grok generation failed:', xaiResult.error);
         aiErrorMessage = `xAI failed: ${xaiResult.error || 'empty_response'}`;
+        xaiDiagnostic = `failed: ${xaiResult.error || 'empty_response'}`;
       }
     }
 
@@ -578,6 +581,7 @@ export class AIController {
               total: Math.round((totalEnd - tStart) * 100) / 100,
             },
             adsPipelineStatus,
+            xaiDiagnostic,
           }
         : undefined,
     };
