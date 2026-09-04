@@ -1,0 +1,117 @@
+name: Build Nexora iOS (IPA & Runner.app)
+
+on:
+  push:
+    branches:
+      - main
+      - master
+  workflow_dispatch:
+
+jobs:
+  build-ios:
+    name: Build iOS IPA & Runner.app
+    runs-on: macos-14 # Apple Silicon M1/M2 macOS Runner with Xcode
+
+    steps:
+      # 1. Checkout repository
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      # 2. Select Xcode Version
+      - name: Set up Xcode
+        uses: maxim-lobanov/setup-xcode@v1
+        with:
+          xcode-version: latest-stable
+
+      # 3. Set up Flutter SDK
+      - name: Set up Flutter
+        uses: subosito/flutter-action@v2
+        with:
+          channel: stable
+          cache: true
+
+      # 4. Display tool versions
+      - name: Show versions
+        run: |
+          flutter --version
+          dart --version
+          xcodebuild -version
+          pod --version
+
+      # 5. Install Flutter dependencies
+      - name: Flutter Pub Get
+        run: flutter pub get
+
+      # 6. Install CocoaPods dependencies
+      - name: Install CocoaPods
+        run: |
+          cd ios
+          pod install --repo-update
+          cd ..
+
+      # 7. Setup Apple Code Signing (if secrets are provided)
+      - name: Setup Provisioning Profile and Certificate
+        if: ${{ env.HAVE_SIGNING == 'true' }}
+        env:
+          HAVE_SIGNING: ${{ secrets.APPLE_CERTIFICATE_BASE64 != '' && secrets.PROVISIONING_PROFILE_BASE64 != '' }}
+          APPLE_CERTIFICATE_BASE64: ${{ secrets.APPLE_CERTIFICATE_BASE64 }}
+          APPLE_CERTIFICATE_PASSWORD: ${{ secrets.APPLE_CERTIFICATE_PASSWORD }}
+          PROVISIONING_PROFILE_BASE64: ${{ secrets.PROVISIONING_PROFILE_BASE64 }}
+        run: |
+          # Create temporary keychain
+          KEYCHAIN_PATH=$RUNNER_TEMP/build.keychain-db
+          KEYCHAIN_PASSWORD=$(openssl rand -base64 32)
+          security create-keychain -p "$KEYCHAIN_PASSWORD" $KEYCHAIN_PATH
+          security set-keychain-settings -lut 21600 $KEYCHAIN_PATH
+          security unlock-keychain -p "$KEYCHAIN_PASSWORD" $KEYCHAIN_PATH
+
+          # Decode and import certificate
+          CERT_PATH=$RUNNER_TEMP/apple_cert.p12
+          echo "$APPLE_CERTIFICATE_BASE64" | base64 --decode > $CERT_PATH
+          security import $CERT_PATH -P "$APPLE_CERTIFICATE_PASSWORD" -A -t cert -f pkcs12 -k $KEYCHAIN_PATH
+          security set-key-partition-list -S apple-tool:,apple: -s -k "$KEYCHAIN_PASSWORD" $KEYCHAIN_PATH
+          security list-keychains -d user -s $KEYCHAIN_PATH $(security list-keychains -d user | sed 's/\"//g')
+
+          # Decode and install provisioning profile
+          mkdir -p ~/Library/MobileDevice/Provisioning\ Profiles
+          echo "$PROVISIONING_PROFILE_BASE64" | base64 --decode > ~/Library/MobileDevice/Provisioning\ Profiles/profile.mobileprovision
+          echo "Code signing certificate & provisioning profile configured."
+
+      # 8. Build iOS App (Archive / No-Codesign Release)
+      - name: Build iOS Application
+        run: |
+          flutter build ios --release --no-codesign
+
+      # 9. Package into an Installable IPA (Payload packaging for Sideloadly / AltStore / Enterprise)
+      - name: Package IPA
+        run: |
+          mkdir -p build/ios/iphoneos/Payload
+          cp -r build/ios/iphoneos/Runner.app build/ios/iphoneos/Payload/
+          cd build/ios/iphoneos
+          zip -r nexora-release.ipa Payload
+          cd ../../..
+          echo "Packaged IPA successfully:"
+          ls -lh build/ios/iphoneos/nexora-release.ipa
+
+      # 10. Zip Runner.app for direct Xcode / Simulator / Local signing
+      - name: Zip Runner.app
+        run: |
+          cd build/ios/iphoneos
+          zip -r Runner.app.zip Runner.app
+          cd ../../..
+
+      # 11. Upload IPA Artifact
+      - name: Upload iOS IPA
+        uses: actions/upload-artifact@v4
+        with:
+          name: nexora-release-ipa
+          path: build/ios/iphoneos/nexora-release.ipa
+          if-no-files-found: error
+
+      # 12. Upload Runner.app.zip Artifact
+      - name: Upload iOS Runner.app
+        uses: actions/upload-artifact@v4
+        with:
+          name: nexora-runner-app-zip
+          path: build/ios/iphoneos/Runner.app.zip
+          if-no-files-found: error
