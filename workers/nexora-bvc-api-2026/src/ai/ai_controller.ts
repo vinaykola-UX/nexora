@@ -39,6 +39,8 @@ import { ADSSearchPipeline, RankedChunk } from '../ads/pipeline';
 import { IntentDetector, ExtendedUserIntent } from './intent_detector';
 import { PersonalityPolicyEngine, PersonalityPolicy } from './personality_policy';
 import { XAIProvider, XAIMessage, XAIUsageInfo, XAI_DEFAULTS } from './xai_provider';
+import { semanticSearch } from '../rag/semantic_search';
+import { mergeRetrievalSignals, calculateHybridScores } from '../rag/hybrid_ranker';
 
 export const AI_LIMITS = {
   MAX_TOOL_CALLS: 3,
@@ -323,29 +325,101 @@ export class AIController {
       };
     }
 
-    // 2. Candidate Retrieval via existing ADS Search Pipeline
+    // 2. Candidate Retrieval via Hybrid RAG Pipeline (ADS + Vectorize)
     const tAdsStart = performance.now();
     let retrievedChunks: RankedChunk[] = [];
     let adsPipelineStatus = 'skipped_for_casual';
 
+    const isCasual =
+      detectedIntent === 'GREETING' ||
+      detectedIntent === 'CASUAL' ||
+      detectedIntent === 'SMALL_TALK';
+
     // Only run intensive retrieval if grounding is required or the message has academic intent
     const needsRetrieval =
-      policy.requiresGrounding ||
-      detectedIntent === 'ACADEMIC' ||
-      detectedIntent === 'EXAM_PREP' ||
-      detectedIntent === 'PROGRAMMING' ||
-      detectedIntent === 'CODE_EXPLANATION' ||
-      detectedIntent === 'QUIZ' ||
-      detectedIntent === 'SUMMARY' ||
-      detectedIntent === 'STUDY_NOTES' ||
-      detectedIntent === 'COLLEGE_INFO';
+      !isCasual && (
+        policy.requiresGrounding ||
+        detectedIntent === 'ACADEMIC' ||
+        detectedIntent === 'EXAM_PREP' ||
+        detectedIntent === 'PROGRAMMING' ||
+        detectedIntent === 'CODE_EXPLANATION' ||
+        detectedIntent === 'QUIZ' ||
+        detectedIntent === 'SUMMARY' ||
+        detectedIntent === 'STUDY_NOTES' ||
+        detectedIntent === 'COLLEGE_INFO'
+      );
 
     if (needsRetrieval && allChunks && allChunks.length > 0) {
+      // Stage A: ADS Search Pipeline (Hash Table + AVL + GraphRAG + Max Heap + Merge Sort)
       const pipeline = ADSSearchPipeline.getInstance();
       pipeline.buildIndex(allChunks);
-      const adsSearchResult = pipeline.search(message, AI_LIMITS.MAX_RETRIEVED_CHUNKS, debug);
-      retrievedChunks = adsSearchResult.results;
-      adsPipelineStatus = 'executed';
+      const adsSearchResult = pipeline.search(message, AI_LIMITS.MAX_RETRIEVED_CHUNKS * 2, debug);
+      const adsRankedResults = adsSearchResult.results;
+
+      // Stage B: Vectorize Semantic Search (if Vectorize and AI bindings available)
+      let vectorResult: any = null;
+      let vectorAvailable = false;
+      if (env.VECTORIZE && env.AI) {
+        try {
+          vectorResult = await semanticSearch(message, AI_LIMITS.MAX_RETRIEVED_CHUNKS * 2, env);
+          vectorAvailable = vectorResult.vectorStatus === 'success';
+        } catch (vecErr: any) {
+          console.warn('[AIController] Vectorize search error in handleChat:', vecErr?.message);
+        }
+      }
+
+      // Stage C: Hybrid Ranking (ADS + Vectorize signals)
+      const chunkIdToRow = new Map<number, any>();
+      for (const row of allChunks) {
+        if (row.id) chunkIdToRow.set(row.id, row);
+      }
+
+      const adsSignals: Array<{ chunkId: number; adsScore: number }> = [];
+      for (const r of adsRankedResults) {
+        for (const row of allChunks) {
+          if (row.content === r.content && row.id) {
+            adsSignals.push({ chunkId: row.id, adsScore: r.relevanceScore });
+            break;
+          }
+        }
+      }
+
+      const vectorSignals: Array<{ chunkId: number; vectorScore: number }> = [];
+      if (vectorAvailable && vectorResult?.candidates) {
+        for (const c of vectorResult.candidates) {
+          vectorSignals.push({ chunkId: c.chunkId, vectorScore: c.score });
+        }
+      }
+
+      if (vectorSignals.length > 0 || adsSignals.length > 0) {
+        const mergedSignals = mergeRetrievalSignals(adsSignals, vectorSignals);
+        const hybridScores = calculateHybridScores(mergedSignals, {
+          vectorAvailable,
+          graphAvailable: true,
+        });
+        hybridScores.sort((a, b) => b.hybridScore - a.hybridScore);
+        const topHybrid = hybridScores.slice(0, AI_LIMITS.MAX_RETRIEVED_CHUNKS);
+
+        retrievedChunks = topHybrid
+          .map((h) => {
+            const row = chunkIdToRow.get(h.chunkId);
+            if (!row) return null;
+            return {
+              content: row.content,
+              title: row.title || '',
+              subject: row.subject || '',
+              unit: row.unit || 0,
+              relevanceScore: h.hybridScore,
+            };
+          })
+          .filter(Boolean) as RankedChunk[];
+      }
+
+      if (retrievedChunks.length === 0) {
+        retrievedChunks = adsRankedResults.slice(0, AI_LIMITS.MAX_RETRIEVED_CHUNKS);
+      }
+
+      adsPipelineStatus = vectorAvailable ? 'executed_hybrid' : 'executed_ads';
     }
     const tAdsEnd = performance.now();
 
@@ -520,10 +594,13 @@ export class AIController {
         generatedText = stressedFallbacks[Math.floor(Math.random() * stressedFallbacks.length)];
       } else if (hasContext) {
         const primaryChunk = retrievedChunks[0];
-        const cleanContent = primaryChunk.content.replace(/^SUBJECT:[^\n]+\n\n/, '');
+        const cleanContent = primaryChunk.content
+          .replace(/^SUBJECT:\s*[^\n]+\s*\|\s*UNIT:\s*\d+\s*\|\s*TOPIC:\s*[^\n]+\n*/i, '')
+          .replace(/^TOPIC:\s*[^\n]+\n*/i, '')
+          .trim();
 
         if (selectedTool === 'code_generator') {
-          generatedText = `Based on verified Nexora syllabus for ${primaryChunk.subject} (Unit ${primaryChunk.unit}):\n\n\`\`\`java\n${cleanContent}\n\`\`\`\n\n**Complexity Analysis:**\n- Time Complexity: O(1) for member access\n- Space Complexity: O(1) auxiliary stack space`;
+          generatedText = `Here is the verified syllabus implementation for ${primaryChunk.subject} (${primaryChunk.title}):\n\n\`\`\`java\n${cleanContent}\n\`\`\`\n\n**Complexity Analysis:**\n- Time Complexity: O(1) for member access\n- Space Complexity: O(1) auxiliary stack space`;
         } else if (selectedTool === 'quiz_generator') {
           generatedText = `Practice Quiz on ${primaryChunk.subject} (Unit ${primaryChunk.unit}):\n\n1. What concept is highlighted in this unit?\n   A) Single Inheritance\n   B) Binary Search\n   C) Operator Overloading\n   D) Dynamic Scoping\n   *Correct Answer: A*`;
         } else if (selectedTool === 'study_notes') {
@@ -531,7 +608,7 @@ export class AIController {
         } else if (selectedTool === 'summarizer') {
           generatedText = `### Summary of ${primaryChunk.subject} (Unit ${primaryChunk.unit})\n- ${cleanContent.substring(0, 200)}...`;
         } else {
-          generatedText = `Based on verified Nexora knowledge base for ${primaryChunk.subject} (Unit ${primaryChunk.unit}):\n\n${cleanContent}`;
+          generatedText = `In ${primaryChunk.subject} (Unit ${primaryChunk.unit}):\n\n${cleanContent}`;
         }
       } else {
         generatedText = "I'm here to help with your BVC Engineering studies. Ask me about your subjects, units, or code implementations.";

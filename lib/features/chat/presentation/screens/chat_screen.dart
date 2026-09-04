@@ -174,19 +174,32 @@ class _ChatScreenState extends State<ChatScreen> {
 
     try {
       // ---------------------------------------------------------------
-      // Step 1: Query RAG knowledge base first
+      // Step 1: Send query to user-facing conversational AI endpoint (/chat)
+      // Displays clean AI-generated response.answer (never raw chunks)
       // ---------------------------------------------------------------
-      final ragResponse = await _ragService.searchDocumentsStructured(query);
+      final recentHistory = _messages.take(6).map((m) => {
+        'role': m.isUser ? 'user' : 'assistant',
+        'content': m.text,
+      }).toList();
+
+      final chatResponse = await _ragService.sendChatMessage(
+        query,
+        conversation: recentHistory,
+      );
 
       if (!mounted) return;
 
-      if (ragResponse.success && ragResponse.hasResults) {
-        // RAG retrieval found matching study chunks from D1
-        final formattedContent = ragResponse.toFormattedContent();
-        final sourceLabel = ragResponse.sourceLabel;
+      if (chatResponse.success && chatResponse.answer.isNotEmpty) {
+        String? sourceLabel;
+        if (chatResponse.sources.isNotEmpty) {
+          final first = chatResponse.sources.first;
+          sourceLabel = first.title.isNotEmpty
+              ? first.title
+              : (first.source ?? 'Official Knowledge Base');
+        }
 
         final aiMsg = _ChatMessage(
-          text: formattedContent,
+          text: chatResponse.answer,
           isUser: false,
           timestamp: DateTime.now(),
           sourceLabel: sourceLabel,
@@ -197,19 +210,17 @@ class _ChatScreenState extends State<ChatScreen> {
           _messages.add(aiMsg);
         });
 
-        // Persist RAG response
+        // Persist AI chat response
         if (_currentConversationId != null) {
           await _chatRepository.saveMessage(
             uid,
             _currentConversationId!,
-            text: formattedContent,
+            text: chatResponse.answer,
             isUser: false,
           );
         }
-      } else if (ragResponse.success && !ragResponse.hasResults) {
-        // ---------------------------------------------------------------
-        // Step 2: Fallback check against official BVC portal notifications
-        // ---------------------------------------------------------------
+      } else {
+        // Fallback check against official BVC portal notifications if /chat returned empty
         final portalResponse = await _apiService.searchOfficialSources(query);
 
         if (!mounted) return;
@@ -250,34 +261,6 @@ class _ChatScreenState extends State<ChatScreen> {
             searchResponse: parsedResponse,
             isError: isError,
             retryQuery: isError ? query : null,
-          );
-        }
-      } else {
-        // RAG Service encountered a network or server error
-        final errorText = ragResponse.error ??
-            'Unable to search the knowledge base. Please check your network and try again.';
-
-        final aiMsg = _ChatMessage(
-          text: errorText,
-          isUser: false,
-          timestamp: DateTime.now(),
-          isError: true,
-          retryQuery: query,
-        );
-
-        setState(() {
-          _isTyping = false;
-          _messages.add(aiMsg);
-        });
-
-        if (_currentConversationId != null) {
-          await _chatRepository.saveMessage(
-            uid,
-            _currentConversationId!,
-            text: errorText,
-            isUser: false,
-            isError: true,
-            retryQuery: query,
           );
         }
       }

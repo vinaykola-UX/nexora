@@ -1179,9 +1179,20 @@ export default {
         const isDebug = url.searchParams.get('debug') === 'true' || body?.debug === true;
         const webAccess = body?.webAccessEnabled === true;
 
-        // Fetch D1 chunks to build grounded context through ADS pipeline
+        const controller = AIController.getInstance();
+        const detectedIntent = controller.detectIntent(trimmedMessage, body?.conversation || [], webAccess);
+
+        // DETERMINISTIC GREETING & CASUAL BYPASS:
+        // Casual greetings, small-talk, pleasantries must NOT trigger academic RAG,
+        // D1 database scans, Vectorize queries, or embedding generation.
+        const isCasual =
+          detectedIntent === 'GREETING' ||
+          detectedIntent === 'CASUAL' ||
+          detectedIntent === 'SMALL_TALK';
+
+        // Fetch D1 chunks ONLY when academic retrieval is needed
         let allRows: any[] = [];
-        if (env.DB) {
+        if (!isCasual && env.DB) {
           try {
             const { results } = await env.DB.prepare(
               `SELECT c.id, c.document_id, c.content, d.title, d.subject, d.unit, c.chunk_index
@@ -1195,7 +1206,6 @@ export default {
           }
         }
 
-        const controller = AIController.getInstance();
         const chatResponse = await controller.handleChat({
           message: trimmedMessage,
           conversation: body?.conversation || [],
