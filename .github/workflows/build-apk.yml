@@ -39,15 +39,17 @@ jobs:
           dart --version
           java -version
 
-      # 5. Backup Firebase configuration
-      - name: Backup Google Services
+      # 5. Backup Firebase configuration and Android Manifest
+      - name: Backup Config and Manifest
         shell: bash
         run: |
           if [ -f android/app/google-services.json ]; then
             cp android/app/google-services.json /tmp/google-services.json
             echo "Google Services file backed up."
-          else
-            echo "No google-services.json found."
+          fi
+          if [ -f android/app/src/main/AndroidManifest.xml ]; then
+            cp android/app/src/main/AndroidManifest.xml /tmp/AndroidManifest.xml
+            echo "AndroidManifest.xml backed up."
           fi
 
       # 6. Remove old Android project
@@ -66,16 +68,19 @@ jobs:
             --project-name nexora \
             .
 
-      # 8. Restore Firebase configuration
-      - name: Restore Google Services
+      # 8. Restore Firebase configuration and Android Manifest
+      - name: Restore Config and Manifest
         shell: bash
         run: |
           if [ -f /tmp/google-services.json ]; then
             mkdir -p android/app
             cp /tmp/google-services.json android/app/google-services.json
             echo "Google Services file restored."
-          else
-            echo "No Google Services file found."
+          fi
+          if [ -f /tmp/AndroidManifest.xml ]; then
+            mkdir -p android/app/src/main
+            cp /tmp/AndroidManifest.xml android/app/src/main/AndroidManifest.xml
+            echo "AndroidManifest.xml restored."
           fi
 
       # 9. Decode signing keystore
@@ -177,18 +182,6 @@ jobs:
               print("Patched build.gradle with signing and desugaring")
           else:
               raise SystemExit("No android/app/build.gradle(.kts) found after flutter create")
-
-          manifest = pathlib.Path("android/app/src/main/AndroidManifest.xml")
-          if manifest.exists():
-              m = manifest.read_text()
-              if "POST_NOTIFICATIONS" not in m:
-                  perms = """    <uses-permission android:name="android.permission.INTERNET"/>\n    <uses-permission android:name="android.permission.RECEIVE_BOOT_COMPLETED"/>\n    <uses-permission android:name="android.permission.VIBRATE"/>\n    <uses-permission android:name="android.permission.POST_NOTIFICATIONS"/>\n"""
-                  m = m.replace('<manifest xmlns:android="http://schemas.android.com/apk/res/android">', '<manifest xmlns:android="http://schemas.android.com/apk/res/android">\n' + perms)
-              if "nexora_academic_channel" not in m:
-                  meta = """        <!-- Firebase Messaging default channel and icon -->\n        <meta-data\n            android:name="com.google.firebase.messaging.default_notification_channel_id"\n            android:value="nexora_academic_channel" />\n        <meta-data\n            android:name="com.google.firebase.messaging.default_notification_icon"\n            android:resource="@mipmap/ic_launcher" />\n"""
-                  m = m.replace("<application", "<application\n" + meta)
-              manifest.write_text(m)
-              print("Patched AndroidManifest.xml with notification permissions and metadata")
           PYEOF
           python3 /tmp/patch_gradle.py
 
