@@ -1,4 +1,4 @@
-﻿name: Build Nexora iOS (IPA & Runner.app)
+name: Build Nexora iOS (IPA & Runner.app)
 
 on:
   push:
@@ -41,18 +41,22 @@ jobs:
       - name: Flutter Pub Get
         run: flutter pub get
 
-      # 6. Disable Code Signing in Xcode Project
-      #    This ensures --no-codesign works reliably across all Xcode/Flutter versions
-      - name: Disable Xcode Code Signing
+      # 6. Disable Code Signing for CI build
+      - name: Configure CI Code Signing Override
         run: |
-          cd ios
-          # Disable automatic signing and set empty identity for the entire project
-          sed -i '' 's/CODE_SIGN_STYLE = Automatic/CODE_SIGN_STYLE = Manual/g' Runner.xcodeproj/project.pbxproj
-          sed -i '' 's/"CODE_SIGN_IDENTITY\[sdk=iphoneos\*\]" = "iPhone Developer"/"CODE_SIGN_IDENTITY[sdk=iphoneos*]" = ""/g' Runner.xcodeproj/project.pbxproj
-          # Add empty DEVELOPMENT_TEAM and CODE_SIGN_IDENTITY to all build configurations
-          sed -i '' 's/PRODUCT_BUNDLE_IDENTIFIER/CODE_SIGN_IDENTITY = ""; DEVELOPMENT_TEAM = ""; PRODUCT_BUNDLE_IDENTIFIER/g' Runner.xcodeproj/project.pbxproj
-          echo "Code signing disabled for CI build."
-          cd ..
+          cat << 'EOF' >> ios/Flutter/Release.xcconfig
+          CODE_SIGNING_ALLOWED=NO
+          CODE_SIGNING_REQUIRED=NO
+          CODE_SIGN_IDENTITY=
+          EXPANDED_CODE_SIGN_IDENTITY=
+          EOF
+          cat << 'EOF' >> ios/Flutter/Debug.xcconfig
+          CODE_SIGNING_ALLOWED=NO
+          CODE_SIGNING_REQUIRED=NO
+          CODE_SIGN_IDENTITY=
+          EXPANDED_CODE_SIGN_IDENTITY=
+          EOF
+          echo "Code signing overrides written to xcconfig."
 
       # 7. Build iOS App (No-Codesign Release)
       - name: Build iOS Application
