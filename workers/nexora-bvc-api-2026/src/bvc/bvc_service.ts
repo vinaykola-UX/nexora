@@ -11,13 +11,15 @@ export class BVCService {
 
   /**
    * Connects and synchronizes student data directly from the official BVC portal.
-   * Uses the live official portal client by default.
+   * In production, STRICTLY uses the live official portal client (Mock client is never permitted).
+   * In non-production, mock client is allowed only if explicitly enabled by test configuration.
    */
   public static async syncStudent(params: {
     firebaseUid: string;
     rollNumber: string;
     password?: string;
-    useLiveClient?: boolean;
+    environment?: string;
+    allowMockForTesting?: boolean;
     db?: D1Database;
   }): Promise<BVCSyncResult> {
     const normalizedRoll = BVCNormalizer.normalizeRollNumber(params.rollNumber);
@@ -25,9 +27,11 @@ export class BVCService {
       throw new Error(`Invalid BVC roll number format: '${params.rollNumber}'. Expected pattern e.g. 25221A0568.`);
     }
 
-    // Default to LiveBVCClient unless mock client is explicitly requested
+    const isProduction = !params.environment || params.environment.toLowerCase() === 'production';
+
+    // Production Invariant: ALWAYS use LiveBVCClient in production
     let client: IBVCClient = this.liveClient;
-    if (params.useLiveClient === false) {
+    if (!isProduction && params.allowMockForTesting === true) {
       client = this.mockClient;
     }
 
@@ -37,7 +41,39 @@ export class BVCService {
       password: params.password,
     });
 
-    if (result.success && params.db) {
+    // Mandatory Profile Identity Cross-Check
+    if (result.success && result.profile) {
+      const returnedRoll = BVCNormalizer.normalizeRollNumber(result.profile.roll_number || '');
+      if (returnedRoll !== normalizedRoll) {
+        return {
+          success: false,
+          message: 'BVC verification failed because the returned student identity did not match the requested roll number.',
+          profile: null as any,
+          subjects: [],
+          attendance: [],
+          results: [],
+          timetable: [],
+          fees: [],
+        };
+      }
+
+      // Validate required official profile fields
+      if (!result.profile.name || !result.profile.branch) {
+        return {
+          success: false,
+          message: 'Unable to verify your BVC details. Official student information was incomplete. Please try again.',
+          profile: null as any,
+          subjects: [],
+          attendance: [],
+          results: [],
+          timetable: [],
+          fees: [],
+        };
+      }
+    }
+
+    // Persist verified records ONLY when verification succeeded and profile is valid
+    if (result.success && result.profile && params.db) {
       await BVCStorage.saveSyncResult(params.db, result);
     }
 

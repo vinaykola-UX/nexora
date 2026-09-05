@@ -70,7 +70,7 @@ export class LiveBVCClient implements IBVCClient {
         return this.buildFailureResult(
           params.firebaseUid,
           normalizedRoll,
-          `Official BVC student portal responded with HTTP ${getRes.status}. The college server may be temporarily down.`
+          'BVC verification is temporarily unavailable. Please try again later.'
         );
       }
 
@@ -129,7 +129,7 @@ export class LiveBVCClient implements IBVCClient {
         return this.buildFailureResult(
           params.firebaseUid,
           normalizedRoll,
-          'Invalid BVC student portal credentials. Please check your roll number.'
+          'Unable to verify your BVC details. Please check your roll number and try again.'
         );
       }
 
@@ -154,23 +154,21 @@ export class LiveBVCClient implements IBVCClient {
         return this.buildFailureResult(
           params.firebaseUid,
           normalizedRoll,
-          'Failed to establish authenticated session with the official BVC student portal.'
+          'BVC verification is temporarily unavailable. Please try again later.'
         );
       }
 
       const modHtml = await modRes.text();
       const authenticatedHTNo = this.cleanSpanText(modHtml, 'lblHTNo');
+      const normalizedHTNo = authenticatedHTNo ? BVCNormalizer.normalizeRollNumber(authenticatedHTNo) : null;
 
-      // Strict session validation: verify portal HTML contains the student roll number
-      if (!authenticatedHTNo || authenticatedHTNo.toUpperCase() !== normalizedRoll) {
-        // Double-check if profile picture or user icon is present
-        if (!modHtml.includes('ctl00$imgStudUser') && !modHtml.includes('Stud_cpModules')) {
-          return this.buildFailureResult(
-            params.firebaseUid,
-            normalizedRoll,
-            'Official BVC portal session could not be verified. Please check your credentials.'
-          );
-        }
+      // Strict session validation: verify portal HTML contains the exact student roll number
+      if (!normalizedHTNo || normalizedHTNo !== normalizedRoll) {
+        return this.buildFailureResult(
+          params.firebaseUid,
+          normalizedRoll,
+          'BVC verification failed because the returned student identity did not match the requested roll number.'
+        );
       }
 
       // -----------------------------------------------------------------------
@@ -207,7 +205,7 @@ export class LiveBVCClient implements IBVCClient {
       const profileHtml = await infoRes.text();
 
       // -----------------------------------------------------------------------
-      // Step 6: Parse official student information
+      // Step 6: Parse official student information & validate required fields
       // -----------------------------------------------------------------------
       const rawName = this.cleanSpanText(profileHtml, 'cpBody_lblname');
       const rawBranch = this.cleanSpanText(profileHtml, 'cpBody_lblbranch');
@@ -216,14 +214,36 @@ export class LiveBVCClient implements IBVCClient {
       const rawBatch = this.cleanSpanText(profileHtml, 'cpBody_lblbatch');
       const rawEmail = this.cleanSpanText(profileHtml, 'cpBody_lblstdemail');
 
+      // Verify hall ticket number on profile page if present
+      const profileHTNo = this.cleanSpanText(profileHtml, 'cpBody_lblhtno') || this.cleanSpanText(profileHtml, 'lblHTNo');
+      if (profileHTNo) {
+        const normalizedProfileHTNo = BVCNormalizer.normalizeRollNumber(profileHTNo);
+        if (normalizedProfileHTNo !== normalizedRoll) {
+          return this.buildFailureResult(
+            params.firebaseUid,
+            normalizedRoll,
+            'BVC verification failed because the returned student identity did not match the requested roll number.'
+          );
+        }
+      }
+
+      // Strict requirement: official name and branch must be returned by BVC portal
+      if (!rawName || !rawName.trim() || !rawBranch || !rawBranch.trim()) {
+        return this.buildFailureResult(
+          params.firebaseUid,
+          normalizedRoll,
+          'Unable to verify your BVC details. Official student information was incomplete. Please try again.'
+        );
+      }
+
       const normalizedBranch = BVCNormalizer.normalizeBranch(rawBranch);
       const parsedAcademic = this.parseAcademicStatus(rawSem, rawBatch);
 
       const profile: BVCStudentProfile = {
         firebase_uid: params.firebaseUid,
         roll_number: normalizedRoll,
-        name: rawName,
-        branch: normalizedBranch || rawBranch,
+        name: rawName.trim(),
+        branch: normalizedBranch || rawBranch.trim(),
         course: rawCourse || 'B.Tech',
         year: parsedAcademic.year,
         semester: parsedAcademic.semester,
@@ -241,8 +261,6 @@ export class LiveBVCClient implements IBVCClient {
       // -----------------------------------------------------------------------
       // Step 7: Memory cleanup guarantee - zero persistence of credentials
       // -----------------------------------------------------------------------
-      // All local variables (portalPassword, sessionCookie, postParams) fall out of scope here.
-
       return {
         success: true,
         message: `Successfully connected official BVC profile for ${normalizedRoll}.`,
@@ -257,7 +275,7 @@ export class LiveBVCClient implements IBVCClient {
       return this.buildFailureResult(
         params.firebaseUid,
         normalizedRoll,
-        `Error connecting to official BVC portal: ${err?.message || 'Network timeout or unreachable host'}`
+        'BVC verification is temporarily unavailable. Please try again later.'
       );
     }
   }
@@ -320,28 +338,10 @@ export class LiveBVCClient implements IBVCClient {
   }
 
   private buildFailureResult(firebaseUid: string, rollNumber: string, message: string): BVCSyncResult {
-    const now = new Date().toISOString();
     return {
       success: false,
       message,
-      profile: {
-        firebase_uid: firebaseUid,
-        roll_number: rollNumber,
-        name: null,
-        branch: null,
-        course: 'B.Tech',
-        year: null,
-        semester: null,
-        section: null,
-        regulation: null,
-        academic_batch: null,
-        college_email: `${rollNumber.toLowerCase()}@bvcgroup.in`,
-        connected: false,
-        last_synced_at: null,
-        data_source: 'BVC_PORTAL',
-        created_at: now,
-        updated_at: now,
-      },
+      profile: null as any,
       subjects: [],
       attendance: [],
       results: [],

@@ -1605,9 +1605,19 @@ export default {
               firebaseUid: studentUser.uid,
               rollNumber: normalizedRoll,
               password: bBody?.password,
-              useLiveClient: bBody?.useLiveClient,
+              environment: env.ENVIRONMENT,
               db: env.DB,
             });
+
+            if (!syncResult.success) {
+              const isUnavailable = syncResult.message.includes('temporarily unavailable');
+              const statusCode = isUnavailable ? 503 : 400;
+              return jsonResponse({
+                success: false,
+                error: isUnavailable ? 'Service Unavailable' : 'Verification Failed',
+                message: syncResult.message,
+              }, statusCode);
+            }
 
             return jsonResponse({
               success: true,
@@ -1634,9 +1644,19 @@ export default {
               firebaseUid: studentUser.uid,
               rollNumber: profile.roll_number,
               password: bBody?.password,
-              useLiveClient: bBody?.useLiveClient,
+              environment: env.ENVIRONMENT,
               db: env.DB,
             });
+
+            if (!syncResult.success) {
+              const isUnavailable = syncResult.message.includes('temporarily unavailable');
+              const statusCode = isUnavailable ? 503 : 400;
+              return jsonResponse({
+                success: false,
+                error: isUnavailable ? 'Service Unavailable' : 'Sync Failed',
+                message: syncResult.message,
+              }, statusCode);
+            }
 
             return jsonResponse({
               success: true,

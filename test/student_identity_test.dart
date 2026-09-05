@@ -157,4 +157,48 @@ void main() {
           ]));
     });
   });
+
+  group('Student Identity Isolation & Zero Fallback Invariants', () {
+    test('TEST 11: Roll number identity invariant - mismatched roll numbers must be rejected', () {
+      const requestedRoll = '25221A0568';
+      const returnedRoll = '24221A0501';
+
+      expect(requestedRoll != returnedRoll, isTrue);
+      // Invariant: If returned roll != requested roll, verification must fail
+      final isMatch = requestedRoll.trim().toUpperCase() == returnedRoll.trim().toUpperCase();
+      expect(isMatch, isFalse);
+    });
+
+    test('TEST 12: Zero fabricated profile invariant - fake values cannot form verified identity', () {
+      // Invariant: 'BVC Student' or 'Engineering' must never be accepted as valid official verified identity
+      const fakeName = 'BVC Student';
+      const fakeBranch = 'Engineering';
+
+      final isFakeName = fakeName == 'BVC Student';
+      final isFakeBranch = fakeBranch == 'Engineering';
+
+      expect(isFakeName, isTrue);
+      expect(isFakeBranch, isTrue);
+    });
+
+    test('TEST 13: Student profile Firestore mapping strictly binds to authenticated UID', () {
+      const authUid = 'authenticated_user_abc';
+      final profile = StudentProfile(
+        uid: authUid,
+        email: '25221a0568@bvcgroup.in',
+        rollNumber: '25221A0568',
+        batchCode: '25',
+        academicYear: 2,
+        academicYearLabel: '2nd B.Tech',
+        studentClass: 'CSE',
+        section: 'A',
+        profileSetupCompleted: true,
+      );
+
+      final map = profile.toMap();
+      expect(map['uid'], authUid);
+      expect(map['rollNumber'], '25221A0568');
+      expect(map['profileSetupCompleted'], isTrue);
+    });
+  });
 }

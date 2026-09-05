@@ -1,6 +1,7 @@
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
+import 'package:url_launcher/url_launcher.dart';
 
 import '../../../../app/router/app_router.dart';
 import '../../../../core/theme/colors.dart';
@@ -54,6 +55,15 @@ class _ClassSetupScreenState extends State<ClassSetupScreen> {
     _rollController.dispose();
     _rollFocus.dispose();
     super.dispose();
+  }
+
+  Future<void> _launchExternalUrl(String urlString) async {
+    final uri = Uri.parse(urlString);
+    try {
+      await launchUrl(uri, mode: LaunchMode.externalApplication);
+    } catch (e) {
+      debugPrint('[ClassSetupScreen] Error launching URL: $e');
+    }
   }
 
   // ---------------------------------------------------------------------------
@@ -261,7 +271,43 @@ class _ClassSetupScreenState extends State<ClassSetupScreen> {
                     ],
                   ),
                 ),
-                const SizedBox(height: NexoraSpacing.xxl),
+                const SizedBox(height: NexoraSpacing.md),
+
+                // Official BVC External Links (Informational only)
+                Row(
+                  children: [
+                    Expanded(
+                      child: OutlinedButton.icon(
+                        onPressed: () => _launchExternalUrl('https://www.bvcecautonomous.com/SBLogin.aspx'),
+                        icon: const Icon(Icons.open_in_new, size: 14),
+                        label: const Text(
+                          'Official BVC Portal',
+                          style: TextStyle(fontSize: 12, fontWeight: FontWeight.w600),
+                        ),
+                        style: OutlinedButton.styleFrom(
+                          padding: const EdgeInsets.symmetric(vertical: 10, horizontal: 8),
+                          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+                        ),
+                      ),
+                    ),
+                    const SizedBox(width: NexoraSpacing.sm),
+                    Expanded(
+                      child: OutlinedButton.icon(
+                        onPressed: () => _launchExternalUrl('https://bvcec.edu.in/'),
+                        icon: const Icon(Icons.language, size: 14),
+                        label: const Text(
+                          'Official BVC Website',
+                          style: TextStyle(fontSize: 12, fontWeight: FontWeight.w600),
+                        ),
+                        style: OutlinedButton.styleFrom(
+                          padding: const EdgeInsets.symmetric(vertical: 10, horizontal: 8),
+                          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+                        ),
+                      ),
+                    ),
+                  ],
+                ),
+                const SizedBox(height: NexoraSpacing.xl),
 
                 // Connect BVC Button
                 NexoraButton(

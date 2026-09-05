@@ -130,23 +130,64 @@ class StudentProfileRepository {
     }
 
     if (response.statusCode != 200 || body['success'] != true) {
-      final msg = body['message'] as String? ?? body['error'] as String? ?? 'Failed to authenticate with official BVC portal.';
+      final msg = body['message'] as String? ??
+          body['error'] as String? ??
+          'Unable to verify your BVC details. Please check your roll number and try again.';
       throw NexoraProfileException(msg, code: 'portal-auth-failed');
     }
 
-    final syncData = body['sync'] as Map<String, dynamic>? ?? {};
-    final profileData = syncData['profile'] as Map<String, dynamic>? ?? {};
+    final syncData = body['sync'] as Map<String, dynamic>?;
+    if (syncData == null || syncData['success'] != true) {
+      final msg = syncData?['message'] as String? ??
+          body['message'] as String? ??
+          'Unable to verify your BVC details. Please check your roll number and try again.';
+      throw NexoraProfileException(msg, code: 'portal-auth-failed');
+    }
 
-    final studentName = profileData['name'] as String? ?? 'BVC Student';
-    final branch = profileData['branch'] as String? ?? 'Engineering';
-    final course = profileData['course'] as String? ?? 'B.Tech';
-    final batch = profileData['academic_batch'] as String? ?? '2025 - 2026';
-    final collegeEmail = profileData['college_email'] as String? ?? currentUser.email ?? '$rollNumber@bvcgroup.in';
-    final yearNum = profileData['year'] is int ? profileData['year'] as int : 1;
-    final semNum = profileData['semester'] is int ? profileData['semester'] as int : 1;
+    final profileData = syncData['profile'] as Map<String, dynamic>?;
+    if (profileData == null) {
+      throw const NexoraProfileException(
+        'Unable to verify your BVC details. Official student information was incomplete. Please try again.',
+        code: 'incomplete-profile',
+      );
+    }
+
+    // Mandatory Profile Identity Cross-Check
+    final returnedRoll = (profileData['roll_number'] as String? ?? '').trim().toUpperCase();
+    if (returnedRoll.isEmpty || returnedRoll != rollNumber) {
+      throw const NexoraProfileException(
+        'BVC verification failed because the returned student identity did not match the requested roll number.',
+        code: 'roll-mismatch',
+      );
+    }
+
+    // Required Official Fields Validation: never construct fake verified identities
+    final studentName = (profileData['name'] as String?)?.trim();
+    final branch = (profileData['branch'] as String?)?.trim();
+
+    if (studentName == null || studentName.isEmpty || branch == null || branch.isEmpty) {
+      throw const NexoraProfileException(
+        'Unable to verify your BVC details. Official student information was incomplete. Please try again.',
+        code: 'incomplete-profile',
+      );
+    }
+
+    final course = (profileData['course'] as String?)?.trim() ?? 'B.Tech';
+    final batch = (profileData['academic_batch'] as String?)?.trim() ?? '';
+    final collegeEmail = (profileData['college_email'] as String?)?.trim() ??
+        currentUser.email ??
+        '$rollNumber@bvcgroup.in';
+    final yearNum = profileData['year'] is int
+        ? profileData['year'] as int
+        : int.tryParse(profileData['year']?.toString() ?? '0') ?? 0;
+    final semNum = profileData['semester'] is int
+        ? profileData['semester'] as int
+        : int.tryParse(profileData['semester']?.toString() ?? '0') ?? 0;
+    final yearLabel = yearNum > 0 ? '$yearNum B.Tech' : '';
+    final section = (profileData['section'] as String?)?.trim() ?? '';
     const college = 'BONAM VENKATA CHALAMAYYA ENGINEERING COLLEGE';
 
-    // Persist verified profile to Firestore
+    // Persist verified profile to Firestore strictly under authenticated currentUser.uid
     try {
       final docRef = _studentsRef.doc(currentUser.uid);
       final existingDoc = await docRef.get();
@@ -157,9 +198,9 @@ class StudentProfileRepository {
         rollNumber: rollNumber,
         batchCode: batch,
         academicYear: yearNum,
-        academicYearLabel: '$yearNum B.Tech',
+        academicYearLabel: yearLabel,
         studentClass: branch,
-        section: 'A', // Default indicator as official portal does not expose section
+        section: section,
         role: 'student',
         college: college,
         profileSetupCompleted: true,
@@ -183,9 +224,9 @@ class StudentProfileRepository {
       'name': studentName,
       'branch': branch,
       'course': course,
-      'semester': semNum,
-      'year': yearNum,
-      'batch': batch,
+      'semester': semNum > 0 ? semNum : null,
+      'year': yearNum > 0 ? yearNum : null,
+      'batch': batch.isNotEmpty ? batch : null,
       'college': college,
       'email': collegeEmail,
     };
