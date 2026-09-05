@@ -136,8 +136,12 @@ jobs:
                   'signingConfig = signingConfigs.getByName("release")',
                   content,
               )
+              if "isCoreLibraryDesugaringEnabled" not in content:
+                  content = content.replace("compileOptions {", "compileOptions {\n        isCoreLibraryDesugaringEnabled = true")
+              if "coreLibraryDesugaring" not in content:
+                  content += '\n\ndependencies {\n    coreLibraryDesugaring("com.android.tools:desugar_jdk_libs:2.1.4")\n}\n'
               path.write_text(content)
-              print("Patched build.gradle.kts")
+              print("Patched build.gradle.kts with signing and desugaring")
           elif groovy.exists():
               path = groovy
               content = path.read_text()
@@ -165,10 +169,26 @@ jobs:
                   'signingConfig signingConfigs.release',
                   content,
               )
+              if "coreLibraryDesugaringEnabled" not in content:
+                  content = content.replace("compileOptions {", "compileOptions {\n        coreLibraryDesugaringEnabled true")
+              if "coreLibraryDesugaring" not in content:
+                  content += '\n\ndependencies {\n    coreLibraryDesugaring "com.android.tools:desugar_jdk_libs:2.1.4"\n}\n'
               path.write_text(content)
-              print("Patched build.gradle")
+              print("Patched build.gradle with signing and desugaring")
           else:
               raise SystemExit("No android/app/build.gradle(.kts) found after flutter create")
+
+          manifest = pathlib.Path("android/app/src/main/AndroidManifest.xml")
+          if manifest.exists():
+              m = manifest.read_text()
+              if "POST_NOTIFICATIONS" not in m:
+                  perms = """    <uses-permission android:name="android.permission.INTERNET"/>\n    <uses-permission android:name="android.permission.RECEIVE_BOOT_COMPLETED"/>\n    <uses-permission android:name="android.permission.VIBRATE"/>\n    <uses-permission android:name="android.permission.POST_NOTIFICATIONS"/>\n"""
+                  m = m.replace('<manifest xmlns:android="http://schemas.android.com/apk/res/android">', '<manifest xmlns:android="http://schemas.android.com/apk/res/android">\n' + perms)
+              if "nexora_academic_channel" not in m:
+                  meta = """        <!-- Firebase Messaging default channel and icon -->\n        <meta-data\n            android:name="com.google.firebase.messaging.default_notification_channel_id"\n            android:value="nexora_academic_channel" />\n        <meta-data\n            android:name="com.google.firebase.messaging.default_notification_icon"\n            android:resource="@mipmap/ic_launcher" />\n"""
+                  m = m.replace("<application", "<application\n" + meta)
+              manifest.write_text(m)
+              print("Patched AndroidManifest.xml with notification permissions and metadata")
           PYEOF
           python3 /tmp/patch_gradle.py
 
