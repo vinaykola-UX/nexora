@@ -2,7 +2,9 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import 'package:intl/intl.dart';
+import '../../../../core/theme/colors.dart';
 import '../../../../models/notification_model.dart';
+import '../../../../services/native_notification_service.dart';
 import '../../../../services/notification_service.dart';
 
 class NotificationsScreen extends ConsumerStatefulWidget {
@@ -20,25 +22,26 @@ class _NotificationsScreenState extends ConsumerState<NotificationsScreen> {
     final notificationsAsync = ref.watch(notificationListProvider);
 
     return Scaffold(
-      backgroundColor: const Color(0xFF0F172A),
+      backgroundColor: const Color(NexoraColors.background),
       appBar: AppBar(
-        backgroundColor: const Color(0xFF0F172A),
+        backgroundColor: const Color(NexoraColors.background),
         elevation: 0,
+        scrolledUnderElevation: 0,
         leading: IconButton(
-          icon: const Icon(Icons.arrow_back_ios_new, color: Colors.white, size: 20),
+          icon: const Icon(Icons.arrow_back_ios_new, color: Color(NexoraColors.text), size: 20),
           onPressed: () => context.pop(),
         ),
         title: const Text(
           'Notifications',
           style: TextStyle(
-            color: Colors.white,
+            color: Color(NexoraColors.text),
             fontWeight: FontWeight.w700,
             fontSize: 20,
           ),
         ),
         actions: [
           IconButton(
-            icon: const Icon(Icons.done_all_rounded, color: Color(0xFF818CF8)),
+            icon: const Icon(Icons.done_all_rounded, color: Color(NexoraColors.textSecondary)),
             tooltip: 'Mark all as read',
             onPressed: () async {
               final service = ref.read(notificationServiceProvider);
@@ -55,6 +58,88 @@ class _NotificationsScreenState extends ConsumerState<NotificationsScreen> {
               }
             },
           ),
+          PopupMenuButton<String>(
+            icon: const Icon(Icons.more_vert_rounded, color: Color(NexoraColors.textSecondary)),
+            tooltip: 'Notification Options & Tests',
+            color: const Color(NexoraColors.surface),
+            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+            onSelected: (value) async {
+              if (value == 'test_local') {
+                await NativeNotificationService.instance.showLocalNotification(
+                  title: 'Nexora Native Alert',
+                  body: 'This is a genuine native notification in your device status tray!',
+                  channelId: NativeNotificationService.channelAcademic,
+                );
+                if (mounted) {
+                  ScaffoldMessenger.of(context).showSnackBar(
+                    const SnackBar(
+                      content: Text('Local native notification sent to device system tray!'),
+                      duration: Duration(seconds: 3),
+                    ),
+                  );
+                }
+              } else if (value == 'test_fcm') {
+                final service = ref.read(notificationServiceProvider);
+                final res = await service.triggerTestFcmPush(
+                  title: 'Nexora Official Push',
+                  body: 'Dispatched through Cloudflare Worker & Google FCM v1!',
+                );
+                if (mounted) {
+                  ScaffoldMessenger.of(context).showSnackBar(
+                    SnackBar(
+                      content: Text(res['message']?.toString() ?? 'FCM test push requested.'),
+                      duration: const Duration(seconds: 3),
+                    ),
+                  );
+                }
+              } else if (value == 'sync_fcm') {
+                final notifService = ref.read(notificationServiceProvider);
+                final ok = await NativeNotificationService.instance.syncDeviceToken(
+                  notificationService: notifService,
+                );
+                if (mounted) {
+                  ScaffoldMessenger.of(context).showSnackBar(
+                    SnackBar(
+                      content: Text(ok ? 'FCM Device Token registered successfully' : 'FCM Token sync failed or permission not granted'),
+                      duration: const Duration(seconds: 3),
+                    ),
+                  );
+                }
+              }
+            },
+            itemBuilder: (context) => [
+              const PopupMenuItem(
+                value: 'test_local',
+                child: Row(
+                  children: [
+                    Icon(Icons.notifications_active_outlined, size: 18, color: Color(NexoraColors.text)),
+                    SizedBox(width: 10),
+                    Text('Test Native Notification', style: TextStyle(fontSize: 13, color: Color(NexoraColors.text))),
+                  ],
+                ),
+              ),
+              const PopupMenuItem(
+                value: 'test_fcm',
+                child: Row(
+                  children: [
+                    Icon(Icons.cloud_upload_outlined, size: 18, color: Color(NexoraColors.text)),
+                    SizedBox(width: 10),
+                    Text('Test Worker FCM Push', style: TextStyle(fontSize: 13, color: Color(NexoraColors.text))),
+                  ],
+                ),
+              ),
+              const PopupMenuItem(
+                value: 'sync_fcm',
+                child: Row(
+                  children: [
+                    Icon(Icons.sync_rounded, size: 18, color: Color(NexoraColors.text)),
+                    SizedBox(width: 10),
+                    Text('Sync FCM Device Token', style: TextStyle(fontSize: 13, color: Color(NexoraColors.text))),
+                  ],
+                ),
+              ),
+            ],
+          ),
         ],
       ),
       body: Column(
@@ -66,25 +151,26 @@ class _NotificationsScreenState extends ConsumerState<NotificationsScreen> {
           Expanded(
             child: notificationsAsync.when(
               loading: () => const Center(
-                child: CircularProgressIndicator(color: Color(0xFF818CF8)),
+                child: CircularProgressIndicator(color: Color(NexoraColors.text)),
               ),
               error: (err, _) => Center(
                 child: Column(
                   mainAxisAlignment: MainAxisAlignment.center,
                   children: [
-                    const Icon(Icons.error_outline_rounded, color: Colors.redAccent, size: 48),
+                    const Icon(Icons.error_outline_rounded, color: Color(NexoraColors.error), size: 48),
                     const SizedBox(height: 12),
                     Text(
                       'Failed to load notifications',
-                      style: TextStyle(color: Colors.white.withOpacity(0.8)),
+                      style: TextStyle(color: const Color(NexoraColors.text).withOpacity(0.8)),
                     ),
                     const SizedBox(height: 12),
                     ElevatedButton(
                       style: ElevatedButton.styleFrom(
-                        backgroundColor: const Color(0xFF4F46E5),
+                        backgroundColor: const Color(NexoraColors.text),
+                        foregroundColor: const Color(NexoraColors.surface),
                       ),
                       onPressed: () => ref.invalidate(notificationListProvider),
-                      child: const Text('Retry', style: TextStyle(color: Colors.white)),
+                      child: const Text('Retry'),
                     ),
                   ],
                 ),
@@ -100,21 +186,21 @@ class _NotificationsScreenState extends ConsumerState<NotificationsScreen> {
                         Container(
                           padding: const EdgeInsets.all(24),
                           decoration: BoxDecoration(
-                            color: const Color(0xFF1E293B),
+                            color: const Color(NexoraColors.surface),
                             shape: BoxShape.circle,
-                            border: Border.all(color: Colors.white.withOpacity(0.05)),
+                            border: Border.all(color: const Color(NexoraColors.border)),
                           ),
                           child: const Icon(
                             Icons.notifications_none_rounded,
                             size: 48,
-                            color: Color(0xFF818CF8),
+                            color: Color(NexoraColors.textMuted),
                           ),
                         ),
                         const SizedBox(height: 16),
                         const Text(
                           'No Notifications Yet',
                           style: TextStyle(
-                            color: Colors.white,
+                            color: Color(NexoraColors.text),
                             fontWeight: FontWeight.w600,
                             fontSize: 18,
                           ),
@@ -123,7 +209,7 @@ class _NotificationsScreenState extends ConsumerState<NotificationsScreen> {
                         Text(
                           'You are all caught up with your academic updates.',
                           style: TextStyle(
-                            color: Colors.white.withOpacity(0.6),
+                            color: const Color(NexoraColors.textMuted),
                             fontSize: 14,
                           ),
                         ),
@@ -133,8 +219,8 @@ class _NotificationsScreenState extends ConsumerState<NotificationsScreen> {
                 }
 
                 return RefreshIndicator(
-                  color: const Color(0xFF818CF8),
-                  backgroundColor: const Color(0xFF1E293B),
+                  color: const Color(NexoraColors.text),
+                  backgroundColor: const Color(NexoraColors.surface),
                   onRefresh: () async {
                     ref.invalidate(notificationListProvider);
                     ref.invalidate(unreadNotificationCountProvider);
@@ -183,17 +269,17 @@ class _NotificationsScreenState extends ConsumerState<NotificationsScreen> {
               duration: const Duration(milliseconds: 200),
               padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
               decoration: BoxDecoration(
-                color: isSelected ? const Color(0xFF4F46E5) : const Color(0xFF1E293B),
+                color: isSelected ? const Color(NexoraColors.text) : const Color(NexoraColors.surface),
                 borderRadius: BorderRadius.circular(20),
                 border: Border.all(
-                  color: isSelected ? const Color(0xFF818CF8) : Colors.white.withOpacity(0.05),
+                  color: isSelected ? const Color(NexoraColors.text) : const Color(NexoraColors.border),
                 ),
               ),
               child: Center(
                 child: Text(
                   f['label']!,
                   style: TextStyle(
-                    color: isSelected ? Colors.white : Colors.white.withOpacity(0.7),
+                    color: isSelected ? const Color(NexoraColors.surface) : const Color(NexoraColors.textSecondary),
                     fontWeight: isSelected ? FontWeight.w600 : FontWeight.w400,
                     fontSize: 13,
                   ),
@@ -235,14 +321,25 @@ class _NotificationsScreenState extends ConsumerState<NotificationsScreen> {
       child: Container(
         padding: const EdgeInsets.all(16),
         decoration: BoxDecoration(
-          color: item.isRead ? const Color(0xFF1E293B).withOpacity(0.6) : const Color(0xFF1E293B),
+          color: item.isRead
+              ? const Color(NexoraColors.surface).withOpacity(0.7)
+              : const Color(NexoraColors.surface),
           borderRadius: BorderRadius.circular(16),
           border: Border.all(
             color: item.isRead
-                ? Colors.white.withOpacity(0.05)
-                : const Color(0xFF818CF8).withOpacity(0.4),
+                ? const Color(NexoraColors.border)
+                : const Color(NexoraColors.text).withOpacity(0.2),
             width: item.isRead ? 1 : 1.5,
           ),
+          boxShadow: item.isRead
+              ? null
+              : [
+                  BoxShadow(
+                    color: Colors.black.withOpacity(0.04),
+                    blurRadius: 8,
+                    offset: const Offset(0, 2),
+                  ),
+                ],
         ),
         child: Row(
           crossAxisAlignment: CrossAxisAlignment.start,
@@ -251,9 +348,9 @@ class _NotificationsScreenState extends ConsumerState<NotificationsScreen> {
             Container(
               padding: const EdgeInsets.all(10),
               decoration: BoxDecoration(
-                color: iconColor.withOpacity(0.15),
+                color: iconColor.withOpacity(0.1),
                 shape: BoxShape.circle,
-                border: Border.all(color: iconColor.withOpacity(0.3)),
+                border: Border.all(color: iconColor.withOpacity(0.2)),
               ),
               child: Icon(iconData, color: iconColor, size: 22),
             ),
@@ -271,7 +368,7 @@ class _NotificationsScreenState extends ConsumerState<NotificationsScreen> {
                         child: Text(
                           item.title,
                           style: TextStyle(
-                            color: Colors.white,
+                            color: const Color(NexoraColors.text),
                             fontWeight: item.isRead ? FontWeight.w600 : FontWeight.w700,
                             fontSize: 15,
                           ),
@@ -282,7 +379,7 @@ class _NotificationsScreenState extends ConsumerState<NotificationsScreen> {
                           width: 8,
                           height: 8,
                           decoration: const BoxDecoration(
-                            color: Color(0xFF818CF8),
+                            color: Color(NexoraColors.text),
                             shape: BoxShape.circle,
                           ),
                         ),
@@ -292,7 +389,7 @@ class _NotificationsScreenState extends ConsumerState<NotificationsScreen> {
                   Text(
                     item.body,
                     style: TextStyle(
-                      color: Colors.white.withOpacity(0.75),
+                      color: const Color(NexoraColors.textSecondary),
                       fontSize: 13,
                       height: 1.35,
                     ),
@@ -304,7 +401,7 @@ class _NotificationsScreenState extends ConsumerState<NotificationsScreen> {
                       Container(
                         padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
                         decoration: BoxDecoration(
-                          color: Colors.white.withOpacity(0.06),
+                          color: iconColor.withOpacity(0.08),
                           borderRadius: BorderRadius.circular(6),
                         ),
                         child: Text(
@@ -318,8 +415,8 @@ class _NotificationsScreenState extends ConsumerState<NotificationsScreen> {
                       ),
                       Text(
                         _formatTimestamp(item.createdAt),
-                        style: TextStyle(
-                          color: Colors.white.withOpacity(0.45),
+                        style: const TextStyle(
+                          color: Color(NexoraColors.textMuted),
                           fontSize: 11,
                         ),
                       ),
@@ -356,19 +453,19 @@ class _NotificationsScreenState extends ConsumerState<NotificationsScreen> {
   Color _getNotificationColor(String type) {
     switch (type) {
       case 'RESULT':
-        return const Color(0xFF10B981); // Emerald Green
+        return const Color(0xFF2D8A56); // Muted Green
       case 'EVENT':
-        return const Color(0xFF818CF8); // Indigo / Purple
+        return const Color(0xFF555555); // Dark Gray
       case 'ATTENDANCE':
-        return const Color(0xFFF59E0B); // Amber
+        return const Color(0xFF8B7300); // Dark Gold
       case 'EXAM':
-        return const Color(0xFFEC4899); // Pink
+        return const Color(0xFFC04070); // Muted Rose
       case 'FEE':
-        return const Color(0xFF06B6D4); // Cyan
+        return const Color(0xFF3A7A8A); // Muted Teal
       case 'CIRCULAR':
-        return const Color(0xFF3B82F6); // Blue
+        return const Color(0xFF3A6EAF); // Muted Blue
       default:
-        return const Color(0xFF818CF8);
+        return const Color(NexoraColors.textSecondary);
     }
   }
 
@@ -383,4 +480,3 @@ class _NotificationsScreenState extends ConsumerState<NotificationsScreen> {
     return DateFormat('MMM d, h:mm a').format(dt);
   }
 }
-

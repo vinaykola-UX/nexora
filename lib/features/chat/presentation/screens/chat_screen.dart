@@ -451,8 +451,8 @@ class _ChatScreenState extends State<ChatScreen> {
                   color: const Color(NexoraColors.surface),
                   borderRadius: BorderRadius.circular(100),
                   border: Border.all(
-                    color: const Color(NexoraColors.border),
-                    width: 1.2,
+                    color: const Color(0xFFE0E0E0),
+                    width: 1.0,
                   ),
                   boxShadow: [
                     BoxShadow(

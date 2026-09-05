@@ -6,6 +6,7 @@ import '../../../../app/router/app_router.dart';
 import '../../../../core/theme/colors.dart';
 import '../../../../core/theme/spacing.dart';
 import '../../../authentication/data/auth_service.dart';
+import '../../../../services/notification_service.dart';
 import '../../data/student_profile_repository.dart';
 
 /// Profile screen displaying user details and settings
@@ -79,7 +80,8 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
 
     if (confirmed == true && mounted) {
       final authService = ref.read(authServiceProvider);
-      await authService.signOut();
+      final notifService = ref.read(notificationServiceProvider);
+      await authService.signOut(notificationService: notifService);
       if (mounted) {
         context.go(RoutePaths.login);
       }

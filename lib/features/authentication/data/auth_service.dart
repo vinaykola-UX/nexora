@@ -3,6 +3,8 @@ import 'package:flutter/foundation.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:google_sign_in/google_sign_in.dart';
+import '../../../services/native_notification_service.dart';
+import '../../../services/notification_service.dart';
 
 /// Allowed organization domain for Nexora access
 const String kAllowedDomain = 'bvcgroup.in';
@@ -403,8 +405,17 @@ class AuthService {
     }
   }
 
-  /// Sign out from both Firebase and Google
-  Future<void> signOut() async {
+  /// Sign out from both Firebase and Google with device token deactivation
+  Future<void> signOut({NotificationService? notificationService}) async {
+    try {
+      final notifService = notificationService ?? NotificationService(authService: this);
+      await NativeNotificationService.instance.unregisterCurrentDevice(
+        notificationService: notifService,
+      );
+    } catch (e) {
+      debugPrint('[AuthService] Error unregistering device on signOut: $e');
+    }
+
     try {
       await Future.wait([
         _firebaseAuth.signOut(),

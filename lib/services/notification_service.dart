@@ -92,6 +92,43 @@ class NotificationService {
     }
   }
 
+  /// Triggers a real FCM push test notification dispatched from the Cloudflare Worker
+  Future<Map<String, dynamic>> triggerTestFcmPush({
+    String title = 'Nexora FCM Test',
+    String body = 'Real push notification sent from Cloudflare Worker via FCM v1!',
+    String route = '/notifications',
+    String type = 'TEST_FCM',
+  }) async {
+    try {
+      final headers = await _getAuthHeaders();
+      final url = Uri.parse('$_baseUrl/student/notifications/test-push');
+      final res = await http.post(
+        url,
+        headers: headers,
+        body: jsonEncode({
+          'title': title,
+          'body': body,
+          'route': route,
+          'type': type,
+        }),
+      ).timeout(const Duration(seconds: 15));
+
+      if (res.statusCode == 200) {
+        return jsonDecode(res.body) as Map<String, dynamic>;
+      } else {
+        return {
+          'success': false,
+          'message': 'HTTP ${res.statusCode}: ${res.body}',
+        };
+      }
+    } catch (e) {
+      return {
+        'success': false,
+        'message': 'Error triggering FCM test push: $e',
+      };
+    }
+  }
+
   /// Fetches in-app notifications for the authenticated student
   Future<List<NotificationModel>> fetchNotifications({
     int limit = 50,
