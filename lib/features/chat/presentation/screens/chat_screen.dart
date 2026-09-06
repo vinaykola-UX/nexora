@@ -38,6 +38,7 @@ class _ChatScreenState extends State<ChatScreen> {
   final FocusNode _messageFocusNode = FocusNode();
   final ScrollController _scrollController = ScrollController();
   final List<_ChatMessage> _messages = [];
+  final Set<_ChatMessage> _expandedSourceMessages = {};
   bool _isTyping = false;
   bool _isLoadingHistory = false;
   String? _currentConversationId;
@@ -77,6 +78,7 @@ class _ChatScreenState extends State<ChatScreen> {
 
   void _showInitialGreeting() {
     _messages.clear();
+    _expandedSourceMessages.clear();
     _messages.add(
       _ChatMessage(
         text: 'Hello! I am Nexora, your official BVC College & Study Assistant.\nAsk me about Data Structures (Linked Lists, Arrays), examinations, regulations (BR23), syllabus, circulars, fee dates, or college announcements.',
@@ -92,6 +94,7 @@ class _ChatScreenState extends State<ChatScreen> {
       _isLoadingHistory = true;
       _currentConversationId = conversationId;
       _messages.clear();
+      _expandedSourceMessages.clear();
     });
 
     try {
@@ -201,19 +204,13 @@ class _ChatScreenState extends State<ChatScreen> {
       if (!_isCurrentRequest(requestId)) return;
 
       if (chatResponse.success && chatResponse.answer.isNotEmpty) {
-        String? sourceLabel;
-        if (chatResponse.sources.isNotEmpty) {
-          final first = chatResponse.sources.first;
-          sourceLabel = first.title.isNotEmpty
-              ? first.title
-              : (first.source ?? 'Official Knowledge Base');
-        }
+        final sources = _realSources(chatResponse.sources);
 
         final aiMsg = _ChatMessage(
           text: chatResponse.answer,
           isUser: false,
           timestamp: DateTime.now(),
-          sourceLabel: sourceLabel,
+          sources: sources,
           document: chatResponse.document,
           documents: chatResponse.documents,
         );
@@ -343,6 +340,28 @@ class _ChatScreenState extends State<ChatScreen> {
       ..text = text
       ..selection = TextSelection.collapsed(offset: text.length);
     FocusScope.of(context).requestFocus(_messageFocusNode);
+  }
+
+  List<NexoraSource> _realSources(List<NexoraSource> sources) {
+    return sources.where((source) {
+      final uri = Uri.tryParse(source.url.trim());
+      return uri != null &&
+          (uri.scheme == 'http' || uri.scheme == 'https') &&
+          (source.title.trim().isNotEmpty || (source.source?.trim().isNotEmpty ?? false));
+    }).toList();
+  }
+
+  String _sourceTitle(NexoraSource source) {
+    if (source.title.trim().isNotEmpty) return source.title.trim();
+    if (source.source?.trim().isNotEmpty ?? false) return source.source!.trim();
+    return source.url;
+  }
+
+  List<NexoraSource> _searchResponseSources(NexoraSearchResponse? response) {
+    if (response == null) return const [];
+    return _realSources(response.sources
+        .map((source) => NexoraSource(title: source.title, url: source.url))
+        .toList());
   }
 
   void _startNewChat() {
@@ -605,7 +624,11 @@ class _ChatScreenState extends State<ChatScreen> {
     }
 
     // AI Message
-    final hasRagContent = message.sourceLabel != null;
+    final sources = message.sources.isNotEmpty
+        ? message.sources
+        : _searchResponseSources(message.searchResponse);
+    final hasSources = sources.isNotEmpty;
+    final sourcesExpanded = _expandedSourceMessages.contains(message);
     final results = message.searchResponse?.results ?? [];
 
     return Padding(
@@ -657,7 +680,7 @@ class _ChatScreenState extends State<ChatScreen> {
                     child: Icon(
                       message.isError
                           ? Icons.error_outline
-                          : hasRagContent
+                          : hasSources
                               ? Icons.school_rounded
                               : Icons.auto_awesome,
                       color: message.isError
@@ -673,7 +696,7 @@ class _ChatScreenState extends State<ChatScreen> {
                       style: TextStyle(
                         fontSize: 14.5,
                         height: 1.45,
-                        fontWeight: (results.isNotEmpty && !hasRagContent) ? FontWeight.w600 : FontWeight.normal,
+                        fontWeight: (results.isNotEmpty && !hasSources) ? FontWeight.w600 : FontWeight.normal,
                         color: message.isError
                             ? const Color(NexoraColors.error)
                             : const Color(NexoraColors.text),
@@ -693,34 +716,55 @@ class _ChatScreenState extends State<ChatScreen> {
               ],
 
               // RAG subtle indicator: "Based on Data Structures • Unit II"
-              if (hasRagContent) ...[
+              if (hasSources) ...[
                 const SizedBox(height: NexoraSpacing.md),
-                Container(
-                  padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
-                  decoration: BoxDecoration(
-                    color: const Color(NexoraColors.primary).withOpacity(0.08),
+                Align(
+                  alignment: Alignment.centerLeft,
+                  child: InkWell(
+                    onTap: () {
+                      setState(() {
+                        if (sourcesExpanded) {
+                          _expandedSourceMessages.remove(message);
+                        } else {
+                          _expandedSourceMessages.add(message);
+                        }
+                      });
+                    },
                     borderRadius: BorderRadius.circular(8),
-                  ),
-                  child: Row(
-                    mainAxisSize: MainAxisSize.min,
-                    children: [
-                      const Icon(
-                        Icons.menu_book_outlined,
-                        size: 13,
-                        color: Color(NexoraColors.primary),
+                    child: Container(
+                      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+                      decoration: BoxDecoration(
+                        color: const Color(0xFFF4F4F4),
+                        borderRadius: BorderRadius.circular(8),
                       ),
-                      const SizedBox(width: 5),
-                      Text(
-                        'Based on ${message.sourceLabel}',
-                        style: const TextStyle(
-                          fontSize: 11.5,
-                          fontWeight: FontWeight.w600,
-                          color: Color(NexoraColors.primary),
-                        ),
+                      child: Row(
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          const Icon(Icons.attach_file_rounded, size: 14, color: Color(NexoraColors.textSecondary)),
+                          const SizedBox(width: 5),
+                          Text(
+                            'Sources (${sources.length})',
+                            style: const TextStyle(
+                              fontSize: 11.5,
+                              fontWeight: FontWeight.w600,
+                              color: Color(NexoraColors.textSecondary),
+                            ),
+                          ),
+                          const SizedBox(width: 2),
+                          Icon(
+                            sourcesExpanded ? Icons.keyboard_arrow_up_rounded : Icons.keyboard_arrow_down_rounded,
+                            size: 16,
+                            color: const Color(NexoraColors.textSecondary),
+                          ),
+                        ],
                       ),
-                    ],
+                    ),
                   ),
                 ),
+                if (sourcesExpanded) ...[
+                  const SizedBox(height: NexoraSpacing.sm),
+                  _buildSourcesBucket(sources),
+                ],
               ],
 
               // Retry Button if error
@@ -753,39 +797,6 @@ class _ChatScreenState extends State<ChatScreen> {
                 ),
               ],
 
-              // Sources footer reference
-              if (message.searchResponse != null &&
-                  message.searchResponse!.sources.isNotEmpty) ...[
-                const SizedBox(height: NexoraSpacing.lg),
-                const Divider(height: 1),
-                const SizedBox(height: NexoraSpacing.sm),
-                Row(
-                  children: [
-                    const Icon(Icons.shield_outlined, size: 14, color: Color(NexoraColors.textMuted)),
-                    const SizedBox(width: 4),
-                    const Text(
-                      'Verified Official Sources: ',
-                      style: TextStyle(
-                        fontSize: 11,
-                        fontWeight: FontWeight.w600,
-                        color: Color(NexoraColors.textMuted),
-                      ),
-                    ),
-                    Expanded(
-                      child: Text(
-                        message.searchResponse!.sources.map((s) => s.title).join(' • '),
-                        style: const TextStyle(
-                          fontSize: 11,
-                          color: Color(NexoraColors.textSecondary),
-                        ),
-                        maxLines: 1,
-                        overflow: TextOverflow.ellipsis,
-                      ),
-                    ),
-                  ],
-                ),
-              ],
-
               // Message Actions Footer (Copy Button)
               if (!message.isError && message.text.isNotEmpty) ...[
                 const SizedBox(height: NexoraSpacing.sm),
@@ -799,6 +810,54 @@ class _ChatScreenState extends State<ChatScreen> {
             ],
           ),
         ),
+      ),
+    );
+  }
+
+  Widget _buildSourcesBucket(List<NexoraSource> sources) {
+    return Container(
+      width: double.infinity,
+      decoration: BoxDecoration(
+        color: const Color(0xFFF9F9F9),
+        borderRadius: BorderRadius.circular(10),
+      ),
+      child: Column(
+        children: sources.asMap().entries.map((entry) {
+          final index = entry.key;
+          final source = entry.value;
+          return Column(
+            children: [
+              InkWell(
+                onTap: () => _openOfficialUrl(source.url),
+                borderRadius: BorderRadius.circular(10),
+                child: Padding(
+                  padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+                  child: Row(
+                    children: [
+                      const Icon(Icons.link_rounded, size: 16, color: Color(NexoraColors.textSecondary)),
+                      const SizedBox(width: 8),
+                      Expanded(
+                        child: Text(
+                          _sourceTitle(source),
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
+                          style: const TextStyle(
+                            fontSize: 12.5,
+                            color: Color(NexoraColors.text),
+                          ),
+                        ),
+                      ),
+                      const SizedBox(width: 6),
+                      const Icon(Icons.open_in_new_rounded, size: 14, color: Color(NexoraColors.textMuted)),
+                    ],
+                  ),
+                ),
+              ),
+              if (index < sources.length - 1)
+                const Divider(height: 1, indent: 12, endIndent: 12),
+            ],
+          );
+        }).toList(),
       ),
     );
   }
@@ -1225,7 +1284,7 @@ class _ChatMessage {
   final NexoraSearchResponse? searchResponse;
   final bool isError;
   final String? retryQuery;
-  final String? sourceLabel;
+  final List<NexoraSource> sources;
   final NexoraDocumentInfo? document;
   final List<NexoraDocumentInfo>? documents;
 
@@ -1236,7 +1295,7 @@ class _ChatMessage {
     this.searchResponse,
     this.isError = false,
     this.retryQuery,
-    this.sourceLabel,
+    this.sources = const [],
     this.document,
     this.documents,
   });
