@@ -35,11 +35,14 @@ class _ChatScreenState extends State<ChatScreen> {
   final ChatRepository _chatRepository = ChatRepository();
 
   late TextEditingController _messageController;
+  final FocusNode _messageFocusNode = FocusNode();
   final ScrollController _scrollController = ScrollController();
   final List<_ChatMessage> _messages = [];
   bool _isTyping = false;
   bool _isLoadingHistory = false;
   String? _currentConversationId;
+  int _requestSequence = 0;
+  int? _activeRequestId;
 
   String get _currentUid {
     final user = FirebaseAuth.instance.currentUser;
@@ -84,6 +87,7 @@ class _ChatScreenState extends State<ChatScreen> {
   }
 
   Future<void> _loadExistingConversation(String conversationId) async {
+    _stopActiveRequest();
     setState(() {
       _isLoadingHistory = true;
       _currentConversationId = conversationId;
@@ -121,7 +125,9 @@ class _ChatScreenState extends State<ChatScreen> {
 
   @override
   void dispose() {
+    _ragService.cancelActiveChatRequest();
     _messageController.dispose();
+    _messageFocusNode.dispose();
     _scrollController.dispose();
     _apiService.dispose();
     _ragService.dispose();
@@ -131,6 +137,8 @@ class _ChatScreenState extends State<ChatScreen> {
   Future<void> _handleSendMessage(String text) async {
     final query = text.trim();
     if (query.isEmpty || _isTyping) return;
+
+    final requestId = ++_requestSequence;
 
     final uid = _currentUid;
 
@@ -158,6 +166,7 @@ class _ChatScreenState extends State<ChatScreen> {
       );
       _messageController.clear();
       _isTyping = true;
+      _activeRequestId = requestId;
     });
 
     _scrollToBottom();
@@ -171,6 +180,8 @@ class _ChatScreenState extends State<ChatScreen> {
         isUser: true,
       );
     }
+
+    if (!_isCurrentRequest(requestId)) return;
 
     try {
       // ---------------------------------------------------------------
@@ -187,7 +198,7 @@ class _ChatScreenState extends State<ChatScreen> {
         conversation: recentHistory,
       );
 
-      if (!mounted) return;
+      if (!_isCurrentRequest(requestId)) return;
 
       if (chatResponse.success && chatResponse.answer.isNotEmpty) {
         String? sourceLabel;
@@ -209,6 +220,7 @@ class _ChatScreenState extends State<ChatScreen> {
 
         setState(() {
           _isTyping = false;
+          _activeRequestId = null;
           _messages.add(aiMsg);
         });
 
@@ -225,7 +237,7 @@ class _ChatScreenState extends State<ChatScreen> {
         // Fallback check against official BVC portal notifications if /chat returned empty
         final portalResponse = await _apiService.searchOfficialSources(query);
 
-        if (!mounted) return;
+        if (!_isCurrentRequest(requestId)) return;
 
         String aiText;
                 NexoraSearchResponse? parsedResponse;
@@ -250,6 +262,7 @@ class _ChatScreenState extends State<ChatScreen> {
 
         setState(() {
           _isTyping = false;
+          _activeRequestId = null;
           _messages.add(aiMsg);
         });
 
@@ -266,7 +279,7 @@ class _ChatScreenState extends State<ChatScreen> {
         }
       }
     } catch (e) {
-      if (!mounted) return;
+      if (!_isCurrentRequest(requestId)) return;
       final errorText = 'An unexpected error occurred while connecting to the college knowledge base. Please try again.';
       final aiMsg = _ChatMessage(
         text: errorText,
@@ -278,6 +291,7 @@ class _ChatScreenState extends State<ChatScreen> {
 
       setState(() {
         _isTyping = false;
+        _activeRequestId = null;
         _messages.add(aiMsg);
       });
 
@@ -308,7 +322,31 @@ class _ChatScreenState extends State<ChatScreen> {
     });
   }
 
+  bool _isCurrentRequest(int requestId) {
+    return mounted && _activeRequestId == requestId;
+  }
+
+  void _stopActiveRequest() {
+    if (!_isTyping) return;
+
+    _requestSequence++;
+    _activeRequestId = null;
+    _ragService.cancelActiveChatRequest();
+    if (mounted) {
+      setState(() => _isTyping = false);
+      _scrollToBottom();
+    }
+  }
+
+  void _loadPromptForEditing(String text) {
+    _messageController
+      ..text = text
+      ..selection = TextSelection.collapsed(offset: text.length);
+    FocusScope.of(context).requestFocus(_messageFocusNode);
+  }
+
   void _startNewChat() {
+    _stopActiveRequest();
     setState(() {
       _currentConversationId = null;
       _showInitialGreeting();
@@ -448,19 +486,9 @@ class _ChatScreenState extends State<ChatScreen> {
               ),
               child: Container(
                 decoration: BoxDecoration(
-                  color: const Color(NexoraColors.surface),
-                  borderRadius: BorderRadius.circular(100),
-                  border: Border.all(
-                    color: const Color(0xFFE0E0E0),
-                    width: 1.0,
-                  ),
-                  boxShadow: [
-                    BoxShadow(
-                      color: Colors.black.withOpacity(0.04),
-                      blurRadius: 10,
-                      offset: const Offset(0, 2),
-                    ),
-                  ],
+                  // Neutral, borderless ChatGPT-style composer surface.
+                  color: const Color(0xFFF4F4F4),
+                  borderRadius: BorderRadius.circular(24),
                 ),
                 padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 4),
                 child: Row(
@@ -469,6 +497,7 @@ class _ChatScreenState extends State<ChatScreen> {
                     Expanded(
                       child: TextField(
                         controller: _messageController,
+                        focusNode: _messageFocusNode,
                         style: const TextStyle(
                           fontSize: 15,
                           color: Color(NexoraColors.text),
@@ -483,11 +512,13 @@ class _ChatScreenState extends State<ChatScreen> {
                           isDense: true,
                           contentPadding: EdgeInsets.symmetric(vertical: 10),
                         ),
+                        enableInteractiveSelection: true,
                         onSubmitted: (val) => _handleSendMessage(val),
                       ),
                     ),
 
-                    // Send Button
+                    // Send button becomes a compact stop control while a
+                    // response is being generated.
                     Container(
                       width: 42,
                       height: 42,
@@ -496,12 +527,15 @@ class _ChatScreenState extends State<ChatScreen> {
                         shape: BoxShape.circle,
                       ),
                       child: IconButton(
-                        icon: const Icon(
-                          Icons.arrow_upward_rounded,
+                        tooltip: _isTyping ? 'Stop generating' : 'Send message',
+                        icon: Icon(
+                          _isTyping ? Icons.stop_rounded : Icons.arrow_upward_rounded,
                           color: Colors.white,
                           size: 20,
                         ),
-                        onPressed: () => _handleSendMessage(_messageController.text),
+                        onPressed: _isTyping
+                            ? _stopActiveRequest
+                            : () => _handleSendMessage(_messageController.text),
                       ),
                     ),
                   ],
@@ -537,13 +571,33 @@ class _ChatScreenState extends State<ChatScreen> {
               horizontal: NexoraSpacing.lg,
               vertical: NexoraSpacing.md,
             ),
-            child: Text(
-              message.text,
-              style: const TextStyle(
-                fontSize: 14.5,
-                height: 1.45,
-                color: Colors.white,
-              ),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.end,
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                SelectableText(
+                  message.text,
+                  style: const TextStyle(
+                    fontSize: 14.5,
+                    height: 1.45,
+                    color: Colors.white,
+                  ),
+                ),
+                const SizedBox(height: 2),
+                InkWell(
+                  onTap: () => _loadPromptForEditing(message.text),
+                  borderRadius: BorderRadius.circular(12),
+                  child: const Padding(
+                    padding: EdgeInsets.all(3),
+                    child: Icon(
+                      Icons.edit_outlined,
+                      size: 15,
+                      color: Color(0xFFD6D6D6),
+                    ),
+                  ),
+                ),
+              ],
+            ),
             ),
           ),
         ),

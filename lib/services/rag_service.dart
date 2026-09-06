@@ -296,8 +296,25 @@ class RagService {
   static const Duration _timeout = Duration(seconds: 15);
 
   final http.Client _client;
+  final bool _ownsClient;
+  http.Client? _activeChatClient;
 
-  RagService({http.Client? client}) : _client = client ?? http.Client();
+  RagService({http.Client? client})
+      : _client = client ?? http.Client(),
+        _ownsClient = client == null;
+
+  /// Cancels the in-flight `/chat` call, if there is one.
+  ///
+  /// Chat requests receive their own client in production so stopping one
+  /// request does not affect future searches or chats.
+  bool cancelActiveChatRequest() {
+    final activeClient = _activeChatClient;
+    if (activeClient == null) return false;
+
+    _activeChatClient = null;
+    activeClient.close();
+    return true;
+  }
 
   // -------------------------------------------------------------------------
   // GET /documents
@@ -360,7 +377,14 @@ class RagService {
           'conversation': conversation,
       });
 
-      final response = await _client
+      // A dedicated client lets the UI stop an active response without
+      // closing the service client used by later requests.
+      final chatClient = _ownsClient ? http.Client() : _client;
+      if (_ownsClient) {
+        _activeChatClient = chatClient;
+      }
+
+      final response = await chatClient
           .post(
             url,
             headers: {
@@ -391,6 +415,12 @@ class RagService {
     } catch (e) {
       debugPrint('[RagService] Unexpected error in sendChatMessage: $e');
       return NexoraChatResponse.failure('An unexpected error occurred.');
+    } finally {
+      final activeClient = _activeChatClient;
+      if (activeClient != null) {
+        _activeChatClient = null;
+        activeClient.close();
+      }
     }
   }
 
@@ -526,6 +556,7 @@ class RagService {
       };
 
   void dispose() {
+    cancelActiveChatRequest();
     _client.close();
   }
 }
