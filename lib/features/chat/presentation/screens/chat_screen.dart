@@ -494,7 +494,7 @@ class _ChatScreenState extends State<ChatScreen> {
               ),
             ),
 
-// Claude-style bottom input bar
+            // Claude-style bottom input bar
             ValueListenableBuilder<TextEditingValue>(
               valueListenable: _messageController,
               builder: (context, value, _) {
@@ -590,7 +590,15 @@ class _ChatScreenState extends State<ChatScreen> {
                     ),
                   ),
                 );
-      Widget _buildMessageBubble(_ChatMessage message) {
+              },
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _buildMessageBubble(_ChatMessage message) {
     if (message.isUser) {
       return Padding(
         padding: const EdgeInsets.only(bottom: NexoraSpacing.md),
@@ -1089,7 +1097,8 @@ class _ChatScreenState extends State<ChatScreen> {
       ),
     );
   }
-Widget _buildSearchResultCard(SearchResultItem item) {
+
+  Widget _buildSearchResultCard(SearchResultItem item) {
     return Container(
       decoration: BoxDecoration(
         color: const Color(NexoraColors.surface),
