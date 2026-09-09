@@ -494,80 +494,103 @@ class _ChatScreenState extends State<ChatScreen> {
               ),
             ),
 
-            // Bottom Pill Input Bar
-            Container(
-              padding: const EdgeInsets.symmetric(
-                horizontal: NexoraSpacing.lg,
-                vertical: NexoraSpacing.md,
-              ),
-              decoration: const BoxDecoration(
-                color: Color(NexoraColors.background),
-              ),
-              child: Container(
-                decoration: BoxDecoration(
-                  // Neutral, borderless ChatGPT-style composer surface.
-                  color: const Color(0xFFF4F4F4),
-                  borderRadius: BorderRadius.circular(24),
-                ),
-                padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 4),
-                child: Row(
-                  children: [
-                    const SizedBox(width: NexoraSpacing.md),
-                    Expanded(
-                      child: TextField(
-                        controller: _messageController,
-                        focusNode: _messageFocusNode,
-                        style: const TextStyle(
-                          fontSize: 15,
-                          color: Color(NexoraColors.text),
+// Claude-style bottom input bar
+            ValueListenableBuilder<TextEditingValue>(
+              valueListenable: _messageController,
+              builder: (context, value, _) {
+                final hasText = value.text.trim().isNotEmpty;
+                return Container(
+                  padding: const EdgeInsets.fromLTRB(16, 8, 16, 16),
+                  color: const Color(0xFFFAF9F5),
+                  child: Container(
+                    padding: const EdgeInsets.fromLTRB(16, 8, 8, 8),
+                    decoration: BoxDecoration(
+                      color: Colors.white,
+                      borderRadius: BorderRadius.circular(28),
+                      border: Border.all(
+                        color: const Color(0xFFE5E4DF),
+                        width: 1,
+                      ),
+                      boxShadow: const [
+                        BoxShadow(
+                          color: Color(0x0A000000),
+                          blurRadius: 3,
+                          offset: Offset(0, 1),
                         ),
-                        decoration: const InputDecoration(
-                          hintText: 'Ask anything about BVC or your subjects...',
-                          hintStyle: TextStyle(
-                            color: Color(NexoraColors.textMuted),
-                            fontSize: 14,
+                      ],
+                    ),
+                    child: Row(
+                      crossAxisAlignment: CrossAxisAlignment.end,
+                      children: [
+                        Material(
+                          color: Colors.transparent,
+                          shape: const CircleBorder(),
+                          child: InkWell(
+                            customBorder: const CircleBorder(),
+                            onTap: () {},
+                            child: const SizedBox(
+                              width: 32,
+                              height: 32,
+                              child: Icon(Icons.add, size: 20, color: Color(0xFF6B6A63)),
+                            ),
                           ),
-                          border: InputBorder.none,
-                          isDense: true,
-                          contentPadding: EdgeInsets.symmetric(vertical: 10),
                         ),
-                        enableInteractiveSelection: true,
-                        onSubmitted: (val) => _handleSendMessage(val),
-                      ),
-                    ),
-
-                    // Send button becomes a compact stop control while a
-                    // response is being generated.
-                    Container(
-                      width: 42,
-                      height: 42,
-                      decoration: const BoxDecoration(
-                        color: Color(0xFF171717),
-                        shape: BoxShape.circle,
-                      ),
-                      child: IconButton(
-                        tooltip: _isTyping ? 'Stop generating' : 'Send message',
-                        icon: Icon(
-                          _isTyping ? Icons.stop_rounded : Icons.arrow_upward_rounded,
-                          color: Colors.white,
-                          size: 20,
+                        Expanded(
+                          child: ConstrainedBox(
+                            constraints: const BoxConstraints(maxHeight: 120),
+                            child: TextField(
+                              controller: _messageController,
+                              focusNode: _messageFocusNode,
+                              maxLines: null,
+                              minLines: 1,
+                              style: const TextStyle(
+                                fontSize: 16,
+                                color: Color(0xFF2D2D2A),
+                                height: 1.4,
+                              ),
+                              cursorColor: const Color(0xFFC15F3C),
+                              decoration: const InputDecoration(
+                                hintText: 'Ask anything about BVC or your subjects...',
+                                hintStyle: TextStyle(
+                                  color: Color(0xFFA8A69C),
+                                  fontSize: 15,
+                                ),
+                                border: InputBorder.none,
+                                isDense: true,
+                                contentPadding: EdgeInsets.symmetric(vertical: 10),
+                              ),
+                              onSubmitted: (val) => _handleSendMessage(val),
+                            ),
+                          ),
                         ),
-                        onPressed: _isTyping
-                            ? _stopActiveRequest
-                            : () => _handleSendMessage(_messageController.text),
-                      ),
+                        const SizedBox(width: 4),
+                        GestureDetector(
+                          onTap: _isTyping
+                              ? _stopActiveRequest
+                              : () => _handleSendMessage(_messageController.text),
+                          child: AnimatedContainer(
+                            duration: const Duration(milliseconds: 150),
+                            width: 32,
+                            height: 32,
+                            decoration: BoxDecoration(
+                              color: _isTyping
+                                  ? const Color(0xFF171717)
+                                  : (hasText ? const Color(0xFFC15F3C) : const Color(0xFFD1CFC4)),
+                              shape: BoxShape.circle,
+                            ),
+                            alignment: Alignment.center,
+                            child: Icon(
+                              _isTyping ? Icons.stop_rounded : Icons.arrow_upward_rounded,
+                              color: Colors.white,
+                              size: 16,
+                            ),
+                          ),
+                        ),
+                      ],
                     ),
-                  ],
-                ),
-              ),
-            ),
-          ],
-        ),
-      ),
-    );
-  }
-
-  Widget _buildMessageBubble(_ChatMessage message) {
+                  ),
+                );
+      Widget _buildMessageBubble(_ChatMessage message) {
     if (message.isUser) {
       return Padding(
         padding: const EdgeInsets.only(bottom: NexoraSpacing.md),
@@ -1066,8 +1089,7 @@ class _ChatScreenState extends State<ChatScreen> {
       ),
     );
   }
-
-  Widget _buildSearchResultCard(SearchResultItem item) {
+Widget _buildSearchResultCard(SearchResultItem item) {
     return Container(
       decoration: BoxDecoration(
         color: const Color(NexoraColors.surface),
@@ -1299,5 +1321,3 @@ class _ChatMessage {
     this.documents,
   });
 }
-
-
