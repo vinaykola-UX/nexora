@@ -25,10 +25,12 @@ import { semanticSearch } from './rag/semantic_search';
 import { mergeRetrievalSignals, calculateHybridScores } from './rag/hybrid_ranker';
 import { backfillChunksToVectorize, syncChunkToVectorize } from './rag/vector_sync';
 import { EMBEDDING_CONFIG } from './rag/embedding_service';
-import { FirebaseAuthGuard } from './bvc/firebase_auth_guard';
+import { FirebaseAuthGuard, AuthenticatedFirebaseUser } from './bvc/firebase_auth_guard';
 import { BVCService } from './bvc/bvc_service';
 import { BVCStorage } from './bvc/bvc_storage';
 import { BVCNormalizer } from './bvc/bvc_normalizer';
+import { MemoryStorage } from './memory/memory_storage';
+import { MemoryManager } from './memory/memory_manager';
 
 export interface Env extends EnvAIConfig {
   ENVIRONMENT?: string;
@@ -121,6 +123,7 @@ async function ensureTrustedSitesTable(env?: Env): Promise<void> {
         ).bind(site.url, site.label).run();
       }
     }
+
   } catch (e) {
     console.warn('[Nexora Worker] ensureTrustedSitesTable warning:', e);
   }
@@ -1788,6 +1791,97 @@ export default {
           const counts = await NotificationStorage.getUnreadCount(env.DB, studentUser.uid);
           return jsonResponse({ success: true, ...counts });
         }
+
+        // =====================================================================
+        // Student Memory & Conversation Persistence Routes (Scoped to studentUser.uid)
+        // =====================================================================
+
+        // GET /student/memory/settings - Get memory enabled status
+        if (request.method === 'GET' && path === '/student/memory/settings') {
+          const memoryEnabled = await MemoryStorage.isMemoryEnabled(env.DB, studentUser.uid);
+          return jsonResponse({ success: true, memory_enabled: memoryEnabled });
+        }
+
+        // POST /student/memory/settings - Toggle memory ON/OFF
+        if (request.method === 'POST' && path === '/student/memory/settings') {
+          let bBody: any;
+          try {
+            bBody = await request.json();
+          } catch {
+            return jsonResponse({ success: false, error: 'Bad Request', message: 'Invalid JSON body' }, 400);
+          }
+
+          const memoryEnabled = bBody?.memory_enabled !== false && bBody?.enabled !== false;
+          await MemoryStorage.setMemoryEnabled(env.DB, studentUser.uid, memoryEnabled);
+          return jsonResponse({
+            success: true,
+            memory_enabled: memoryEnabled,
+            message: memoryEnabled ? 'Conversational memory enabled.' : 'Conversational memory disabled.',
+          });
+        }
+
+        // GET /student/memories - List student's long-term memories
+        if (request.method === 'GET' && path === '/student/memories') {
+          const memories = await MemoryStorage.getActiveMemories(env.DB, studentUser.uid, 50);
+          return jsonResponse({ success: true, count: memories.length, memories });
+        }
+
+        // DELETE /student/memories/:id - Delete an individual memory
+        if (request.method === 'DELETE' && path.startsWith('/student/memories/') && path !== '/student/memories') {
+          const memoryId = path.replace('/student/memories/', '').trim();
+          if (!memoryId) {
+            return jsonResponse({ success: false, error: 'Bad Request', message: 'Memory ID is required.' }, 400);
+          }
+
+          const deleted = await MemoryStorage.deleteMemory(env.DB, studentUser.uid, memoryId);
+          return jsonResponse({
+            success: deleted,
+            message: deleted ? 'Memory deleted successfully.' : 'Memory not found or not owned by student.',
+          });
+        }
+
+        // DELETE /student/memories - Clear all student memories
+        if (request.method === 'DELETE' && path === '/student/memories') {
+          const cleared = await MemoryStorage.clearAllMemories(env.DB, studentUser.uid);
+          return jsonResponse({
+            success: true,
+            cleared_count: cleared,
+            message: 'All personal conversational memories cleared successfully.',
+          });
+        }
+
+        // GET /student/conversations - List persisted conversations
+        if (request.method === 'GET' && path === '/student/conversations') {
+          const limit = parseInt(url.searchParams.get('limit') || '50', 10);
+          const offset = parseInt(url.searchParams.get('offset') || '0', 10);
+          const conversations = await MemoryStorage.listConversations(env.DB, studentUser.uid, limit, offset);
+          return jsonResponse({ success: true, count: conversations.length, conversations });
+        }
+
+        // GET /student/conversations/:id - Retrieve conversation and its messages
+        if (request.method === 'GET' && path.startsWith('/student/conversations/')) {
+          const convId = path.replace('/student/conversations/', '').trim();
+          const conversation = await MemoryStorage.getConversation(env.DB, studentUser.uid, convId);
+          if (!conversation) {
+            return jsonResponse(
+              { success: false, error: 'Not Found', message: 'Conversation not found or not authorized.' },
+              404
+            );
+          }
+
+          const messages = await MemoryStorage.getMessages(env.DB, studentUser.uid, convId, 100);
+          return jsonResponse({ success: true, conversation, messages });
+        }
+
+        // DELETE /student/conversations/:id - Delete conversation and its messages
+        if (request.method === 'DELETE' && path.startsWith('/student/conversations/')) {
+          const convId = path.replace('/student/conversations/', '').trim();
+          const deleted = await MemoryStorage.deleteConversation(env.DB, studentUser.uid, convId);
+          return jsonResponse({
+            success: deleted,
+            message: deleted ? 'Conversation deleted successfully.' : 'Conversation not found or not authorized.',
+          });
+        }
       }
 
       // 9. Grounded Conversational AI Route
@@ -1876,6 +1970,48 @@ export default {
           }
         }
 
+        // ---------------------------------------------------------------------
+        // Memory & Identity Layer (Additive, Authenticated via Firebase)
+        // ---------------------------------------------------------------------
+        let studentUser: AuthenticatedFirebaseUser | null = null;
+        try {
+          studentUser = await FirebaseAuthGuard.authenticate(request, env.ENVIRONMENT);
+        } catch (_) {}
+
+        let studentMemories: string[] = [];
+        let conversationSummary: string | undefined = undefined;
+        let relevantPastContext: Array<{ title: string; content: string }> = [];
+        let isMemoryActive = false;
+        const requestedConvId = body?.conversation_id || body?.conversationId;
+
+        if (studentUser && env.DB) {
+          try {
+            isMemoryActive = await MemoryStorage.isMemoryEnabled(env.DB, studentUser.uid);
+
+            if (isMemoryActive) {
+              const activeMems = await MemoryStorage.searchRelevantMemories(env.DB, studentUser.uid, trimmedMessage, 5);
+              studentMemories = activeMems.map((m) => m.memory_text);
+
+              relevantPastContext = await MemoryStorage.searchRelevantPastConversations(
+                env.DB,
+                studentUser.uid,
+                requestedConvId,
+                trimmedMessage,
+                2
+              );
+            }
+
+            if (requestedConvId) {
+              const conv = await MemoryStorage.getConversation(env.DB, studentUser.uid, requestedConvId);
+              if (conv?.summary) {
+                conversationSummary = conv.summary;
+              }
+            }
+          } catch (mErr) {
+            console.warn('[Nexora Worker] Memory retrieval non-fatal error:', mErr);
+          }
+        }
+
         const chatResponse = await controller.handleChat({
           message: trimmedMessage,
           conversation: body?.conversation || [],
@@ -1886,7 +2022,79 @@ export default {
           portalResults,
           portalSources,
           trustedSites: activeTrustedSites,
+          studentMemories,
+          conversationSummary,
+          relevantPastContext,
         });
+
+        // ---------------------------------------------------------------------
+        // Post-Generation: Safe Asynchronous Persistence & Memory Extraction
+        // ---------------------------------------------------------------------
+        let activeConvId = requestedConvId;
+        if (studentUser && env.DB && chatResponse.answer) {
+          try {
+            if (!activeConvId) {
+              const autoTitle = MemoryManager.generateTitle(trimmedMessage);
+              const newConv = await MemoryStorage.createConversation(env.DB, studentUser.uid, autoTitle);
+              activeConvId = newConv.id;
+            } else {
+              const existingConv = await MemoryStorage.getConversation(env.DB, studentUser.uid, activeConvId);
+              if (!existingConv) {
+                const autoTitle = MemoryManager.generateTitle(trimmedMessage);
+                await MemoryStorage.createConversation(env.DB, studentUser.uid, autoTitle, activeConvId);
+              }
+            }
+
+            // 1. Persist user message
+            await MemoryStorage.saveMessage(env.DB, studentUser.uid, activeConvId, 'user', trimmedMessage);
+
+            // 2. Persist assistant response
+            await MemoryStorage.saveMessage(
+              env.DB,
+              studentUser.uid,
+              activeConvId,
+              'assistant',
+              chatResponse.answer,
+              JSON.stringify({ tool: chatResponse.tool, sources: chatResponse.sources })
+            );
+
+            // 3. Rolling summary if conversation turns >= 8
+            const conversationHistory = body?.conversation || [];
+            if (conversationHistory.length >= 8) {
+              const fullMessages = [
+                ...conversationHistory,
+                { role: 'user', content: trimmedMessage },
+                { role: 'assistant', content: chatResponse.answer },
+              ];
+              const updatedSummary = MemoryManager.updateRollingSummary(fullMessages, conversationSummary);
+              if (updatedSummary && updatedSummary !== conversationSummary) {
+                await MemoryStorage.updateConversationSummary(env.DB, studentUser.uid, activeConvId, updatedSummary);
+              }
+            }
+
+            // 4. Selective memory extraction if memory is enabled
+            if (isMemoryActive) {
+              const extraction = MemoryManager.extractMemories(trimmedMessage, chatResponse.answer);
+              if (extraction.shouldRemember && extraction.memories.length > 0) {
+                for (const mem of extraction.memories) {
+                  await MemoryStorage.upsertMemory(env.DB, studentUser.uid, {
+                    text: mem.text,
+                    category: mem.category,
+                    importance: mem.importance,
+                    sourceConversationId: activeConvId,
+                  });
+                }
+              }
+            }
+          } catch (postErr) {
+            console.warn('[Nexora Worker] Post-generation persistence error (non-fatal):', postErr);
+          }
+        }
+
+        const responsePayload = {
+          ...chatResponse,
+          ...(activeConvId ? { conversation_id: activeConvId } : {}),
+        };
 
         // Maintain backwards compatibility for legacy /ask callers
         if (path === '/ask') {
@@ -1898,11 +2106,12 @@ export default {
             sources: chatResponse.sources,
             document: chatResponse.document,
             documents: chatResponse.documents,
+            ...(activeConvId ? { conversation_id: activeConvId } : {}),
             ...(chatResponse.debug ? { debug: chatResponse.debug } : {}),
           });
         }
 
-        return jsonResponse(chatResponse);
+        return jsonResponse(responsePayload);
       }
 
       // 10. Unknown routes (404)

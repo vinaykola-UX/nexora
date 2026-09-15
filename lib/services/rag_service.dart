@@ -1,6 +1,7 @@
 import 'dart:async';
 import 'dart:convert';
 import 'dart:io';
+import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/foundation.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:http/http.dart' as http;
@@ -222,6 +223,7 @@ class NexoraChatResponse {
   final List<NexoraSource> sources;
   final NexoraDocumentInfo? document;
   final List<NexoraDocumentInfo> documents;
+  final String? conversationId;
   final bool success;
   final String? error;
 
@@ -231,6 +233,7 @@ class NexoraChatResponse {
     this.sources = const [],
     this.document,
     this.documents = const [],
+    this.conversationId,
     this.success = true,
     this.error,
   });
@@ -253,6 +256,7 @@ class NexoraChatResponse {
       sources: parsedSources,
       document: docJson != null ? NexoraDocumentInfo.fromJson(docJson) : null,
       documents: parsedDocs,
+      conversationId: json['conversation_id'] as String? ?? json['conversationId'] as String?,
       success: true,
     );
   }
@@ -263,8 +267,42 @@ class NexoraChatResponse {
       sources: const [],
       document: null,
       documents: const [],
+      conversationId: null,
       success: false,
       error: errorMessage,
+    );
+  }
+}
+
+/// A long-term student memory item persisted in Cloudflare D1
+class StudentMemoryItem {
+  final String id;
+  final String memoryText;
+  final String category;
+  final double importance;
+  final DateTime createdAt;
+
+  const StudentMemoryItem({
+    required this.id,
+    required this.memoryText,
+    required this.category,
+    required this.importance,
+    required this.createdAt,
+  });
+
+  factory StudentMemoryItem.fromJson(Map<String, dynamic> json) {
+    DateTime parseDate(dynamic val) {
+      if (val is String) return DateTime.tryParse(val) ?? DateTime.now();
+      if (val is int) return DateTime.fromMillisecondsSinceEpoch(val);
+      return DateTime.now();
+    }
+
+    return StudentMemoryItem(
+      id: json['id'] as String? ?? '',
+      memoryText: json['memory_text'] as String? ?? json['memoryText'] as String? ?? '',
+      category: json['category'] as String? ?? 'other_non_sensitive_context',
+      importance: (json['importance'] as num?)?.toDouble() ?? 0.5,
+      createdAt: parseDate(json['created_at'] ?? json['createdAt']),
     );
   }
 }
@@ -352,6 +390,26 @@ class RagService {
     }
   }
 
+  Future<Map<String, String>> _getAuthHeaders() async {
+    final headers = <String, String>{
+      'Content-Type': 'application/json',
+      'Accept': 'application/json',
+      'User-Agent': 'Nexora-Flutter-App/1.0',
+    };
+    try {
+      final user = FirebaseAuth.instance.currentUser;
+      if (user != null) {
+        final token = await user.getIdToken();
+        if (token != null && token.isNotEmpty) {
+          headers['Authorization'] = 'Bearer $token';
+        }
+      }
+    } catch (e) {
+      debugPrint('[RagService] Note obtaining Firebase auth token: $e');
+    }
+    return headers;
+  }
+
   // -------------------------------------------------------------------------
   // POST /chat
   // -------------------------------------------------------------------------
@@ -361,6 +419,7 @@ class RagService {
   Future<NexoraChatResponse> sendChatMessage(
     String message, {
     List<Map<String, String>>? conversation,
+    String? conversationId,
   }) async {
     final trimmed = message.trim();
     if (trimmed.isEmpty) {
@@ -375,6 +434,8 @@ class RagService {
         'message': trimmed,
         if (conversation != null && conversation.isNotEmpty)
           'conversation': conversation,
+        if (conversationId != null && conversationId.isNotEmpty)
+          'conversation_id': conversationId,
       });
 
       // A dedicated client lets the UI stop an active response without
@@ -384,14 +445,12 @@ class RagService {
         _activeChatClient = chatClient;
       }
 
+      final authHeaders = await _getAuthHeaders();
+
       final response = await chatClient
           .post(
             url,
-            headers: {
-              'Content-Type': 'application/json',
-              'Accept': 'application/json',
-              'User-Agent': 'Nexora-Flutter-App/1.0',
-            },
+            headers: authHeaders,
             body: payload,
           )
           .timeout(const Duration(seconds: 30));
@@ -421,6 +480,89 @@ class RagService {
         _activeChatClient = null;
         activeClient.close();
       }
+    }
+  }
+
+  // -------------------------------------------------------------------------
+  // Student Conversational Memory APIs (Scoped to authenticated student)
+  // -------------------------------------------------------------------------
+
+  /// Check whether conversational memory is enabled
+  Future<bool> getMemorySettings() async {
+    final url = Uri.parse('$baseUrl/student/memory/settings');
+    try {
+      final headers = await _getAuthHeaders();
+      final response = await _client.get(url, headers: headers).timeout(_timeout);
+      if (response.statusCode == 200) {
+        final decoded = jsonDecode(utf8.decode(response.bodyBytes)) as Map<String, dynamic>;
+        return decoded['memory_enabled'] as bool? ?? true;
+      }
+      return true;
+    } catch (e) {
+      debugPrint('[RagService] getMemorySettings error: $e');
+      return true;
+    }
+  }
+
+  /// Toggle conversational memory ON or OFF
+  Future<bool> setMemorySettings(bool enabled) async {
+    final url = Uri.parse('$baseUrl/student/memory/settings');
+    try {
+      final headers = await _getAuthHeaders();
+      final response = await _client
+          .post(url, headers: headers, body: jsonEncode({'memory_enabled': enabled}))
+          .timeout(_timeout);
+      return response.statusCode == 200;
+    } catch (e) {
+      debugPrint('[RagService] setMemorySettings error: $e');
+      return false;
+    }
+  }
+
+  /// Fetch all active student memories
+  Future<List<StudentMemoryItem>> getStudentMemories() async {
+    final url = Uri.parse('$baseUrl/student/memories');
+    try {
+      final headers = await _getAuthHeaders();
+      final response = await _client.get(url, headers: headers).timeout(_timeout);
+      if (response.statusCode == 200) {
+        final decoded = jsonDecode(utf8.decode(response.bodyBytes)) as Map<String, dynamic>;
+        final rawList = decoded['memories'] as List<dynamic>? ?? [];
+        return rawList
+            .whereType<Map<String, dynamic>>()
+            .map((m) => StudentMemoryItem.fromJson(m))
+            .toList();
+      }
+      return [];
+    } catch (e) {
+      debugPrint('[RagService] getStudentMemories error: $e');
+      return [];
+    }
+  }
+
+  /// Delete a single memory
+  Future<bool> deleteStudentMemory(String memoryId) async {
+    final url = Uri.parse('$baseUrl/student/memories/$memoryId');
+    try {
+      final headers = await _getAuthHeaders();
+      final response = await _client.delete(url, headers: headers).timeout(_timeout);
+      return response.statusCode == 200;
+    } catch (e) {
+      debugPrint('[RagService] deleteStudentMemory error: $e');
+      return false;
+    }
+  }
+
+  /// Clear all saved memories
+  Future<bool> clearAllStudentMemories() async {
+    final url = Uri.parse('$baseUrl/student/memories');
+    try {
+      final headers = await _getAuthHeaders();
+      final response = await _client.delete(url, headers: headers).timeout(_timeout);
+      return response.statusCode == 200;
+    } catch (e) {
+      debugPrint('[RagService] clearAllStudentMemories error: $e');
+      return false;
     }
   }
 

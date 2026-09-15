@@ -7,6 +7,7 @@ import '../../../../core/theme/colors.dart';
 import '../../../../core/theme/spacing.dart';
 import '../../../authentication/data/auth_service.dart';
 import '../../../../services/notification_service.dart';
+import '../../../../services/rag_service.dart';
 import '../../data/student_profile_repository.dart';
 
 /// Profile screen displaying user details and settings
@@ -19,6 +20,216 @@ class ProfileScreen extends ConsumerStatefulWidget {
 
 class _ProfileScreenState extends ConsumerState<ProfileScreen> {
   bool _notificationsEnabled = true;
+  bool _memoryEnabled = true;
+  final RagService _ragService = RagService();
+
+  @override
+  void initState() {
+    super.initState();
+    unawaited(_loadMemorySettings());
+  }
+
+  Future<void> _loadMemorySettings() async {
+    try {
+      final enabled = await _ragService.getMemorySettings();
+      if (mounted) {
+        setState(() => _memoryEnabled = enabled);
+      }
+    } catch (_) {}
+  }
+
+  Future<void> _showMemoryManagementSheet() async {
+    showModalBottomSheet(
+      context: context,
+      isScrollControlled: true,
+      backgroundColor: const Color(NexoraColors.surface),
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
+      ),
+      builder: (modalContext) => StatefulBuilder(
+        builder: (context, setModalState) {
+          return SafeArea(
+            child: Container(
+              padding: const EdgeInsets.symmetric(
+                horizontal: NexoraSpacing.xl,
+                vertical: NexoraSpacing.lg,
+              ),
+              constraints: BoxConstraints(
+                maxHeight: MediaQuery.of(context).size.height * 0.75,
+              ),
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Center(
+                    child: Container(
+                      width: 40,
+                      height: 4,
+                      decoration: BoxDecoration(
+                        color: const Color(NexoraColors.border),
+                        borderRadius: BorderRadius.circular(2),
+                      ),
+                    ),
+                  ),
+                  const SizedBox(height: NexoraSpacing.md),
+                  Row(
+                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                    children: [
+                      const Text(
+                        'Conversational Memory',
+                        style: TextStyle(
+                          fontSize: 18,
+                          fontWeight: FontWeight.bold,
+                          color: Color(NexoraColors.text),
+                        ),
+                      ),
+                      Switch(
+                        value: _memoryEnabled,
+                        activeThumbColor: const Color(NexoraColors.primary),
+                        onChanged: (val) async {
+                          setModalState(() => _memoryEnabled = val);
+                          setState(() => _memoryEnabled = val);
+                          await _ragService.setMemorySettings(val);
+                        },
+                      ),
+                    ],
+                  ),
+                  const SizedBox(height: 4),
+                  const Text(
+                    'Nexora can remember useful information from your conversations to provide more relevant responses.',
+                    style: TextStyle(
+                      fontSize: 13,
+                      color: Color(NexoraColors.textSecondary),
+                      height: 1.4,
+                    ),
+                  ),
+                  const SizedBox(height: NexoraSpacing.md),
+                  const Divider(color: Color(NexoraColors.divider), height: 1),
+                  const SizedBox(height: NexoraSpacing.md),
+                  Row(
+                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                    children: [
+                      const Text(
+                        'Saved Memories',
+                        style: TextStyle(
+                          fontSize: 15,
+                          fontWeight: FontWeight.bold,
+                          color: Color(NexoraColors.text),
+                        ),
+                      ),
+                      TextButton(
+                        onPressed: () async {
+                          final confirmed = await showDialog<bool>(
+                            context: context,
+                            builder: (ctx) => AlertDialog(
+                              backgroundColor: const Color(NexoraColors.surface),
+                              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
+                              title: const Text('Clear All Memories?'),
+                              content: const Text(
+                                'This will delete all saved conversational preferences and memories. Conversations themselves will remain.',
+                              ),
+                              actions: [
+                                TextButton(
+                                  onPressed: () => Navigator.pop(ctx, false),
+                                  child: const Text('Cancel'),
+                                ),
+                                ElevatedButton(
+                                  onPressed: () => Navigator.pop(ctx, true),
+                                  style: ElevatedButton.styleFrom(
+                                    backgroundColor: const Color(0xFFD32F2F),
+                                    foregroundColor: Colors.white,
+                                  ),
+                                  child: const Text('Clear All'),
+                                ),
+                              ],
+                            ),
+                          );
+                          if (confirmed == true) {
+                            await _ragService.clearAllStudentMemories();
+                            setModalState(() {});
+                          }
+                        },
+                        child: const Text(
+                          'Clear All',
+                          style: TextStyle(
+                            color: Color(0xFFD32F2F),
+                            fontWeight: FontWeight.w600,
+                            fontSize: 13,
+                          ),
+                        ),
+                      ),
+                    ],
+                  ),
+                  Expanded(
+                    child: FutureBuilder<List<StudentMemoryItem>>(
+                      future: _ragService.getStudentMemories(),
+                      builder: (ctx, snapshot) {
+                        if (snapshot.connectionState == ConnectionState.waiting) {
+                          return const Center(child: CircularProgressIndicator(strokeWidth: 2));
+                        }
+                        final memories = snapshot.data ?? [];
+                        if (memories.isEmpty) {
+                          return Center(
+                            child: Padding(
+                              padding: const EdgeInsets.all(NexoraSpacing.lg),
+                              child: Text(
+                                _memoryEnabled
+                                    ? 'No saved memories yet.\nAs you chat, Nexora will selectively remember your learning goals and preferences.'
+                                    : 'Memory is currently disabled.',
+                                textAlign: TextAlign.center,
+                                style: const TextStyle(
+                                  fontSize: 13,
+                                  color: Color(NexoraColors.textSecondary),
+                                ),
+                              ),
+                            ),
+                          );
+                        }
+
+                        return ListView.separated(
+                          shrinkWrap: true,
+                          itemCount: memories.length,
+                          separatorBuilder: (_, __) => const Divider(color: Color(NexoraColors.divider), height: 1),
+                          itemBuilder: (ctx, idx) {
+                            final mem = memories[idx];
+                            return ListTile(
+                              contentPadding: EdgeInsets.zero,
+                              title: Text(
+                                mem.memoryText,
+                                style: const TextStyle(
+                                  fontSize: 14,
+                                  fontWeight: FontWeight.w500,
+                                  color: Color(NexoraColors.text),
+                                ),
+                              ),
+                              subtitle: Text(
+                                mem.category.replaceAll('_', ' '),
+                                style: const TextStyle(
+                                  fontSize: 12,
+                                  color: Color(NexoraColors.textSecondary),
+                                ),
+                              ),
+                              trailing: IconButton(
+                                icon: const Icon(Icons.delete_outline, size: 20, color: Color(NexoraColors.textSecondary)),
+                                onPressed: () async {
+                                  await _ragService.deleteStudentMemory(mem.id);
+                                  setModalState(() {});
+                                },
+                              ),
+                            );
+                          },
+                        );
+                      },
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          );
+        },
+      ),
+    );
+  }
 
   Future<void> _showLogoutConfirmation() async {
     final confirmed = await showDialog<bool>(
@@ -363,6 +574,17 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
                       _notificationsEnabled = !_notificationsEnabled;
                     });
                   },
+                ),
+                _buildMenuItem(
+                  title: 'Memory',
+                  icon: Icons.psychology_outlined,
+                  subtitle: _memoryEnabled ? 'Enabled' : 'Disabled',
+                  trailing: const Icon(
+                    Icons.chevron_right_rounded,
+                    color: Color(NexoraColors.textSecondary),
+                    size: 20,
+                  ),
+                  onTap: _showMemoryManagementSheet,
                 ),
                 _buildMenuItem(
                   title: 'Theme',

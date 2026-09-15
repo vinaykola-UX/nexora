@@ -192,7 +192,16 @@ class _ChatScreenState extends State<ChatScreen> {
       // Step 1: Send query to user-facing conversational AI endpoint (/chat)
       // Displays clean AI-generated response.answer (never raw chunks)
       // ---------------------------------------------------------------
-      final recentHistory = _messages.take(6).map((m) => {
+      // Multi-turn context: Send the most recent conversation turns (up to 6)
+      // rather than the oldest messages, ensuring continuous context awareness.
+      final prevMessages = _messages.length > 1
+          ? _messages.sublist(0, _messages.length - 1)
+          : <_ChatMessage>[];
+      final recentSlice = prevMessages.length > 6
+          ? prevMessages.sublist(prevMessages.length - 6)
+          : prevMessages;
+
+      final recentHistory = recentSlice.map((m) => {
         'role': m.isUser ? 'user' : 'assistant',
         'content': m.text,
       }).toList();
@@ -200,6 +209,7 @@ class _ChatScreenState extends State<ChatScreen> {
       final chatResponse = await _ragService.sendChatMessage(
         query,
         conversation: recentHistory,
+        conversationId: _currentConversationId,
       );
 
       if (!_isCurrentRequest(requestId)) return;

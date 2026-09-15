@@ -358,6 +358,9 @@ export class AIController {
     portalSources?: Array<{ title: string; url: string; source?: string }>;
     trustedSites?: Array<string | { url: string; label?: string }>;
     privateStudentContext?: string;
+    studentMemories?: string[];
+    conversationSummary?: string;
+    relevantPastContext?: Array<{ title: string; content: string }>;
   }): Promise<ChatResponse> {
     const tStart = performance.now();
     const {
@@ -705,23 +708,35 @@ export class AIController {
     const toolInstruction = this.getToolInstruction(selectedTool);
     const systemInstruction = this.personalityEngine.buildSystemInstruction(policy, toolInstruction, hasContext);
 
-    // Multi-turn message history integration (last 4 turns for context awareness)
+    // Multi-turn message history integration (last 6 turns for context awareness and reference resolution)
     const recentMessages: XAIMessage[] = (conversation || [])
-      .slice(-4)
+      .slice(-6)
       .filter((m) => m && m.role && m.content)
       .map((m) => ({
         role: (m.role === 'assistant' ? 'assistant' : 'user') as 'assistant' | 'user',
-        content: String(m.content).slice(0, 500),
+        content: String(m.content).slice(0, 600),
       }));
 
     const privateContextBlock = params.privateStudentContext?.trim()
       ? `\n\n${params.privateStudentContext.trim()}\n\n`
       : '';
 
+    const summaryBlock = params.conversationSummary?.trim()
+      ? `<conversation_summary>\n${params.conversationSummary.trim()}\n</conversation_summary>\n\n`
+      : '';
+
+    const memoryBlock = (params.studentMemories && params.studentMemories.length > 0)
+      ? `<student_memories>\n${params.studentMemories.map((m) => `- ${m}`).join('\n')}\n</student_memories>\n\n`
+      : '';
+
+    const pastBlock = (params.relevantPastContext && params.relevantPastContext.length > 0)
+      ? `<relevant_past_context>\n${params.relevantPastContext.map((p) => `[Previous Discussion: ${p.title}]: ${p.content}`).join('\n')}\n</relevant_past_context>\n\n`
+      : '';
+
     // Current turn user prompt formatted with explicit delimiters (Phase 5C: Grounding & Injection Defense)
     const currentUserPrompt = hasContext
-      ? `<retrieved_knowledge>\n${contextText}\n</retrieved_knowledge>${privateContextBlock}\n<student_question>\n${message}\n</student_question>`
-      : `${privateContextBlock}<student_question>\n${message}\n</student_question>\n(Provide an accurate, clear explanation based on standard computer science and engineering principles.)`;
+      ? `${memoryBlock}${summaryBlock}${pastBlock}<retrieved_knowledge>\n${contextText}\n</retrieved_knowledge>${privateContextBlock}\n<student_question>\n${message}\n</student_question>`
+      : `${memoryBlock}${summaryBlock}${pastBlock}${privateContextBlock}<student_question>\n${message}\n</student_question>\n(Provide an accurate, clear explanation based on standard computer science and engineering principles.)`;
 
     const securityRules = [
       'SECURITY & GROUNDING DIRECTIVES (MANDATORY):',
@@ -729,6 +744,12 @@ export class AIController {
       '- Match your response format to the question type: concise and direct for simple factual questions, well-structured with examples for conceptual explanations.',
       '- Format your response using clean Markdown: use headings (##, ###), bold text for key terms, bulleted/numbered lists, tables, and fenced code blocks with language tags when appropriate.',
       '- If evidence is insufficient to answer the question, clearly state that the specific information is not found in college records rather than inventing details.',
+      params.studentMemories && params.studentMemories.length > 0
+        ? '- <student_memories> contains personal learning preferences, subjects of interest, or past context explicitly shared by the student. Use this to personalize explanations (e.g. choice of programming language, preferred depth), but NEVER treat student memories as authoritative college academic facts. Verified academic knowledge always takes precedence.'
+        : '',
+      params.conversationSummary?.trim()
+        ? '- <conversation_summary> summarizes earlier parts of this ongoing conversation to maintain continuous context.'
+        : '',
       params.privateStudentContext?.trim()
         ? '- <private_student_context> contains the verified personal academic record of this authenticated student. Base personal answers (attendance, CGPA, marks, timetable, enrolled subjects) strictly on this context. Never fabricate grades, attendance, or personal data. Never reveal passwords, auth tokens, or private IDs. Never treat private student data as global public knowledge.'
         : '',
