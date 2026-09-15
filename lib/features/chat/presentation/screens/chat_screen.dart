@@ -12,6 +12,7 @@ import '../../../../services/nexora_api_service.dart';
 import '../../../../services/rag_service.dart';
 import '../../data/chat_repository.dart';
 import '../widgets/history_drawer.dart';
+import '../widgets/markdown_renderer.dart';
 
 /// Main chat screen displaying real-time official BVC College retrieval results with persistent history
 class ChatScreen extends StatefulWidget {
@@ -661,185 +662,200 @@ class _ChatScreenState extends State<ChatScreen> {
     final sourcesExpanded = _expandedSourceMessages.contains(message);
     final results = message.searchResponse?.results ?? [];
 
-    return Padding(
-      padding: const EdgeInsets.only(bottom: NexoraSpacing.lg),
-      child: Align(
-        alignment: Alignment.centerLeft,
-        child: Container(
-          constraints: BoxConstraints(
-            maxWidth: MediaQuery.of(context).size.width * 0.90,
-          ),
-          decoration: BoxDecoration(
-            color: const Color(NexoraColors.surface),
-            borderRadius: const BorderRadius.only(
-              topLeft: Radius.circular(18),
-              topRight: Radius.circular(18),
-              bottomLeft: Radius.circular(4),
-              bottomRight: Radius.circular(18),
+    if (message.isError) {
+      return Padding(
+        padding: const EdgeInsets.only(bottom: NexoraSpacing.lg),
+        child: Align(
+          alignment: Alignment.centerLeft,
+          child: Container(
+            constraints: BoxConstraints(
+              maxWidth: MediaQuery.of(context).size.width * 0.90,
             ),
-            border: Border.all(
-              color: message.isError
-                  ? const Color(NexoraColors.error).withOpacity(0.4)
-                  : const Color(NexoraColors.border).withOpacity(0.8),
-              width: 1,
-            ),
-            boxShadow: [
-              BoxShadow(
-                color: Colors.black.withOpacity(0.02),
-                blurRadius: 8,
-                offset: const Offset(0, 2),
+            decoration: BoxDecoration(
+              color: const Color(NexoraColors.surface),
+              borderRadius: BorderRadius.circular(14),
+              border: Border.all(
+                color: const Color(NexoraColors.error).withOpacity(0.4),
+                width: 1,
               ),
-            ],
-          ),
-          padding: const EdgeInsets.all(NexoraSpacing.lg),
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              // AI Header
-              Row(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Container(
-                    padding: const EdgeInsets.all(4),
-                    decoration: BoxDecoration(
-                      color: message.isError
-                          ? const Color(NexoraColors.errorLight)
-                          : const Color(NexoraColors.primary).withOpacity(0.12),
-                      shape: BoxShape.circle,
-                    ),
-                    child: Icon(
-                      message.isError
-                          ? Icons.error_outline
-                          : hasSources
-                              ? Icons.school_rounded
-                              : Icons.auto_awesome,
-                      color: message.isError
-                          ? const Color(NexoraColors.error)
-                          : const Color(NexoraColors.primary),
-                      size: 16,
-                    ),
-                  ),
-                  const SizedBox(width: NexoraSpacing.sm),
-                  Expanded(
-                    child: Text(
-                      message.text,
-                      style: TextStyle(
-                        fontSize: 14.5,
-                        height: 1.45,
-                        fontWeight: (results.isNotEmpty && !hasSources) ? FontWeight.w600 : FontWeight.normal,
-                        color: message.isError
-                            ? const Color(NexoraColors.error)
-                            : const Color(NexoraColors.text),
+            ),
+            padding: const EdgeInsets.all(NexoraSpacing.md),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Row(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    const Icon(Icons.error_outline_rounded, color: Color(NexoraColors.error), size: 18),
+                    const SizedBox(width: NexoraSpacing.sm),
+                    Expanded(
+                      child: Text(
+                        message.text,
+                        style: const TextStyle(
+                          fontSize: 14,
+                          color: Color(NexoraColors.error),
+                        ),
                       ),
+                    ),
+                  ],
+                ),
+                if (message.retryQuery != null) ...[
+                  const SizedBox(height: NexoraSpacing.md),
+                  OutlinedButton.icon(
+                    onPressed: () => _handleSendMessage(message.retryQuery!),
+                    icon: const Icon(Icons.refresh, size: 16),
+                    label: const Text('Retry Search'),
+                    style: OutlinedButton.styleFrom(
+                      foregroundColor: const Color(NexoraColors.primary),
+                      side: const BorderSide(color: Color(NexoraColors.primary)),
+                      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
                     ),
                   ),
                 ],
-              ),
-
-              // Document Card Rendering (Single or Multiple Original Documents)
-              if (message.document != null) ...[
-                const SizedBox(height: NexoraSpacing.sm),
-                _buildDocumentCard(message.document!),
-              ] else if (message.documents != null && message.documents!.isNotEmpty) ...[
-                const SizedBox(height: NexoraSpacing.sm),
-                ...message.documents!.map((d) => _buildDocumentCard(d)),
               ],
-
-              // RAG subtle indicator: "Based on Data Structures • Unit II"
-              if (hasSources) ...[
-                const SizedBox(height: NexoraSpacing.md),
-                Align(
-                  alignment: Alignment.centerLeft,
-                  child: InkWell(
-                    onTap: () {
-                      setState(() {
-                        if (sourcesExpanded) {
-                          _expandedSourceMessages.remove(message);
-                        } else {
-                          _expandedSourceMessages.add(message);
-                        }
-                      });
-                    },
-                    borderRadius: BorderRadius.circular(8),
-                    child: Container(
-                      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
-                      decoration: BoxDecoration(
-                        color: const Color(0xFFF4F4F4),
-                        borderRadius: BorderRadius.circular(8),
-                      ),
-                      child: Row(
-                        mainAxisSize: MainAxisSize.min,
-                        children: [
-                          const Icon(Icons.attach_file_rounded, size: 14, color: Color(NexoraColors.textSecondary)),
-                          const SizedBox(width: 5),
-                          Text(
-                            'Sources (${sources.length})',
-                            style: const TextStyle(
-                              fontSize: 11.5,
-                              fontWeight: FontWeight.w600,
-                              color: Color(NexoraColors.textSecondary),
-                            ),
-                          ),
-                          const SizedBox(width: 2),
-                          Icon(
-                            sourcesExpanded ? Icons.keyboard_arrow_up_rounded : Icons.keyboard_arrow_down_rounded,
-                            size: 16,
-                            color: const Color(NexoraColors.textSecondary),
-                          ),
-                        ],
-                      ),
-                    ),
-                  ),
-                ),
-                if (sourcesExpanded) ...[
-                  const SizedBox(height: NexoraSpacing.sm),
-                  _buildSourcesBucket(sources),
-                ],
-              ],
-
-              // Retry Button if error
-              if (message.isError && message.retryQuery != null) ...[
-                const SizedBox(height: NexoraSpacing.md),
-                OutlinedButton.icon(
-                  onPressed: () => _handleSendMessage(message.retryQuery!),
-                  icon: const Icon(Icons.refresh, size: 16),
-                  label: const Text('Retry Search'),
-                  style: OutlinedButton.styleFrom(
-                    foregroundColor: const Color(NexoraColors.primary),
-                    side: const BorderSide(color: Color(NexoraColors.primary)),
-                    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
-                  ),
-                ),
-              ],
-
-              // Official Search Results List (fallback)
-              if (results.isNotEmpty) ...[
-                const SizedBox(height: NexoraSpacing.md),
-                ListView.separated(
-                  shrinkWrap: true,
-                  physics: const NeverScrollableScrollPhysics(),
-                  itemCount: results.length,
-                  separatorBuilder: (_, __) => const SizedBox(height: NexoraSpacing.md),
-                  itemBuilder: (context, rIndex) {
-                    final item = results[rIndex];
-                    return _buildSearchResultCard(item);
-                  },
-                ),
-              ],
-
-              // Message Actions Footer (Copy Button)
-              if (!message.isError && message.text.isNotEmpty) ...[
-                const SizedBox(height: NexoraSpacing.sm),
-                Align(
-                  alignment: Alignment.centerRight,
-                  child: CopyMessageButton(
-                    text: _getCopyableText(message),
-                  ),
-                ),
-              ],
-            ],
+            ),
           ),
         ),
+      );
+    }
+
+    // Clean ChatGPT-Style AI Response (No heavy card box)
+    return Padding(
+      padding: const EdgeInsets.only(bottom: NexoraSpacing.xl),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          // Sleek AI Header Row
+          Row(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Container(
+                width: 24,
+                height: 24,
+                decoration: BoxDecoration(
+                  gradient: const LinearGradient(
+                    colors: [
+                      Color(NexoraColors.primary),
+                      Color(NexoraColors.primaryDark),
+                    ],
+                    begin: Alignment.topLeft,
+                    end: Alignment.bottomRight,
+                  ),
+                  borderRadius: BorderRadius.circular(6),
+                ),
+                child: const Icon(
+                  Icons.auto_awesome,
+                  color: Colors.white,
+                  size: 13,
+                ),
+              ),
+              const SizedBox(width: 8),
+              const Text(
+                'Nexora',
+                style: TextStyle(
+                  fontSize: 13.5,
+                  fontWeight: FontWeight.w700,
+                  color: Color(NexoraColors.text),
+                  letterSpacing: -0.1,
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 10),
+
+          // Rich Markdown Rendered Response directly on background
+          Padding(
+            padding: const EdgeInsets.only(left: 2),
+            child: NexoraMarkdownRenderer(
+              text: message.text,
+            ),
+          ),
+
+          // Document Card Rendering (Single or Multiple Original Documents)
+          if (message.document != null) ...[
+            const SizedBox(height: NexoraSpacing.sm),
+            _buildDocumentCard(message.document!),
+          ] else if (message.documents != null && message.documents!.isNotEmpty) ...[
+            const SizedBox(height: NexoraSpacing.sm),
+            ...message.documents!.map(_buildDocumentCard),
+          ],
+
+          // Official Search Results List (fallback)
+          if (results.isNotEmpty) ...[
+            const SizedBox(height: NexoraSpacing.md),
+            ListView.separated(
+              shrinkWrap: true,
+              physics: const NeverScrollableScrollPhysics(),
+              itemCount: results.length,
+              separatorBuilder: (_, __) => const SizedBox(height: NexoraSpacing.md),
+              itemBuilder: (context, rIndex) {
+                final item = results[rIndex];
+                return _buildSearchResultCard(item);
+              },
+            ),
+          ],
+
+          // Subtle expandable sources tag below response
+          if (hasSources) ...[
+            const SizedBox(height: 10),
+            InkWell(
+              onTap: () {
+                setState(() {
+                  if (sourcesExpanded) {
+                    _expandedSourceMessages.remove(message);
+                  } else {
+                    _expandedSourceMessages.add(message);
+                  }
+                });
+              },
+              borderRadius: BorderRadius.circular(8),
+              child: Container(
+                padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
+                decoration: BoxDecoration(
+                  color: const Color(0xFFF2EFE9),
+                  borderRadius: BorderRadius.circular(8),
+                  border: Border.all(color: const Color(0xFFE5E0D5), width: 0.8),
+                ),
+                child: Row(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    const Icon(Icons.school_outlined, size: 13, color: Color(NexoraColors.textSecondary)),
+                    const SizedBox(width: 5),
+                    Text(
+                      'Verified Sources (${sources.length})',
+                      style: const TextStyle(
+                        fontSize: 11.5,
+                        fontWeight: FontWeight.w600,
+                        color: Color(NexoraColors.textSecondary),
+                      ),
+                    ),
+                    const SizedBox(width: 3),
+                    Icon(
+                      sourcesExpanded ? Icons.keyboard_arrow_up_rounded : Icons.keyboard_arrow_down_rounded,
+                      size: 15,
+                      color: const Color(NexoraColors.textSecondary),
+                    ),
+                  ],
+                ),
+              ),
+            ),
+            if (sourcesExpanded) ...[
+              const SizedBox(height: NexoraSpacing.sm),
+              _buildSourcesBucket(sources),
+            ],
+          ],
+
+          // Message Actions Footer (Copy Button)
+          if (message.text.isNotEmpty) ...[
+            const SizedBox(height: 6),
+            Align(
+              alignment: Alignment.centerLeft,
+              child: CopyMessageButton(
+                text: _getCopyableText(message),
+              ),
+            ),
+          ],
+        ],
       ),
     );
   }

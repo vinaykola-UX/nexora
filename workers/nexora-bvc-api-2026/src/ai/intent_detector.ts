@@ -40,6 +40,7 @@ export type ExtendedUserIntent =
   | 'SUMMARY'
   | 'STUDY_NOTES'
   | 'STRESSED_STUDENT'
+  | 'OUT_OF_SCOPE'
   | 'UNKNOWN';
 
 export interface IntentDetectionResult {
@@ -253,13 +254,34 @@ export class IntentDetector {
       return { intent: 'SMALL_TALK', confidence: 0.9, signals };
     }
 
-    // 8. CASUAL CONVERSATION (About Nexora, state, general banter)
+    // 8. OUT-OF-SCOPE REQUESTS
+    // Nexora is a study and BVC support assistant, not a general-purpose chatbot.
+    // Keep greetings and brief acknowledgements above, but stop non-study requests
+    // here before they reach retrieval or an LLM.
+    const outOfScopePatterns = [
+      /\b(tell me a joke|bored|entertain me|roast me|sing a song|write a song|lyrics)\b/i,
+      /\b(weather|temperature|rain forecast|forecast)\b/i,
+      /\b(cricket|football|soccer|ipl|world cup|match score|sports)\b/i,
+      /\b(movie|movies|film|series|netflix|celebrity|actor|actress)\b/i,
+      /\b(stock market|share price|crypto|bitcoin|investment|trading)\b/i,
+      /\b(restaurant|recipe|cooking|shopping|buy a|travel plan|tourist)\b/i,
+      /\b(dating|relationship advice|love advice|girlfriend|boyfriend)\b/i,
+      /\b(politics|election|politician|prime minister|president)\b/i,
+    ];
+
+    for (const pattern of outOfScopePatterns) {
+      if (pattern.test(q)) {
+        signals.push('out_of_scope_marker');
+        return { intent: 'OUT_OF_SCOPE', confidence: 0.95, signals };
+      }
+    }
+
+    // 9. CASUAL CONVERSATION (About Nexora and its capabilities only)
     const casualPatterns = [
       /\b(what are you doing|what r u doing|what are u doing|what's up|whats up|wassup)\b/i,
       /\b(who are you|who r u|tell me about yourself|what can you do|are you a bot|are you ai|are you human)\b/i,
       /\b(what is your name|what.?s your name|who made you|who created you|who built you|what are you)\b/i,
       /\b(how are you|how r u|how are things|are you tired|are you awake|how.?s it going)\b/i,
-      /\b(tell me a joke|bored|entertain me|roast me|sing a song)\b/i,
     ];
 
     for (const pattern of casualPatterns) {
@@ -269,19 +291,30 @@ export class IntentDetector {
       }
     }
 
-    // 9. ACADEMIC EXPLANATION / CONCEPT INQUIRY
+    // 10. ACADEMIC EXPLANATION / CONCEPT INQUIRY
     const academicIndicators = [
       'what is', 'what are', 'define', 'explain', 'how does', 'difference between',
       'working of', 'architecture of', 'types of', 'properties of', 'applications of',
       'advantages of', 'disadvantages of', 'complexity of', 'operations on',
     ];
 
-    if (academicIndicators.some((ind) => q.includes(ind))) {
+    const academicTopicSignals = [
+      'algorithm', 'array', 'linked list', 'stack', 'queue', 'tree', 'graph',
+      'database', 'sql', 'operating system', 'computer network', 'compiler',
+      'java', 'python', 'c++', 'programming', 'software', 'data structure',
+      'engineering', 'circuit', 'electronics', 'mechanics', 'calculus', 'math',
+      'physics', 'chemistry', 'statistics', 'economics', 'management',
+      'syllabus', 'subject', 'unit', 'chapter', 'assignment', 'lab', 'project',
+      'exam', 'test', 'lecture', 'coursework', 'regulation', 'attendance',
+    ];
+
+    if (academicIndicators.some((ind) => q.includes(ind)) &&
+        academicTopicSignals.some((topic) => q.includes(topic))) {
       signals.push('academic_indicator');
       return { intent: 'ACADEMIC', confidence: 0.85, signals };
     }
 
-    // 10. Check conversation context if message is very short or ambiguous
+    // 11. Check conversation context if message is very short or ambiguous
     if (conversation && conversation.length > 0) {
       const lastUserMsg = [...conversation].reverse().find((m) => m.role === 'user')?.content?.toLowerCase() || '';
       if (lastUserMsg.includes('exam') || lastUserMsg.includes('test')) {
@@ -290,12 +323,9 @@ export class IntentDetector {
       }
     }
 
-    // 11. Fallback heuristic: If question has academic length and structure, treat as ACADEMIC, else UNKNOWN
-    if (q.split(/\s+/).length >= 3 && !q.includes('?')) {
-      signals.push('implicit_academic');
-      return { intent: 'ACADEMIC', confidence: 0.6, signals };
-    }
-
+    // Do not assume a question is academic merely because it is long or uses
+    // wording like "what is". Unknown requests are handled by the controller's
+    // scope guard instead of being passed to a general-purpose answer model.
     return { intent: 'UNKNOWN', confidence: 0.5, signals: ['ambiguous_input'] };
   }
 }

@@ -51,6 +51,8 @@ export const AI_LIMITS = {
   MAX_CODE_LINES_HARD: 100,
   MAX_WEB_SEARCHES: 1,
   DEFAULT_MODEL: '@cf/meta/llama-3.2-3b-instruct',
+  MIN_RELEVANCE_THRESHOLD: 0.05,
+  NEAR_DUPLICATE_SIMILARITY_THRESHOLD: 0.85,
 };
 
 export type AIToolType =
@@ -258,22 +260,88 @@ export class AIController {
       case 'document_search':
         return `The student requested an official college document and concept explanation. Provide a clean, structured overview covering: 1. Key Important Topics (bullet points) 2. Clear conceptual explanation grounded strictly in the verified BVC course context.`;
       case 'code_generator':
-        return `The student requested code. Provide a concise, clean implementation strictly under ${AI_LIMITS.MAX_CODE_LINES_DEFAULT} lines. Follow this format:\n1. Brief approach explanation (1-2 sentences)\n2. Complete, self-contained Code block (max ${AI_LIMITS.MAX_CODE_LINES_DEFAULT} lines)\n3. Time and Space complexity analysis. Never put jokes inside code.`;
+        return `The student requested code. Provide a concise, clean implementation strictly under ${AI_LIMITS.MAX_CODE_LINES_DEFAULT} lines. Follow this format:\n1. Brief approach explanation (1-2 sentences)\n2. Complete, self-contained Code block with appropriate language tag (max ${AI_LIMITS.MAX_CODE_LINES_DEFAULT} lines)\n3. Time and Space complexity analysis\n4. Brief explanation of key methods or logic after the code. Never put jokes inside code.`;
       case 'code_explainer':
-        return `Explain the code clearly, detailing what each class/method does and explaining its execution flow without unnecessary jokes.`;
+        return `Explain the code clearly, detailing what each class/method does and breaking down its execution flow step-by-step without unnecessary jokes.`;
       case 'quiz_generator':
-        return `Generate 3 multiple-choice practice quiz questions (MCQs) based strictly on the provided context, including options A, B, C, D and the correct answer with brief explanation for each.`;
+        return `Generate 3-5 well-structured multiple-choice practice quiz questions (MCQs) based strictly on the provided context, including options A, B, C, D and the correct answer with brief rationale for each.`;
       case 'summarizer':
-        return `Provide a concise 3-4 bullet point summary capturing the core concepts and definitions from the provided academic context.`;
+        return `Provide a concise, high-yield summary (3-5 bullet points) capturing the core concepts, definitions, and essential takeaways from the provided academic context.`;
       case 'study_notes':
-        return `Format the answer as clean, structured revision notes with headings, key definitions, important formulas/principles, and exam tips based on the retrieved context.`;
+        return `Format the answer as clean, structured revision notes with ## headings, key definitions, bullet points, important formulas/principles, and exam tips based on the retrieved context.`;
       case 'web_search':
         return `Summarize the official portal notice accurately, clearly advising students to check the original link for official updates.`;
       case 'explain':
       case 'knowledge_search':
       default:
-        return `Provide a clear, direct, and structured explanation answering the student's question based on the retrieved academic context.`;
+        return `Provide a clear, direct, and well-structured answer. For simple factual questions, keep it concise (2-4 sentences). For conceptual questions, structure the answer clearly with headings, bullet points, and an illustrative example where useful.`;
     }
+  }
+
+  /**
+   * Calculates token Jaccard similarity between two text snippets.
+   */
+  private calculateTextSimilarity(textA: string, textB: string): number {
+    if (!textA || !textB) return 0;
+    if (textA === textB) return 1.0;
+
+    const tokenize = (s: string) => {
+      const words = s.toLowerCase().replace(/[^\w\s]/g, ' ').split(/\s+/).filter((w) => w.length > 2);
+      return new Set(words);
+    };
+
+    const setA = tokenize(textA);
+    const setB = tokenize(textB);
+    if (setA.size === 0 || setB.size === 0) return 0;
+
+    let intersection = 0;
+    for (const word of setA) {
+      if (setB.has(word)) intersection++;
+    }
+    const union = setA.size + setB.size - intersection;
+    return union === 0 ? 0 : intersection / union;
+  }
+
+  /**
+   * Filters out retrieved chunks that do not meet the minimum relevance threshold.
+   * Uses named configurable constant AI_LIMITS.MIN_RELEVANCE_THRESHOLD.
+   * Preserves top candidate if all scores are low to prevent context starvation.
+   */
+  private filterIrrelevantChunks(
+    chunks: RankedChunk[],
+    threshold: number = AI_LIMITS.MIN_RELEVANCE_THRESHOLD
+  ): RankedChunk[] {
+    if (chunks.length === 0) return [];
+    const filtered = chunks.filter((c) => c.relevanceScore >= threshold);
+    if (filtered.length === 0 && chunks.length > 0 && chunks[0].relevanceScore > 0) {
+      return [chunks[0]];
+    }
+    return filtered;
+  }
+
+  /**
+   * Deduplicates retrieved chunks only when they are genuinely near-identical.
+   * Never deduplicates solely because chunks share the same document/unit/title.
+   * Preserves complementary chunks from the same document.
+   */
+  private deduplicateChunks(
+    chunks: RankedChunk[],
+    similarityThreshold: number = AI_LIMITS.NEAR_DUPLICATE_SIMILARITY_THRESHOLD
+  ): RankedChunk[] {
+    const result: RankedChunk[] = [];
+
+    for (const chunk of chunks) {
+      const isDuplicate = result.some((existing) => {
+        const sim = this.calculateTextSimilarity(existing.content, chunk.content);
+        return sim >= similarityThreshold;
+      });
+
+      if (!isDuplicate) {
+        result.push(chunk);
+      }
+    }
+
+    return result;
   }
 
   /**
@@ -353,6 +421,34 @@ export class AIController {
       };
     }
 
+    // Scope guard: do not let general-chat requests reach retrieval or an LLM.
+    // This response is intentionally deterministic so it never invents an
+    // answer or attaches irrelevant academic sources.
+    if (detectedIntent === 'OUT_OF_SCOPE') {
+      return {
+        answer:
+          'I’m Nexora, your BVC study assistant. I can help with subjects, syllabus, exams, regulations, placements, and college updates. What would you like help with?',
+        tool: selectedTool,
+        sources: [],
+        debug: debug ? {
+          detectedIntent,
+          selectedTool,
+          allowedTools,
+          retrievedChunkCount: 0,
+          model: 'scope_guard',
+          codeLineCount: 0,
+          generationStatus: 'out_of_scope_blocked',
+          timingsMs: {
+            intentDetection: Math.round((tIntentEnd - tIntentStart) * 100) / 100,
+            adsRetrieval: 0,
+            aiGeneration: 0,
+            total: Math.round((performance.now() - tStart) * 100) / 100,
+          },
+          adsPipelineStatus: 'skipped_for_scope_guard',
+        } : undefined,
+      };
+    }
+
     // 1.5 Authoritative Document Delivery (MODE B: Pure Document Request)
     let preRetrievedDocResult: DocumentSearchResult | null = null;
 
@@ -422,7 +518,8 @@ export class AIController {
         detectedIntent === 'SUMMARY' ||
         detectedIntent === 'STUDY_NOTES' ||
         detectedIntent === 'COLLEGE_INFO' ||
-        detectedIntent === 'DOCUMENT_SEARCH'
+        detectedIntent === 'DOCUMENT_SEARCH' ||
+        detectedIntent === 'UNKNOWN'
       );
 
     if (needsRetrieval && allChunks && allChunks.length > 0) {
@@ -495,6 +592,10 @@ export class AIController {
         retrievedChunks = adsRankedResults.slice(0, AI_LIMITS.MAX_RETRIEVED_CHUNKS);
       }
 
+      // Relevance filtering with named configurable constant and near-duplicate removal
+      retrievedChunks = this.filterIrrelevantChunks(retrievedChunks);
+      retrievedChunks = this.deduplicateChunks(retrievedChunks);
+
       adsPipelineStatus = vectorAvailable ? 'executed_hybrid' : 'executed_ads';
     }
     const tAdsEnd = performance.now();
@@ -532,6 +633,34 @@ export class AIController {
     const hasContext = contextText.length > 0 && retrievedChunks.length > 0;
 
     // 4. Grounding Validation & Strict Fallback Handling
+    // For an ambiguous request, only continue if Nexora's study knowledge base
+    // actually has relevant material. This prevents generic-chat answers while
+    // still supporting an unrecognized academic topic that is in the database.
+    if (detectedIntent === 'UNKNOWN' && !hasContext) {
+      return {
+        answer:
+          'I’m Nexora, your BVC study assistant. I can help with subjects, syllabus, exams, regulations, placements, and college updates. What would you like help with?',
+        tool: selectedTool,
+        sources: [],
+        debug: debug ? {
+          detectedIntent,
+          selectedTool,
+          allowedTools,
+          retrievedChunkCount: 0,
+          model: 'scope_guard',
+          codeLineCount: 0,
+          generationStatus: 'unknown_without_study_context',
+          timingsMs: {
+            intentDetection: Math.round((tIntentEnd - tIntentStart) * 100) / 100,
+            adsRetrieval: Math.round((tAdsEnd - tAdsStart) * 100) / 100,
+            aiGeneration: 0,
+            total: Math.round((performance.now() - tStart) * 100) / 100,
+          },
+          adsPipelineStatus,
+        } : undefined,
+      };
+    }
+
     // If a college info inquiry was made but no verified circulars/dates exist:
     if (detectedIntent === 'COLLEGE_INFO' && !hasContext) {
       const siteDisplayList = (trustedSites || [])
@@ -596,7 +725,10 @@ export class AIController {
 
     const securityRules = [
       'SECURITY & GROUNDING DIRECTIVES (MANDATORY):',
-      '- <retrieved_knowledge> contains authoritative reference context from BVC Engineering College. Always prioritize this context over general knowledge.',
+      '- <retrieved_knowledge> contains authoritative reference context from BVC Engineering College. Treat retrieved chunks as EVIDENCE to synthesize into a natural, cohesive response—never blindly dump raw chunks.',
+      '- Match your response format to the question type: concise and direct for simple factual questions, well-structured with examples for conceptual explanations.',
+      '- Format your response using clean Markdown: use headings (##, ###), bold text for key terms, bulleted/numbered lists, tables, and fenced code blocks with language tags when appropriate.',
+      '- If evidence is insufficient to answer the question, clearly state that the specific information is not found in college records rather than inventing details.',
       params.privateStudentContext?.trim()
         ? '- <private_student_context> contains the verified personal academic record of this authenticated student. Base personal answers (attendance, CGPA, marks, timetable, enrolled subjects) strictly on this context. Never fabricate grades, attendance, or personal data. Never reveal passwords, auth tokens, or private IDs. Never treat private student data as global public knowledge.'
         : '',
