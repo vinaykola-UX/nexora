@@ -49,6 +49,7 @@ dependencies:
   uuid: ^4.0.0
   connectivity_plus: ^6.0.0
   package_info_plus: ^10.2.1
+  flutter_tts: ^4.2.5
 
   # Logging
   logger: ^2.1.0

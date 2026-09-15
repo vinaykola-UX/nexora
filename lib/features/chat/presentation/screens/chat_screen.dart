@@ -1,15 +1,18 @@
+import 'dart:async';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
 import 'package:url_launcher/url_launcher.dart';
 
+import '../../../../app/router/app_router.dart';
 import '../../../../core/theme/colors.dart';
 import '../../../../core/theme/spacing.dart';
 import '../../../../core/widgets/copy_message_button.dart';
-import '../../../../app/router/app_router.dart';
+import '../../../../core/widgets/read_aloud_button.dart';
 import '../../../../models/search_response_model.dart';
 import '../../../../services/nexora_api_service.dart';
 import '../../../../services/rag_service.dart';
+import '../../../../services/text_to_speech_service.dart';
 import '../../data/chat_repository.dart';
 import '../widgets/history_drawer.dart';
 import '../widgets/markdown_renderer.dart';
@@ -34,6 +37,7 @@ class _ChatScreenState extends State<ChatScreen> {
   final NexoraApiService _apiService = NexoraApiService();
   final RagService _ragService = RagService();
   final ChatRepository _chatRepository = ChatRepository();
+  final TextToSpeechService _ttsService = TextToSpeechService();
 
   late TextEditingController _messageController;
   final FocusNode _messageFocusNode = FocusNode();
@@ -129,6 +133,9 @@ class _ChatScreenState extends State<ChatScreen> {
 
   @override
   void dispose() {
+    _ttsService
+      ..stop()
+      ..dispose();
     _ragService.cancelActiveChatRequest();
     _messageController.dispose();
     _messageFocusNode.dispose();
@@ -140,7 +147,11 @@ class _ChatScreenState extends State<ChatScreen> {
 
   Future<void> _handleSendMessage(String text) async {
     final query = text.trim();
-    if (query.isEmpty || _isTyping) return;
+    if (query.isEmpty || _isTyping) {
+      return;
+    }
+
+    await _ttsService.stop();
 
     final requestId = ++_requestSequence;
 
@@ -335,6 +346,7 @@ class _ChatScreenState extends State<ChatScreen> {
   }
 
   void _stopActiveRequest() {
+    unawaited(_ttsService.stop());
     if (!_isTyping) return;
 
     _requestSequence++;
@@ -376,6 +388,7 @@ class _ChatScreenState extends State<ChatScreen> {
   }
 
   void _startNewChat() {
+    unawaited(_ttsService.stop());
     _stopActiveRequest();
     setState(() {
       _currentConversationId = null;
@@ -855,13 +868,25 @@ class _ChatScreenState extends State<ChatScreen> {
             ],
           ],
 
-          // Message Actions Footer (Copy Button)
+          // Message Actions Footer (Read Aloud & Copy Button)
           if (message.text.isNotEmpty) ...[
             const SizedBox(height: 6),
             Align(
               alignment: Alignment.centerLeft,
-              child: CopyMessageButton(
-                text: _getCopyableText(message),
+              child: Row(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  ReadAloudButton(
+                    messageId: message.messageId,
+                    text: _getCopyableText(message),
+                    ttsService: _ttsService,
+                    enabled: !(_isTyping && message == _messages.last),
+                  ),
+                  const SizedBox(width: 8),
+                  CopyMessageButton(
+                    text: _getCopyableText(message),
+                  ),
+                ],
               ),
             ),
           ],
@@ -1334,16 +1359,6 @@ class _ChatScreenState extends State<ChatScreen> {
 }
 
 class _ChatMessage {
-  final String text;
-  final bool isUser;
-  final DateTime timestamp;
-  final NexoraSearchResponse? searchResponse;
-  final bool isError;
-  final String? retryQuery;
-  final List<NexoraSource> sources;
-  final NexoraDocumentInfo? document;
-  final List<NexoraDocumentInfo>? documents;
-
   _ChatMessage({
     required this.text,
     required this.isUser,
@@ -1354,5 +1369,18 @@ class _ChatMessage {
     this.sources = const [],
     this.document,
     this.documents,
-  });
+  }) : id = 'msg_${timestamp.millisecondsSinceEpoch}_${text.hashCode}';
+
+  final String id;
+  final String text;
+  final bool isUser;
+  final DateTime timestamp;
+  final NexoraSearchResponse? searchResponse;
+  final bool isError;
+  final String? retryQuery;
+  final List<NexoraSource> sources;
+  final NexoraDocumentInfo? document;
+  final List<NexoraDocumentInfo>? documents;
+
+  String get messageId => id;
 }
