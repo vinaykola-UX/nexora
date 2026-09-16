@@ -20,7 +20,7 @@ College-aware AI assistant for students, teachers/staff and administrators at BV
 
 The project is developed in structured phases to ensure clean, incremental progress:
 
-- **PHASE 0**: ✅ Project inspection & architecture
+- **PHASE 0**: Project inspection & architecture
 - **PHASE 1**: UI implementation from Figma design (IN PROGRESS)
 - **PHASE 2**: Navigation & local application state
 - **PHASE 3**: Firebase Authentication
