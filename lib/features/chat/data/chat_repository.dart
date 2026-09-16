@@ -550,6 +550,23 @@ class ChatRepository {
       debugPrint('[ChatRepository] Firestore pin note: $e');
     }
   }
+
+  /// Filter conversations by query against title and lastMessage preview.
+  /// Pure function: does not mutate input list or conversation objects.
+  List<ChatConversation> filterConversations(
+    List<ChatConversation> conversations,
+    String query,
+  ) {
+    final trimmed = query.trim();
+    if (trimmed.isEmpty) return conversations;
+
+    final q = trimmed.toLowerCase();
+    return conversations.where((conv) {
+      final titleMatch = conv.title.toLowerCase().contains(q);
+      final lastMsgMatch = conv.lastMessage?.toLowerCase().contains(q) ?? false;
+      return titleMatch || lastMsgMatch;
+    }).toList();
+  }
 }
 
 // ---------------------------------------------------------------------------

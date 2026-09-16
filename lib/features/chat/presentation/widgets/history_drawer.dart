@@ -22,6 +22,14 @@ class HistoryDrawer extends StatefulWidget {
 
 class _HistoryDrawerState extends State<HistoryDrawer> {
   final ChatRepository _chatRepository = ChatRepository();
+  final TextEditingController _searchController = TextEditingController();
+  String _searchQuery = '';
+
+  @override
+  void dispose() {
+    _searchController.dispose();
+    super.dispose();
+  }
 
   String get _currentUid {
     final user = FirebaseAuth.instance.currentUser;
@@ -281,6 +289,74 @@ class _HistoryDrawerState extends State<HistoryDrawer> {
                 ],
               ),
             ),
+
+            // Search Field directly below existing "History" header
+            Padding(
+              padding: const EdgeInsets.symmetric(horizontal: NexoraSpacing.lg),
+              child: Container(
+                height: 40,
+                decoration: BoxDecoration(
+                  color: const Color(NexoraColors.surface),
+                  borderRadius: BorderRadius.circular(10),
+                  border: Border.all(
+                    color: const Color(NexoraColors.border),
+                    width: 0.8,
+                  ),
+                ),
+                child: TextField(
+                  controller: _searchController,
+                  textInputAction: TextInputAction.search,
+                  style: const TextStyle(
+                    fontSize: 13.5,
+                    color: Color(NexoraColors.text),
+                  ),
+                  decoration: InputDecoration(
+                    hintText: 'Search chats...',
+                    hintStyle: const TextStyle(
+                      fontSize: 13,
+                      color: Color(NexoraColors.textMuted),
+                    ),
+                    prefixIcon: const Icon(
+                      Icons.search_rounded,
+                      size: 18,
+                      color: Color(NexoraColors.textSecondary),
+                    ),
+                    prefixIconConstraints: const BoxConstraints(
+                      minWidth: 36,
+                      minHeight: 36,
+                    ),
+                    suffixIcon: _searchQuery.isNotEmpty
+                        ? IconButton(
+                            icon: const Icon(
+                              Icons.close_rounded,
+                              size: 16,
+                              color: Color(NexoraColors.textSecondary),
+                            ),
+                            splashRadius: 16,
+                            onPressed: () {
+                              _searchController.clear();
+                              setState(() {
+                                _searchQuery = '';
+                              });
+                            },
+                          )
+                        : null,
+                    border: InputBorder.none,
+                    isDense: true,
+                    contentPadding: const EdgeInsets.symmetric(
+                      vertical: 10,
+                      horizontal: 8,
+                    ),
+                  ),
+                  onChanged: (value) {
+                    setState(() {
+                      _searchQuery = value;
+                    });
+                  },
+                ),
+              ),
+            ),
+            const SizedBox(height: NexoraSpacing.md),
             const Divider(color: Color(NexoraColors.divider), height: 1),
 
             // Persistent Chat List Stream
@@ -311,8 +387,13 @@ class _HistoryDrawerState extends State<HistoryDrawer> {
                     );
                   }
 
-                  final pinned = conversations.where((c) => c.isPinned).toList();
-                  final recent = conversations.where((c) => !c.isPinned).toList();
+                  final filtered = _chatRepository.filterConversations(conversations, _searchQuery);
+                  if (filtered.isEmpty) {
+                    return _buildNoMatchState();
+                  }
+
+                  final pinned = filtered.where((c) => c.isPinned).toList();
+                  final recent = filtered.where((c) => !c.isPinned).toList();
 
                   return ListView(
                     padding: const EdgeInsets.symmetric(
@@ -396,6 +477,79 @@ class _HistoryDrawerState extends State<HistoryDrawer> {
                 fontSize: 13,
                 color: Color(NexoraColors.textSecondary),
                 height: 1.4,
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _buildNoMatchState() {
+    return Center(
+      child: Padding(
+        padding: const EdgeInsets.all(NexoraSpacing.xl),
+        child: Column(
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: [
+            const Icon(
+              Icons.search_off_rounded,
+              size: 40,
+              color: Color(NexoraColors.textMuted),
+            ),
+            const SizedBox(height: NexoraSpacing.md),
+            const Text(
+              'No matching chats found',
+              textAlign: TextAlign.center,
+              style: TextStyle(
+                fontSize: 15,
+                fontWeight: FontWeight.w600,
+                color: Color(NexoraColors.text),
+              ),
+            ),
+            const SizedBox(height: NexoraSpacing.xs),
+            const Text(
+              'Try searching with a different keyword or prompt.',
+              textAlign: TextAlign.center,
+              style: TextStyle(
+                fontSize: 12.5,
+                color: Color(NexoraColors.textSecondary),
+              ),
+            ),
+            const SizedBox(height: NexoraSpacing.lg),
+            TextButton.icon(
+              onPressed: () {
+                _searchController.clear();
+                setState(() {
+                  _searchQuery = '';
+                });
+              },
+              icon: const Icon(
+                Icons.clear_rounded,
+                size: 16,
+                color: Color(NexoraColors.text),
+              ),
+              label: const Text(
+                'Clear search',
+                style: TextStyle(
+                  fontSize: 13,
+                  fontWeight: FontWeight.w600,
+                  color: Color(NexoraColors.text),
+                ),
+              ),
+              style: TextButton.styleFrom(
+                backgroundColor: const Color(NexoraColors.surface),
+                padding: const EdgeInsets.symmetric(
+                  horizontal: NexoraSpacing.lg,
+                  vertical: NexoraSpacing.sm,
+                ),
+                shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(100),
+                  side: const BorderSide(
+                    color: Color(NexoraColors.border),
+                    width: 0.8,
+                  ),
+                ),
               ),
             ),
           ],
