@@ -1,0 +1,217 @@
+name: Build & Release Nexora
+
+on:
+  # Trigger on version tags like v1.0.0, v1.2.3, etc.
+  push:
+    tags:
+      - 'v*'
+  # Manual trigger with version input
+  workflow_dispatch:
+    inputs:
+      version:
+        description: 'Release version (e.g., v1.0.0)'
+        required: true
+        default: 'v1.0.0'
+
+jobs:
+  # ────────────────────────────────────────────────────
+  # Build Android APK
+  # ────────────────────────────────────────────────────
+  build-android:
+    name: Build Android APK
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Set up JDK 17
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '17'
+
+      - name: Set up Flutter
+        uses: subosito/flutter-action@v2
+        with:
+          channel: stable
+          cache: true
+
+      - name: Backup Firebase configuration
+        shell: bash
+        run: |
+          if [ -f android/app/google-services.json ]; then
+            cp android/app/google-services.json /tmp/google-services.json
+            echo "Google Services file backed up."
+          fi
+          if [ -f android/app/src/main/AndroidManifest.xml ]; then
+            cp android/app/src/main/AndroidManifest.xml /tmp/AndroidManifest.xml
+            echo "AndroidManifest.xml backed up."
+          fi
+
+      - name: Remove old Android platform
+        shell: bash
+        run: |
+          rm -rf android
+          echo "Old Android platform removed."
+
+      - name: Regenerate Android platform
+        run: flutter create --platforms android --org com.nexorabvc .
+
+      - name: Restore Firebase configuration
+        shell: bash
+        run: |
+          if [ -f /tmp/google-services.json ]; then
+            cp /tmp/google-services.json android/app/google-services.json
+            echo "Google Services file restored."
+          fi
+          if [ -f /tmp/AndroidManifest.xml ]; then
+            cp /tmp/AndroidManifest.xml android/app/src/main/AndroidManifest.xml
+            echo "AndroidManifest.xml restored."
+          fi
+
+      - name: Flutter Pub Get
+        run: flutter pub get
+
+      - name: Generate App Launcher Icons
+        run: dart run flutter_launcher_icons
+        continue-on-error: true
+
+      - name: Build Release APK
+        run: flutter build apk --release
+
+      - name: Determine version
+        id: version
+        run: |
+          if [ "${{ github.event_name }}" = "workflow_dispatch" ]; then
+            echo "VERSION=${{ github.event.inputs.version }}" >> $GITHUB_OUTPUT
+          else
+            echo "VERSION=${{ github.ref_name }}" >> $GITHUB_OUTPUT
+          fi
+
+      - name: Rename APK
+        run: |
+          cp build/app/outputs/flutter-apk/app-release.apk "Nexora-${{ steps.version.outputs.VERSION }}.apk"
+
+      - name: Upload APK artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: android-apk
+          path: "Nexora-${{ steps.version.outputs.VERSION }}.apk"
+          if-no-files-found: error
+
+  # ────────────────────────────────────────────────────
+  # Build Windows Desktop App
+  # ────────────────────────────────────────────────────
+  build-windows:
+    name: Build Windows Desktop
+    runs-on: windows-latest
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Set up Flutter
+        uses: subosito/flutter-action@v2
+        with:
+          channel: stable
+          cache: true
+
+      - name: Enable Windows desktop
+        run: flutter config --enable-windows-desktop
+
+      - name: Flutter Pub Get
+        run: flutter pub get
+
+      - name: Build Windows release
+        run: flutter build windows --release
+
+      - name: Determine version
+        id: version
+        shell: bash
+        run: |
+          if [ "${{ github.event_name }}" = "workflow_dispatch" ]; then
+            echo "VERSION=${{ github.event.inputs.version }}" >> $GITHUB_OUTPUT
+          else
+            echo "VERSION=${{ github.ref_name }}" >> $GITHUB_OUTPUT
+          fi
+
+      - name: Package Windows build
+        shell: powershell
+        run: |
+          $version = "${{ steps.version.outputs.VERSION }}"
+          $src = "build\windows\x64\runner\Release"
+          $dest = "Nexora-Windows-Portable-$version"
+          Copy-Item -Path $src -Destination $dest -Recurse
+          Compress-Archive -Path "$dest\*" -DestinationPath "$dest.zip" -Force
+          Write-Host "Packaged: $dest.zip"
+
+      - name: Upload Windows artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: windows-portable
+          path: "Nexora-Windows-Portable-${{ steps.version.outputs.VERSION }}.zip"
+          if-no-files-found: error
+
+  # ────────────────────────────────────────────────────
+  # Create GitHub Release with all assets
+  # ────────────────────────────────────────────────────
+  release:
+    name: Create GitHub Release
+    needs: [build-android, build-windows]
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+
+    steps:
+      - name: Determine version
+        id: version
+        run: |
+          if [ "${{ github.event_name }}" = "workflow_dispatch" ]; then
+            echo "VERSION=${{ github.event.inputs.version }}" >> $GITHUB_OUTPUT
+          else
+            echo "VERSION=${{ github.ref_name }}" >> $GITHUB_OUTPUT
+          fi
+
+      - name: Download all artifacts
+        uses: actions/download-artifact@v4
+        with:
+          path: release-assets
+
+      - name: List release assets
+        run: |
+          echo "=== Release Assets ==="
+          find release-assets -type f
+          echo "======================"
+
+      - name: Create GitHub Release
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: ${{ steps.version.outputs.VERSION }}
+          name: "Nexora AI ${{ steps.version.outputs.VERSION }}"
+          body: |
+            ## Nexora AI ${{ steps.version.outputs.VERSION }} — BVC Engineering College
+
+            ### 📥 Downloads
+            - **Windows**: Download the `.zip` portable release, extract, and run `nexora.exe`
+            - **Android**: Download the `.apk` and install directly on Android 7.0+
+
+            ### ✨ Features
+            - College-aware AI assistant with BVC Engineering College knowledge base
+            - Offline study materials, syllabus viewer, and exam preparation
+            - Windows Explorer integration for local file management
+            - Native push notifications (Android)
+
+            ### 📋 System Requirements
+            | Platform | Minimum |
+            |----------|---------|
+            | Windows  | Windows 10/11 64-bit, 4 GB RAM, 200 MB disk |
+            | Android  | Android 7.0 (Nougat) or higher |
+
+            ### 🔐 Login
+            Sign in with your official `@bvcgroup.in` student or faculty email.
+          draft: false
+          prerelease: false
+          files: |
+            release-assets/android-apk/*
+            release-assets/windows-portable/*
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}

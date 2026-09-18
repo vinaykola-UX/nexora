@@ -56,11 +56,11 @@ class _ChatScreenState extends State<ChatScreen> {
   }
 
   final List<String> _suggestionChips = [
-    'What is a linked list?',
-    'What is a doubly linked list?',
-    'What is a circular linked list?',
-    'Array vs linked list',
-    'Applications of linked lists',
+    'What is a bvc',
+    'What is the collage timings?',
+    'what are the branches bvc collage offers?',
+    'what is the min attendance mandatory for writing exams?',
+    'what is advance data structures',
   ];
 
   @override

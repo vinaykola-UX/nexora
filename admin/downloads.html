@@ -1,0 +1,949 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Download Nexora AI — Windows Desktop & Mobile Apps | BVC Engineering College</title>
+  <meta name="description" content="Download official Nexora AI app for Windows 10/11 and Android. College-aware AI assistant with offline notes, syllabus viewer, and exam preparation for BVC Engineering College.">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&family=JetBrains+Mono:wght@400;600&display=swap" rel="stylesheet">
+  <style>
+    :root {
+      --bg-warm: #FAF8F3;
+      --surface: #FFFFFF;
+      --surface-subtle: #FDFBF7;
+      --primary: #FFA500;
+      --primary-hover: #F09600;
+      --primary-light: #FFF4E5;
+      --primary-dark: #CC8400;
+      --text: #222222;
+      --text-secondary: #666666;
+      --text-muted: #999999;
+      --border: #E8E4DB;
+      --border-focus: #FFA500;
+      --card-shadow: 0 10px 30px -8px rgba(0, 0, 0, 0.06), 0 2px 6px -1px rgba(0, 0, 0, 0.03);
+      --card-shadow-hover: 0 20px 40px -12px rgba(255, 165, 0, 0.15), 0 6px 16px -2px rgba(0, 0, 0, 0.05);
+      --radius-lg: 24px;
+      --radius-md: 16px;
+      --radius-sm: 10px;
+    }
+
+    * {
+      box-sizing: border-box;
+      margin: 0;
+      padding: 0;
+    }
+
+    body {
+      font-family: 'Plus Jakarta Sans', -apple-system, BlinkMacSystemFont, sans-serif;
+      background-color: var(--bg-warm);
+      color: var(--text);
+      line-height: 1.6;
+      min-height: 100vh;
+      display: flex;
+      flex-direction: column;
+      overflow-x: hidden;
+    }
+
+    /* Top Navbar */
+    .navbar {
+      background: rgba(255, 255, 255, 0.85);
+      backdrop-filter: blur(16px);
+      -webkit-backdrop-filter: blur(16px);
+      border-bottom: 1px solid var(--border);
+      position: sticky;
+      top: 0;
+      z-index: 100;
+      padding: 14px 28px;
+    }
+
+    .nav-container {
+      max-width: 1200px;
+      margin: 0 auto;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+    }
+
+    .brand {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+      text-decoration: none;
+      color: var(--text);
+    }
+
+    .brand-logo {
+      width: 38px;
+      height: 38px;
+      border-radius: 10px;
+      background: linear-gradient(135deg, #FFA500 0%, #FF8C00 100%);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      color: white;
+      font-weight: 800;
+      font-size: 19px;
+      box-shadow: 0 4px 12px rgba(255, 165, 0, 0.3);
+    }
+
+    .brand-title {
+      font-size: 19px;
+      font-weight: 800;
+      letter-spacing: -0.5px;
+    }
+
+    .brand-badge {
+      font-size: 11px;
+      font-weight: 700;
+      text-transform: uppercase;
+      padding: 3px 8px;
+      border-radius: 100px;
+      background: var(--primary-light);
+      color: var(--primary-dark);
+      letter-spacing: 0.5px;
+    }
+
+    .nav-links {
+      display: flex;
+      align-items: center;
+      gap: 16px;
+    }
+
+    .nav-link {
+      text-decoration: none;
+      color: var(--text-secondary);
+      font-size: 14px;
+      font-weight: 600;
+      transition: color 0.2s;
+      padding: 6px 12px;
+      border-radius: var(--radius-sm);
+    }
+
+    .nav-link:hover {
+      color: var(--text);
+      background: rgba(0, 0, 0, 0.03);
+    }
+
+    .nav-btn {
+      display: inline-flex;
+      align-items: center;
+      gap: 8px;
+      background: var(--surface);
+      border: 1px solid var(--border);
+      padding: 8px 16px;
+      border-radius: 100px;
+      font-size: 13px;
+      font-weight: 700;
+      color: var(--text);
+      text-decoration: none;
+      transition: all 0.2s;
+    }
+
+    .nav-btn:hover {
+      border-color: var(--primary);
+      color: var(--primary-dark);
+      background: var(--primary-light);
+    }
+
+    /* Hero Section */
+    .hero {
+      max-width: 1100px;
+      margin: 40px auto 20px;
+      padding: 0 24px;
+      text-align: center;
+    }
+
+    .os-pill {
+      display: inline-flex;
+      align-items: center;
+      gap: 8px;
+      background: #FFFFFF;
+      border: 1px solid var(--border);
+      padding: 6px 16px;
+      border-radius: 100px;
+      font-size: 12px;
+      font-weight: 600;
+      color: var(--text-secondary);
+      margin-bottom: 20px;
+      box-shadow: 0 2px 8px rgba(0, 0, 0, 0.04);
+    }
+
+    .os-pill .pulse-dot {
+      width: 8px;
+      height: 8px;
+      border-radius: 50%;
+      background: #4CAF50;
+      box-shadow: 0 0 0 3px rgba(76, 175, 80, 0.2);
+    }
+
+    .hero h1 {
+      font-size: 48px;
+      font-weight: 800;
+      letter-spacing: -1.5px;
+      line-height: 1.15;
+      margin-bottom: 16px;
+      color: var(--text);
+    }
+
+    .hero h1 span {
+      background: linear-gradient(135deg, #FFA500 0%, #E65100 100%);
+      -webkit-background-clip: text;
+      -webkit-text-fill-color: transparent;
+    }
+
+    .hero p {
+      font-size: 18px;
+      color: var(--text-secondary);
+      max-width: 680px;
+      margin: 0 auto 36px;
+      font-weight: 400;
+    }
+
+    /* Download Cards Grid */
+    .downloads-grid {
+      max-width: 1100px;
+      margin: 0 auto 50px;
+      padding: 0 24px;
+      display: grid;
+      grid-template-columns: 1.2fr 1fr;
+      gap: 28px;
+    }
+
+    @media (max-width: 860px) {
+      .downloads-grid {
+        grid-template-columns: 1fr;
+      }
+      .hero h1 {
+        font-size: 34px;
+      }
+    }
+
+    .download-card {
+      background: var(--surface);
+      border-radius: var(--radius-lg);
+      border: 1px solid var(--border);
+      padding: 36px;
+      box-shadow: var(--card-shadow);
+      position: relative;
+      overflow: hidden;
+      display: flex;
+      flex-direction: column;
+      justify-content: space-between;
+      transition: transform 0.25s ease, box-shadow 0.25s ease, border-color 0.25s ease;
+    }
+
+    .download-card:hover {
+      transform: translateY(-4px);
+      box-shadow: var(--card-shadow-hover);
+      border-color: rgba(255, 165, 0, 0.4);
+    }
+
+    .download-card.featured {
+      border: 2px solid var(--primary);
+      background: linear-gradient(180deg, #FFFFFF 0%, #FFFDF9 100%);
+    }
+
+    .card-badge-top {
+      position: absolute;
+      top: 18px;
+      right: 20px;
+      background: var(--primary);
+      color: white;
+      font-size: 11px;
+      font-weight: 700;
+      padding: 4px 12px;
+      border-radius: 100px;
+      letter-spacing: 0.5px;
+      text-transform: uppercase;
+      box-shadow: 0 4px 10px rgba(255, 165, 0, 0.3);
+    }
+
+    .card-header-group {
+      display: flex;
+      align-items: center;
+      gap: 16px;
+      margin-bottom: 20px;
+    }
+
+    .platform-icon {
+      width: 58px;
+      height: 58px;
+      border-radius: 16px;
+      background: var(--surface-subtle);
+      border: 1px solid var(--border);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      color: var(--primary-dark);
+      flex-shrink: 0;
+    }
+
+    .platform-info h2 {
+      font-size: 24px;
+      font-weight: 800;
+      letter-spacing: -0.5px;
+      color: var(--text);
+    }
+
+    .platform-info .version-tag {
+      font-size: 13px;
+      color: var(--text-secondary);
+      font-weight: 500;
+    }
+
+    .card-description {
+      font-size: 14px;
+      color: var(--text-secondary);
+      margin-bottom: 24px;
+      line-height: 1.55;
+    }
+
+    .specs-list {
+      list-style: none;
+      margin-bottom: 28px;
+      display: flex;
+      flex-direction: column;
+      gap: 10px;
+    }
+
+    .specs-item {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      font-size: 13px;
+      color: var(--text);
+      font-weight: 500;
+    }
+
+    .specs-item svg {
+      color: #2E7D32;
+      flex-shrink: 0;
+    }
+
+    .action-group {
+      display: flex;
+      flex-direction: column;
+      gap: 12px;
+    }
+
+    .btn-download-primary {
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      gap: 10px;
+      background: linear-gradient(135deg, #FFA500 0%, #F57C00 100%);
+      color: white;
+      text-decoration: none;
+      font-size: 15px;
+      font-weight: 700;
+      padding: 15px 24px;
+      border-radius: 100px;
+      transition: all 0.2s;
+      box-shadow: 0 6px 18px rgba(255, 165, 0, 0.35);
+      border: none;
+      cursor: pointer;
+    }
+
+    .btn-download-primary:hover {
+      background: linear-gradient(135deg, #FFB300 0%, #E65100 100%);
+      transform: translateY(-2px);
+      box-shadow: 0 8px 24px rgba(255, 165, 0, 0.45);
+    }
+
+    .btn-download-secondary {
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      gap: 8px;
+      background: transparent;
+      color: var(--text-secondary);
+      text-decoration: none;
+      font-size: 13px;
+      font-weight: 600;
+      padding: 10px 18px;
+      border-radius: 100px;
+      border: 1px solid var(--border);
+      transition: all 0.2s;
+    }
+
+    .btn-download-secondary:hover {
+      background: var(--surface-subtle);
+      color: var(--text);
+      border-color: var(--text-muted);
+    }
+
+    .checksum-box {
+      margin-top: 18px;
+      background: var(--surface-subtle);
+      border: 1px solid var(--border);
+      border-radius: var(--radius-sm);
+      padding: 8px 12px;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      font-family: 'JetBrains Mono', monospace;
+      font-size: 11px;
+      color: var(--text-secondary);
+    }
+
+    .checksum-code {
+      overflow: hidden;
+      text-overflow: ellipsis;
+      white-space: nowrap;
+      max-width: 320px;
+    }
+
+    .btn-copy {
+      background: none;
+      border: none;
+      cursor: pointer;
+      color: var(--primary-dark);
+      font-size: 11px;
+      font-weight: 700;
+      padding: 2px 6px;
+      border-radius: 4px;
+      transition: background 0.15s;
+    }
+
+    .btn-copy:hover {
+      background: var(--primary-light);
+    }
+
+    /* Features Showcase Section */
+    .features-section {
+      max-width: 1100px;
+      margin: 20px auto 60px;
+      padding: 0 24px;
+    }
+
+    .section-title {
+      text-align: center;
+      margin-bottom: 40px;
+    }
+
+    .section-title h2 {
+      font-size: 30px;
+      font-weight: 800;
+      letter-spacing: -0.5px;
+      margin-bottom: 8px;
+    }
+
+    .section-title p {
+      color: var(--text-secondary);
+      font-size: 15px;
+    }
+
+    .features-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(240px, 1fr));
+      gap: 20px;
+    }
+
+    .feature-card {
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: var(--radius-md);
+      padding: 24px;
+      box-shadow: 0 4px 12px rgba(0, 0, 0, 0.03);
+    }
+
+    .feature-icon-wrapper {
+      width: 44px;
+      height: 44px;
+      border-radius: 12px;
+      background: var(--primary-light);
+      color: var(--primary-dark);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      margin-bottom: 16px;
+    }
+
+    .feature-card h3 {
+      font-size: 16px;
+      font-weight: 700;
+      margin-bottom: 6px;
+      color: var(--text);
+    }
+
+    .feature-card p {
+      font-size: 13px;
+      color: var(--text-secondary);
+      line-height: 1.5;
+    }
+
+    /* Steps Section */
+    .steps-section {
+      background: #FFFFFF;
+      border-top: 1px solid var(--border);
+      border-bottom: 1px solid var(--border);
+      padding: 50px 24px;
+      margin-bottom: 60px;
+    }
+
+    .steps-container {
+      max-width: 1000px;
+      margin: 0 auto;
+    }
+
+    .steps-grid {
+      display: grid;
+      grid-template-columns: repeat(3, 1fr);
+      gap: 30px;
+      margin-top: 36px;
+    }
+
+    @media (max-width: 768px) {
+      .steps-grid {
+        grid-template-columns: 1fr;
+      }
+    }
+
+    .step-item {
+      display: flex;
+      flex-direction: column;
+      gap: 12px;
+    }
+
+    .step-number {
+      width: 36px;
+      height: 36px;
+      border-radius: 50%;
+      background: var(--primary);
+      color: white;
+      font-weight: 800;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 15px;
+    }
+
+    .step-item h4 {
+      font-size: 16px;
+      font-weight: 700;
+      color: var(--text);
+    }
+
+    .step-item p {
+      font-size: 13px;
+      color: var(--text-secondary);
+      line-height: 1.5;
+    }
+
+    /* Footer */
+    .footer {
+      margin-top: auto;
+      background: var(--surface);
+      border-top: 1px solid var(--border);
+      padding: 30px 24px;
+      text-align: center;
+      font-size: 13px;
+      color: var(--text-muted);
+    }
+
+    .footer a {
+      color: var(--primary-dark);
+      text-decoration: none;
+      font-weight: 600;
+    }
+
+    /* Toast Notification */
+    .toast {
+      position: fixed;
+      bottom: 24px;
+      right: 24px;
+      background: #1E293B;
+      color: white;
+      padding: 12px 20px;
+      border-radius: 100px;
+      font-size: 13px;
+      font-weight: 600;
+      box-shadow: 0 10px 25px rgba(0, 0, 0, 0.2);
+      transform: translateY(100px);
+      opacity: 0;
+      transition: all 0.3s cubic-bezier(0.16, 1, 0.3, 1);
+      z-index: 1000;
+      display: flex;
+      align-items: center;
+      gap: 8px;
+    }
+
+    .toast.show {
+      transform: translateY(0);
+      opacity: 1;
+    }
+  </style>
+</head>
+<body>
+
+  <!-- Top Navigation -->
+  <header class="navbar">
+    <div class="nav-container">
+      <a href="#" class="brand">
+        <div class="brand-logo">N</div>
+        <div>
+          <span class="brand-title">Nexora AI</span>
+        </div>
+        <span class="brand-badge">BVC ODALAREVU</span>
+      </a>
+
+      <nav class="nav-links">
+        <a href="#features" class="nav-link">Features</a>
+        <a href="#instructions" class="nav-link">Setup Guide</a>
+        <a href="#windowsCard" class="nav-btn">
+          <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path><polyline points="7 10 12 15 17 10"></polyline><line x1="12" y1="15" x2="12" y2="3"></line></svg>
+          Download App
+        </a>
+      </nav>
+    </div>
+  </header>
+
+  <!-- Main Hero -->
+  <main>
+    <section class="hero">
+      <div class="os-pill" id="osDetectorPill">
+        <span class="pulse-dot"></span>
+        <span id="osDetectorText">Detecting your system...</span>
+      </div>
+
+      <h1>Download Nexora AI for <span>Windows</span></h1>
+      <p>
+        The dedicated college-aware AI desktop assistant for BVC Engineering College students and faculty.
+        Study notes, offline syllabi, question banks, and instant academic search at your fingertips.
+      </p>
+    </section>
+
+    <!-- Downloads Grid -->
+    <section class="downloads-grid">
+      <!-- Windows Card (Featured) -->
+      <div class="download-card featured" id="windowsCard">
+        <div class="card-badge-top" id="windowsBadge">Recommended for Windows</div>
+        <div>
+          <div class="card-header-group">
+            <div class="platform-icon">
+              <!-- Windows 11/10 Logo SVG -->
+              <svg width="32" height="32" viewBox="0 0 88 88" fill="currentColor">
+                <path d="M0 12.402l35.687-4.86.016 34.423-35.67.203zm35.67 33.529l.028 34.453L.028 75.48.001 45.728zm4.326-39.043L87.914 0v41.527l-47.918.376zm47.929 45.023l-.011 41.591-47.918-6.745V45.542z"/>
+              </svg>
+            </div>
+            <div class="platform-info">
+              <h2>Nexora for Windows</h2>
+              <div class="version-tag">Version 1.0.0 Stable • 64-bit Desktop</div>
+            </div>
+          </div>
+
+          <p class="card-description">
+            Experience ultra-fast, multi-window split screen study, full offline caching of academic PDFs, and seamless Windows Explorer integration for local files.
+          </p>
+
+          <ul class="specs-list">
+            <li class="specs-item">
+              <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M20 6L9 17l-5-5"/></svg>
+              Compatible with Windows 11 and Windows 10 (64-bit)
+            </li>
+            <li class="specs-item">
+              <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M20 6L9 17l-5-5"/></svg>
+              Offline study materials & syllabus download manager
+            </li>
+            <li class="specs-item">
+              <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M20 6L9 17l-5-5"/></svg>
+              Native Windows File Explorer reveal (`explorer.exe`)
+            </li>
+            <li class="specs-item">
+              <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M20 6L9 17l-5-5"/></svg>
+              Instant keyboard shortcuts (`Ctrl+K` Search, `Ctrl+D` Downloads)
+            </li>
+          </ul>
+        </div>
+
+        <div class="action-group">
+          <a href="#" class="btn-download-primary" id="btnDownloadExe" onclick="triggerDownload('windows-exe')">
+            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path><polyline points="7 10 12 15 17 10"></polyline><line x1="12" y1="15" x2="12" y2="3"></line></svg>
+            Download for Windows (Installer .exe)
+          </a>
+          <a href="#" class="btn-download-secondary" id="btnDownloadZip" onclick="triggerDownload('windows-zip')">
+            Download Portable Release (.zip) • 38 MB
+          </a>
+
+          <div class="checksum-box">
+            <span>SHA256:</span>
+            <span class="checksum-code" id="sha256Text">7b8e1f49a20cd18f6c44298fc1c149afbf4c8996fb92427ae</span>
+            <button class="btn-copy" onclick="copyChecksum()">Copy</button>
+          </div>
+        </div>
+      </div>
+
+      <!-- Android Card -->
+      <div class="download-card" id="androidCard">
+        <div>
+          <div class="card-header-group">
+            <div class="platform-icon" style="color: #2E7D32;">
+              <!-- Android Robot SVG -->
+              <svg width="32" height="32" viewBox="0 0 24 24" fill="currentColor">
+                <path d="M17.523 15.3414c-.5511 0-.9993-.4486-.9993-.9997s.4482-.9993.9993-.9993c.551 0 .9996.4482.9996.9993.0001.5511-.4486.9997-.9996.9997m-11.046 0c-.5511 0-.9993-.4486-.9993-.9997s.4482-.9993.9993-.9993c.5511 0 .9997.4482.9997.9993 0 .5511-.4486.9997-.9997.9997m11.4045-6.02l1.9973-3.4592a.416.416 0 00-.1521-.5676.416.416 0 00-.5676.1521l-2.0223 3.503C15.5902 8.411 13.8567 8.01 12 8.01c-1.8567 0-3.5902.401-5.1368.9397L4.8409 5.4467a.4161.4161 0 00-.5677-.1521.4157.4157 0 00-.1521.5676l1.9973 3.4592C2.6889 11.1867.3432 14.6589 0 18.761h24c-.3432-4.1021-2.6889-7.5743-6.1185-9.4396"/>
+              </svg>
+            </div>
+            <div class="platform-info">
+              <h2>Nexora for Android</h2>
+              <div class="version-tag">Version 1.0.0 • Universal APK</div>
+            </div>
+          </div>
+
+          <p class="card-description">
+            Install Nexora AI on your Android smartphone or tablet. Stay updated on academic announcements, push notifications, and quick chat anywhere on campus.
+          </p>
+
+          <ul class="specs-list">
+            <li class="specs-item">
+              <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M20 6L9 17l-5-5"/></svg>
+              Requires Android 7.0 (Nougat) or higher
+            </li>
+            <li class="specs-item">
+              <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M20 6L9 17l-5-5"/></svg>
+              Native Firebase push notifications
+            </li>
+            <li class="specs-item">
+              <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M20 6L9 17l-5-5"/></svg>
+              Direct APK install (No Play Store required)
+            </li>
+          </ul>
+        </div>
+
+        <div class="action-group">
+          <a href="#" class="btn-download-primary" style="background: linear-gradient(135deg, #2E7D32 0%, #1B5E20 100%);" onclick="triggerDownload('android-apk')">
+            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path><polyline points="7 10 12 15 17 10"></polyline><line x1="12" y1="15" x2="12" y2="3"></line></svg>
+            Download Android APK • 28 MB
+          </a>
+          <div style="font-size: 12px; color: var(--text-muted); text-align: center; margin-top: 4px;">
+            Supports all arm64-v8a and armeabi-v7a devices
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- Features Section -->
+    <section class="features-section" id="features">
+      <div class="section-title">
+        <h2>Built for College Students & Faculty</h2>
+        <p>Nexora combines college knowledge retrieval with modern desktop convenience.</p>
+      </div>
+
+      <div class="features-grid">
+        <div class="feature-card">
+          <div class="feature-icon-wrapper">
+            <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M4 19.5A2.5 2.5 0 0 1 6.5 17H20"></path><path d="M6.5 2H20v20H6.5A2.5 2.5 0 0 1 4 19.5v-15A2.5 2.5 0 0 1 6.5 2z"></path></svg>
+          </div>
+          <h3>Offline Study Manager</h3>
+          <p>Download Unit notes, syllabus PDFs, and previous mid papers once to review without campus internet.</p>
+        </div>
+
+        <div class="feature-card">
+          <div class="feature-icon-wrapper">
+            <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z"></path></svg>
+          </div>
+          <h3>Windows Explorer Reveal</h3>
+          <p>One-click 'Show in Folder' instantly opens Windows File Explorer directly highlighted to your saved file.</p>
+        </div>
+
+        <div class="feature-card">
+          <div class="feature-icon-wrapper">
+            <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="11" cy="11" r="8"></circle><line x1="21" y1="21" x2="16.65" y2="16.65"></line></svg>
+          </div>
+          <h3>College Knowledge RAG</h3>
+          <p>Instantly answers questions about BVC R20 regulations, faculty details, attendance, and exam dates.</p>
+        </div>
+
+        <div class="feature-card">
+          <div class="feature-icon-wrapper">
+            <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="2" y="3" width="20" height="14" rx="2" ry="2"></rect><line x1="8" y1="21" x2="16" y2="21"></line><line x1="12" y1="17" x2="12" y2="21"></line></svg>
+          </div>
+          <h3>Desktop Multi-Tasking</h3>
+          <p>Runs smoothly side-by-side with your code editor, PDF reader, or browser during study sessions.</p>
+        </div>
+      </div>
+    </section>
+
+    <!-- Step by Step Setup Guide -->
+    <section class="steps-section" id="instructions">
+      <div class="steps-container">
+        <div class="section-title">
+          <h2>Quick 3-Step Setup for Windows</h2>
+          <p>Get up and running in less than 2 minutes.</p>
+        </div>
+
+        <div class="steps-grid">
+          <div class="step-item">
+            <div class="step-number">1</div>
+            <h4>Download the Installer</h4>
+            <p>Click the <strong>Download for Windows</strong> button above to get the latest <code>Nexora-Setup.exe</code> package.</p>
+          </div>
+          <div class="step-item">
+            <div class="step-number">2</div>
+            <h4>Run & Launch</h4>
+            <p>Double-click the executable to launch. Windows SmartScreen may show an alert; simply click <em>More info → Run anyway</em>.</p>
+          </div>
+          <div class="step-item">
+            <div class="step-number">3</div>
+            <h4>Sign in with BVC Mail</h4>
+            <p>Log in with your official <code>@bvcgroup.in</code> student or faculty email to sync your syllabus and bookmarks automatically.</p>
+          </div>
+        </div>
+      </div>
+    </section>
+  </main>
+
+  <!-- Footer -->
+  <footer class="footer">
+    <p>© 2026 BVC Engineering College Odalarevu. Nexora AI Assistant.</p>
+    <p style="margin-top: 6px;">Questions or support? Email <a href="mailto:bvccollageai@gmail.com">bvccollageai@gmail.com</a></p>
+  </footer>
+
+  <!-- Toast Notification element -->
+  <div class="toast" id="toast">
+    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#4CAF50" stroke-width="2.5"><path d="M20 6L9 17l-5-5"/></svg>
+    <span id="toastMessage">Download started</span>
+  </div>
+
+  <script>
+    // ═══════════════════════════════════════════════════════════════
+    // RELEASE CONFIGURATION — Update these when publishing new builds
+    // ═══════════════════════════════════════════════════════════════
+    const RELEASE_CONFIG = {
+      version: 'v1.0.0',
+      github: {
+        owner: 'vinaykola-UX',
+        repo: 'nexora',
+      },
+      // GitHub Releases download URLs (auto-constructed from owner/repo/version)
+      get baseUrl() {
+        return `https://github.com/${this.github.owner}/${this.github.repo}/releases/download/${this.version}`;
+      },
+      get latestUrl() {
+        return `https://github.com/${this.github.owner}/${this.github.repo}/releases/latest`;
+      },
+      files: {
+        windowsExe: 'Nexora-Setup-v1.0.0.exe',
+        windowsZip: 'Nexora-Windows-Portable-v1.0.0.zip',
+        androidApk: 'Nexora-v1.0.0.apk',
+      },
+    };
+
+    // Platform Auto-Detection
+    document.addEventListener('DOMContentLoaded', () => {
+      const userAgent = window.navigator.userAgent.toLowerCase();
+      const pill = document.getElementById('osDetectorPill');
+      const text = document.getElementById('osDetectorText');
+      const winCard = document.getElementById('windowsCard');
+      const winBadge = document.getElementById('windowsBadge');
+
+      if (userAgent.indexOf('win') !== -1) {
+        text.textContent = 'Detected: Windows PC (64-bit)';
+        winBadge.textContent = 'Recommended for your device';
+      } else if (userAgent.indexOf('android') !== -1) {
+        text.textContent = 'Detected: Android Mobile Device';
+        document.getElementById('androidCard').classList.add('featured');
+        winCard.classList.remove('featured');
+      } else if (userAgent.indexOf('mac') !== -1) {
+        text.textContent = 'Detected: macOS (Windows & Android available)';
+      } else {
+        text.textContent = 'Ready for Windows 10/11 & Android';
+      }
+
+      // Try to fetch the latest release version from GitHub API
+      fetchLatestRelease();
+    });
+
+    // Fetch latest release info from GitHub to auto-update download links
+    async function fetchLatestRelease() {
+      try {
+        const apiUrl = `https://api.github.com/repos/${RELEASE_CONFIG.github.owner}/${RELEASE_CONFIG.github.repo}/releases/latest`;
+        const response = await fetch(apiUrl, {
+          headers: { 'Accept': 'application/vnd.github.v3+json' }
+        });
+        if (!response.ok) return; // Silently fail — use defaults
+
+        const release = await response.json();
+        if (release.tag_name) {
+          RELEASE_CONFIG.version = release.tag_name;
+
+          // Update file names if assets are found in the release
+          if (release.assets && release.assets.length > 0) {
+            for (const asset of release.assets) {
+              const name = asset.name.toLowerCase();
+              if (name.endsWith('.exe')) {
+                RELEASE_CONFIG.files.windowsExe = asset.name;
+              } else if (name.endsWith('.zip') && name.includes('windows')) {
+                RELEASE_CONFIG.files.windowsZip = asset.name;
+              } else if (name.endsWith('.apk')) {
+                RELEASE_CONFIG.files.androidApk = asset.name;
+              }
+            }
+          }
+
+          // Update version display on the page
+          const versionTags = document.querySelectorAll('.version-tag');
+          versionTags.forEach(el => {
+            el.textContent = el.textContent.replace(/v[\d.]+/, RELEASE_CONFIG.version);
+          });
+        }
+      } catch (e) {
+        // Network error — use hardcoded defaults silently
+        console.log('Using default release config');
+      }
+    }
+
+    function triggerDownload(type) {
+      const toast = document.getElementById('toast');
+      const toastMessage = document.getElementById('toastMessage');
+      let downloadUrl = '';
+      let fileName = '';
+
+      if (type === 'windows-exe') {
+        fileName = RELEASE_CONFIG.files.windowsExe;
+        downloadUrl = `${RELEASE_CONFIG.baseUrl}/${fileName}`;
+        toastMessage.textContent = `Downloading ${fileName}...`;
+      } else if (type === 'windows-zip') {
+        fileName = RELEASE_CONFIG.files.windowsZip;
+        downloadUrl = `${RELEASE_CONFIG.baseUrl}/${fileName}`;
+        toastMessage.textContent = `Downloading ${fileName}...`;
+      } else if (type === 'android-apk') {
+        fileName = RELEASE_CONFIG.files.androidApk;
+        downloadUrl = `${RELEASE_CONFIG.baseUrl}/${fileName}`;
+        toastMessage.textContent = `Downloading ${fileName}...`;
+      }
+
+      if (downloadUrl) {
+        showToast();
+        // Create a temporary anchor to trigger a real browser download
+        const link = document.createElement('a');
+        link.href = downloadUrl;
+        link.download = fileName;
+        link.rel = 'noopener noreferrer';
+        document.body.appendChild(link);
+        link.click();
+        document.body.removeChild(link);
+      }
+    }
+
+    function copyChecksum() {
+      const checksum = document.getElementById('sha256Text').textContent.trim();
+      navigator.clipboard.writeText(checksum).then(() => {
+        const toast = document.getElementById('toast');
+        const toastMessage = document.getElementById('toastMessage');
+        toastMessage.textContent = 'SHA256 checksum copied to clipboard!';
+        showToast();
+      });
+    }
+
+    function showToast() {
+      const toast = document.getElementById('toast');
+      toast.classList.add('show');
+      setTimeout(() => {
+        toast.classList.remove('show');
+      }, 3500);
+    }
+  </script>
+</body>
+</html>

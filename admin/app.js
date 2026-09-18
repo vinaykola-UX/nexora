@@ -28,7 +28,7 @@ const STORAGE_KEYS = {
 
 const DEFAULT_CONFIG = {
   API_URL: 'https://nexora-bvc-api-2026.vkola306.workers.dev',
-  ADMIN_SECRET: 'nexora-admin-secure-key-2026',
+  ADMIN_SECRET: '',
 };
 
 // ---------------------------------------------------------------------------
@@ -36,7 +36,7 @@ const DEFAULT_CONFIG = {
 // ---------------------------------------------------------------------------
 const state = {
   apiUrl: localStorage.getItem(STORAGE_KEYS.API_URL) || DEFAULT_CONFIG.API_URL,
-  adminSecret: localStorage.getItem(STORAGE_KEYS.ADMIN_SECRET) || DEFAULT_CONFIG.ADMIN_SECRET,
+  adminSecret: localStorage.getItem(STORAGE_KEYS.ADMIN_SECRET) || sessionStorage.getItem(STORAGE_KEYS.ADMIN_SECRET) || '',
   documents: [],
   selectedFile: null,
   isExtractingPdf: false,
@@ -137,6 +137,16 @@ const elements = {
   closeInspectFooterBtn: document.getElementById('closeInspectFooterBtn'),
 
   toastContainer: document.getElementById('toastContainer'),
+
+  // Secure Admin Authentication Gate & Lock
+  adminAuthGate: document.getElementById('adminAuthGate'),
+  authGateForm: document.getElementById('authGateForm'),
+  gateSecretInput: document.getElementById('gateSecretInput'),
+  toggleGatePwdBtn: document.getElementById('toggleGatePwdBtn'),
+  gateRememberCheck: document.getElementById('gateRememberCheck'),
+  btnUnlockAdmin: document.getElementById('btnUnlockAdmin'),
+  authGateError: document.getElementById('authGateError'),
+  lockAdminBtn: document.getElementById('lockAdminBtn'),
 
   // Web Access
   webAccessToggle: document.getElementById('webAccessToggle'),
@@ -1420,13 +1430,149 @@ function escapeHtml(str) {
 }
 
 // ---------------------------------------------------------------------------
+// Admin Authentication Gate Logic
+// ---------------------------------------------------------------------------
+async function checkAdminAuth() {
+  if (!state.adminSecret) {
+    showAdminAuthGate();
+    return false;
+  }
+
+  // Quick verification with Cloudflare Worker
+  try {
+    const res = await apiRequest('/admin/auth/verify', { auth: true });
+    if (res && (res.authenticated || res.success)) {
+      hideAdminAuthGate();
+      return true;
+    }
+  } catch (err) {
+    console.warn('[Admin Auth] Verification failed:', err.message);
+    showAdminAuthGate('Invalid or expired admin secret. Please enter your Cloudflare Worker ADMIN_SECRET.');
+    return false;
+  }
+
+  return true;
+}
+
+function showAdminAuthGate(errorMsg = '') {
+  if (elements.adminAuthGate) {
+    elements.adminAuthGate.style.display = 'flex';
+    if (elements.gateSecretInput) {
+      elements.gateSecretInput.value = '';
+      setTimeout(() => elements.gateSecretInput.focus(), 100);
+    }
+  }
+  if (elements.authGateError) {
+    if (errorMsg) {
+      elements.authGateError.textContent = errorMsg;
+      elements.authGateError.style.display = 'block';
+    } else {
+      elements.authGateError.style.display = 'none';
+    }
+  }
+}
+
+function hideAdminAuthGate() {
+  if (elements.adminAuthGate) {
+    elements.adminAuthGate.style.display = 'none';
+  }
+  if (elements.authGateError) {
+    elements.authGateError.style.display = 'none';
+  }
+}
+
+async function submitAdminSecret() {
+  const secret = elements.gateSecretInput ? elements.gateSecretInput.value.trim() : '';
+  if (!secret) {
+    showAdminAuthGate('Please enter your Cloudflare Worker Admin Secret.');
+    return;
+  }
+
+  if (elements.btnUnlockAdmin) {
+    elements.btnUnlockAdmin.disabled = true;
+    elements.btnUnlockAdmin.innerHTML = 'Verifying Secret...';
+  }
+  if (elements.authGateError) elements.authGateError.style.display = 'none';
+
+  try {
+    const res = await fetch(`${state.apiUrl.replace(/\/$/, '')}/admin/auth/verify`, {
+      headers: {
+        Accept: 'application/json',
+        Authorization: `Bearer ${secret}`,
+      },
+    });
+
+    const data = await res.json().catch(() => ({}));
+
+    if (res.ok && (data.authenticated || data.success)) {
+      state.adminSecret = secret;
+      if (elements.gateRememberCheck && elements.gateRememberCheck.checked) {
+        localStorage.setItem(STORAGE_KEYS.ADMIN_SECRET, secret);
+        sessionStorage.removeItem(STORAGE_KEYS.ADMIN_SECRET);
+      } else {
+        sessionStorage.setItem(STORAGE_KEYS.ADMIN_SECRET, secret);
+        localStorage.removeItem(STORAGE_KEYS.ADMIN_SECRET);
+      }
+
+      hideAdminAuthGate();
+      showToast('Admin access granted! Authenticated via Cloudflare Worker.', 'success');
+      loadDocuments();
+      if (typeof loadNotificationStats === 'function') {
+        loadNotificationStats();
+      }
+    } else {
+      const errMsg = data.message || 'Invalid admin secret. Verify the ADMIN_SECRET setting in your Cloudflare Worker.';
+      showAdminAuthGate(`Authentication Failed: ${errMsg}`);
+    }
+  } catch (err) {
+    showAdminAuthGate(`Network Error: Could not reach Cloudflare Worker at ${state.apiUrl}. (${err.message})`);
+  } finally {
+    if (elements.btnUnlockAdmin) {
+      elements.btnUnlockAdmin.disabled = false;
+      elements.btnUnlockAdmin.innerHTML = `
+        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" style="margin-right: 6px;"><rect x="3" y="11" width="18" height="11" rx="2" ry="2"></rect><path d="M7 11V7a5 5 0 0 1 10 0v4"></path></svg>
+        Unlock Admin Dashboard
+      `;
+    }
+  }
+}
+
+function lockAdminDashboard() {
+  state.adminSecret = '';
+  localStorage.removeItem(STORAGE_KEYS.ADMIN_SECRET);
+  sessionStorage.removeItem(STORAGE_KEYS.ADMIN_SECRET);
+  showAdminAuthGate();
+  showToast('Admin dashboard locked.', 'info');
+}
+
+window.submitAdminSecret = submitAdminSecret;
+window.lockAdminDashboard = lockAdminDashboard;
+
+// ---------------------------------------------------------------------------
 // Initialization
 // ---------------------------------------------------------------------------
-document.addEventListener('DOMContentLoaded', () => {
+document.addEventListener('DOMContentLoaded', async () => {
   initEvents();
   initWebAccessState();
   checkWorkerHealth();
-  loadDocuments();
+
+  // Wire gate events
+  if (elements.toggleGatePwdBtn && elements.gateSecretInput) {
+    elements.toggleGatePwdBtn.addEventListener('click', () => {
+      const isPwd = elements.gateSecretInput.type === 'password';
+      elements.gateSecretInput.type = isPwd ? 'text' : 'password';
+      elements.toggleGatePwdBtn.textContent = isPwd ? '🔒' : '👁';
+    });
+  }
+
+  if (elements.lockAdminBtn) {
+    elements.lockAdminBtn.addEventListener('click', lockAdminDashboard);
+  }
+
+  const isAuthed = await checkAdminAuth();
+  if (isAuthed) {
+    loadDocuments();
+  }
 });
 
 // ---------------------------------------------------------------------------

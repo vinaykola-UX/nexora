@@ -588,6 +588,17 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
                   onTap: _showMemoryManagementSheet,
                 ),
                 _buildMenuItem(
+                  title: 'Downloads & Offline Files',
+                  icon: Icons.folder_zip_outlined,
+                  subtitle: 'Study materials & notes',
+                  trailing: const Icon(
+                    Icons.chevron_right_rounded,
+                    color: Color(NexoraColors.textSecondary),
+                    size: 20,
+                  ),
+                  onTap: () => context.push(RoutePaths.downloads),
+                ),
+                _buildMenuItem(
                   title: 'Theme',
                   icon: Icons.palette_outlined,
                   subtitle: 'Warm Light',

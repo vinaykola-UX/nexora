@@ -871,6 +871,26 @@ export default {
         });
       }
 
+      // 5.5. Admin Auth Verification (POST or GET /admin/auth/verify)
+      if (path === '/admin/auth/verify') {
+        if (!verifyAdminAuth(request, env)) {
+          return jsonResponse(
+            {
+              success: false,
+              authenticated: false,
+              error: 'Unauthorized',
+              message: 'Invalid or missing admin secret credential. Verify your Cloudflare Worker ADMIN_SECRET.',
+            },
+            401
+          );
+        }
+        return jsonResponse({
+          success: true,
+          authenticated: true,
+          message: 'Admin authorization credential verified successfully.',
+        });
+      }
+
       // 6. Admin Upload Study Material (POST /admin/upload)
       if (request.method === 'POST' && path === '/admin/upload') {
         if (!verifyAdminAuth(request, env)) {
@@ -1564,7 +1584,10 @@ export default {
 
 
       if (path.startsWith('/student/')) {
-        const studentUser = await FirebaseAuthGuard.authenticate(request, env.ENVIRONMENT);
+        const studentUser = await FirebaseAuthGuard.authenticate(request, {
+          environment: env.ENVIRONMENT,
+          requireBvcDomain: true,
+        });
         if (!studentUser) {
           return jsonResponse(
             {
@@ -1975,7 +1998,9 @@ export default {
         // ---------------------------------------------------------------------
         let studentUser: AuthenticatedFirebaseUser | null = null;
         try {
-          studentUser = await FirebaseAuthGuard.authenticate(request, env.ENVIRONMENT);
+          studentUser = await FirebaseAuthGuard.authenticate(request, {
+            environment: env.ENVIRONMENT,
+          });
         } catch (_) {}
 
         let studentMemories: string[] = [];

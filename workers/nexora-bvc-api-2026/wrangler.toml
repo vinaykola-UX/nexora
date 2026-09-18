@@ -5,6 +5,11 @@ compatibility_flags = ["nodejs_compat"]
 
 [vars]
 ENVIRONMENT = "production"
+# Cloudflare Worker Secret Credential:
+# Recommended: Set as an encrypted secret in Cloudflare Dashboard under:
+# Workers & Pages -> nexora-bvc-api-2026 -> Settings -> Variables and Secrets -> Add Secret (ADMIN_SECRET)
+# Or run: npx wrangler secret put ADMIN_SECRET
+# Any secret set in Cloudflare automatically overrides the fallback below.
 ADMIN_SECRET = "nexora-admin-secure-key-2026"
 # Embedding model for Vectorize — dimension MUST match nexora-vector-index (384)
 EMBEDDING_MODEL = "@cf/baai/bge-small-en-v1.5"

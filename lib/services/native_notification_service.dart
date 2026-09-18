@@ -55,6 +55,14 @@ class NativeNotificationService {
 
     _notificationService = notificationService;
 
+    // Platform guard: FCM and mobile push notification channels are for Android & iOS only.
+    // On Windows and desktop platforms, bypass mobile channels cleanly.
+    if (kIsWeb || (defaultTargetPlatform != TargetPlatform.android && defaultTargetPlatform != TargetPlatform.iOS)) {
+      debugPrint('[NativeNotificationService] Skipping mobile push & local notification channels on platform: $defaultTargetPlatform');
+      _initialized = true;
+      return;
+    }
+
     // 1. Initialize Local Notifications for Android/iOS
     const androidSettings = AndroidInitializationSettings('@mipmap/ic_launcher');
     const darwinSettings = DarwinInitializationSettings(
@@ -209,6 +217,10 @@ class NativeNotificationService {
 
   /// Syncs the current FCM device token with the authenticated Cloudflare Worker backend
   Future<bool> syncDeviceToken({NotificationService? notificationService}) async {
+    if (kIsWeb || (defaultTargetPlatform != TargetPlatform.android && defaultTargetPlatform != TargetPlatform.iOS)) {
+      return false;
+    }
+
     if (notificationService != null) {
       _notificationService = notificationService;
     }
@@ -245,6 +257,10 @@ class NativeNotificationService {
   /// Unregisters the current device's FCM token upon logout.
   /// Preserves other devices owned by the same student.
   Future<bool> unregisterCurrentDevice({NotificationService? notificationService}) async {
+    if (kIsWeb || (defaultTargetPlatform != TargetPlatform.android && defaultTargetPlatform != TargetPlatform.iOS)) {
+      return false;
+    }
+
     final service = notificationService ?? _notificationService;
     if (service == null) {
       return false;
