@@ -36,39 +36,6 @@ jobs:
           channel: stable
           cache: true
 
-      - name: Backup Firebase configuration
-        shell: bash
-        run: |
-          if [ -f android/app/google-services.json ]; then
-            cp android/app/google-services.json /tmp/google-services.json
-            echo "Google Services file backed up."
-          fi
-          if [ -f android/app/src/main/AndroidManifest.xml ]; then
-            cp android/app/src/main/AndroidManifest.xml /tmp/AndroidManifest.xml
-            echo "AndroidManifest.xml backed up."
-          fi
-
-      - name: Remove old Android platform
-        shell: bash
-        run: |
-          rm -rf android
-          echo "Old Android platform removed."
-
-      - name: Regenerate Android platform
-        run: flutter create --platforms android --org com.nexorabvc .
-
-      - name: Restore Firebase configuration
-        shell: bash
-        run: |
-          if [ -f /tmp/google-services.json ]; then
-            cp /tmp/google-services.json android/app/google-services.json
-            echo "Google Services file restored."
-          fi
-          if [ -f /tmp/AndroidManifest.xml ]; then
-            cp /tmp/AndroidManifest.xml android/app/src/main/AndroidManifest.xml
-            echo "AndroidManifest.xml restored."
-          fi
-
       - name: Flutter Pub Get
         run: flutter pub get
 
