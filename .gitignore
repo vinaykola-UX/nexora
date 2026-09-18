@@ -123,6 +123,10 @@ Thumbs.db
 .idea/
 *.iml
 
+# Binaries & packages
+*.apk
+*.zip
+
 # Project
 build/
 dist/
