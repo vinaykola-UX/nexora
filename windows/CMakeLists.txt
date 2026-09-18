@@ -1,4 +1,5 @@
 # Project-level configuration.
+set(CMAKE_POLICY_VERSION_MINIMUM 3.5 CACHE STRING "Minimum policy version for subprojects" FORCE)
 cmake_minimum_required(VERSION 3.14)
 project(nexora LANGUAGES CXX)
 

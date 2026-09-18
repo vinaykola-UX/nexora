@@ -31,6 +31,7 @@ if %ERRORLEVEL% neq 0 (
 
 echo.
 echo [3/4] Building Windows Release Executable (flutter build windows --release)...
+set CMAKE_POLICY_VERSION_MINIMUM=3.5
 call flutter build windows --release
 if %ERRORLEVEL% neq 0 (
     echo [ERROR] Windows release build failed.

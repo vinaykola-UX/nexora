@@ -122,6 +122,8 @@ jobs:
         run: flutter pub get
 
       - name: Build Windows release
+        env:
+          CMAKE_POLICY_VERSION_MINIMUM: "3.5"
         run: flutter build windows --release
 
       - name: Determine version
