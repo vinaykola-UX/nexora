@@ -581,7 +581,7 @@
   <!-- Top Navigation -->
   <header class="navbar">
     <div class="nav-container">
-      <a href="#" class="brand">
+      <a href="downloads.html" class="brand">
         <div class="brand-logo">N</div>
         <div>
           <span class="brand-title">Nexora AI</span>
@@ -592,6 +592,7 @@
       <nav class="nav-links">
         <a href="#features" class="nav-link">Features</a>
         <a href="#instructions" class="nav-link">Setup Guide</a>
+        <a href="index.html" class="nav-link">Admin Portal</a>
         <a href="#windowsCard" class="nav-btn">
           <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path><polyline points="7 10 12 15 17 10"></polyline><line x1="12" y1="15" x2="12" y2="3"></line></svg>
           Download App
@@ -659,17 +660,17 @@
         </div>
 
         <div class="action-group">
-          <a href="#" class="btn-download-primary" id="btnDownloadExe" onclick="triggerDownload('windows-exe')">
+          <a href="https://github.com/vinaykola-UX/nexora/releases/download/v1.0.0/Nexora-Windows-Portable-v1.0.0.zip" class="btn-download-primary" id="btnDownloadExe" onclick="triggerDownload('windows-zip', event)">
             <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path><polyline points="7 10 12 15 17 10"></polyline><line x1="12" y1="15" x2="12" y2="3"></line></svg>
-            Download for Windows (Installer .exe)
+            Download for Windows (.zip Portable) • 22 MB
           </a>
-          <a href="#" class="btn-download-secondary" id="btnDownloadZip" onclick="triggerDownload('windows-zip')">
-            Download Portable Release (.zip) • 38 MB
+          <a href="https://github.com/vinaykola-UX/nexora/releases/latest" target="_blank" rel="noopener noreferrer" class="btn-download-secondary" id="btnDownloadZip">
+            View All Releases & Source on GitHub
           </a>
 
           <div class="checksum-box">
             <span>SHA256:</span>
-            <span class="checksum-code" id="sha256Text">7b8e1f49a20cd18f6c44298fc1c149afbf4c8996fb92427ae</span>
+            <span class="checksum-code" id="sha256Text">0c9f43d5f2a43f595c859a40ffa84eb7b8c2cad482476a5e8be9257ff4553031</span>
             <button class="btn-copy" onclick="copyChecksum()">Copy</button>
           </div>
         </div>
@@ -712,9 +713,9 @@
         </div>
 
         <div class="action-group">
-          <a href="#" class="btn-download-primary" style="background: linear-gradient(135deg, #2E7D32 0%, #1B5E20 100%);" onclick="triggerDownload('android-apk')">
+          <a href="https://github.com/vinaykola-UX/nexora/releases/download/v1.0.0/Nexora-v1.0.0.apk" class="btn-download-primary" id="btnDownloadApk" style="background: linear-gradient(135deg, #2E7D32 0%, #1B5E20 100%);" onclick="triggerDownload('android-apk', event)">
             <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path><polyline points="7 10 12 15 17 10"></polyline><line x1="12" y1="15" x2="12" y2="3"></line></svg>
-            Download Android APK • 28 MB
+            Download Android APK • 56 MB
           </a>
           <div style="font-size: 12px; color: var(--text-muted); text-align: center; margin-top: 4px;">
             Supports all arm64-v8a and armeabi-v7a devices
@@ -868,18 +869,31 @@
         if (release.tag_name) {
           RELEASE_CONFIG.version = release.tag_name;
 
+          let hasExe = false;
           // Update file names if assets are found in the release
           if (release.assets && release.assets.length > 0) {
             for (const asset of release.assets) {
               const name = asset.name.toLowerCase();
               if (name.endsWith('.exe')) {
                 RELEASE_CONFIG.files.windowsExe = asset.name;
+                hasExe = true;
               } else if (name.endsWith('.zip') && name.includes('windows')) {
                 RELEASE_CONFIG.files.windowsZip = asset.name;
               } else if (name.endsWith('.apk')) {
                 RELEASE_CONFIG.files.androidApk = asset.name;
               }
             }
+          }
+
+          // Update direct hrefs on buttons for instantaneous native downloads
+          const winBtn = document.getElementById('btnDownloadExe');
+          const apkBtn = document.getElementById('btnDownloadApk');
+          if (winBtn) {
+            const winTarget = hasExe ? RELEASE_CONFIG.files.windowsExe : RELEASE_CONFIG.files.windowsZip;
+            winBtn.href = `${RELEASE_CONFIG.baseUrl}/${winTarget}`;
+          }
+          if (apkBtn) {
+            apkBtn.href = `${RELEASE_CONFIG.baseUrl}/${RELEASE_CONFIG.files.androidApk}`;
           }
 
           // Update version display on the page
@@ -894,14 +908,14 @@
       }
     }
 
-    function triggerDownload(type) {
+    function triggerDownload(type, event) {
       const toast = document.getElementById('toast');
       const toastMessage = document.getElementById('toastMessage');
       let downloadUrl = '';
       let fileName = '';
 
       if (type === 'windows-exe') {
-        fileName = RELEASE_CONFIG.files.windowsExe;
+        fileName = RELEASE_CONFIG.files.windowsExe || RELEASE_CONFIG.files.windowsZip;
         downloadUrl = `${RELEASE_CONFIG.baseUrl}/${fileName}`;
         toastMessage.textContent = `Downloading ${fileName}...`;
       } else if (type === 'windows-zip') {
@@ -914,9 +928,10 @@
         toastMessage.textContent = `Downloading ${fileName}...`;
       }
 
+      showToast();
+
       if (downloadUrl) {
-        showToast();
-        // Create a temporary anchor to trigger a real browser download
+        // If event default can be prevented, handle download explicitly
         const link = document.createElement('a');
         link.href = downloadUrl;
         link.download = fileName;
@@ -924,6 +939,9 @@
         document.body.appendChild(link);
         link.click();
         document.body.removeChild(link);
+        if (event && event.preventDefault) {
+          event.preventDefault();
+        }
       }
     }
 
