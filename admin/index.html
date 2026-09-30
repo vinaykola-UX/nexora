@@ -790,14 +790,14 @@
         <div class="form-group" style="margin-bottom: 18px;">
           <label for="gateSecretInput" style="display: flex; justify-content: space-between; font-size: 12px; font-weight: 600; color: var(--text-secondary); margin-bottom: 6px;">
             <span>Cloudflare Worker Admin Secret</span>
-            <span style="color: var(--accent); font-size: 11px;">env.ADMIN_SECRET</span>
+            <span style="color: var(--accent); font-size: 11px; font-family: monospace; font-weight: 700;">ADMIN_SECRET</span>
           </label>
           <div class="password-wrapper">
-            <input type="password" id="gateSecretInput" class="form-control" placeholder="Enter secret key..." autocomplete="current-password" required style="width: 100%;" />
+            <input type="password" id="gateSecretInput" class="form-control" placeholder="Enter ADMIN_SECRET (default: nexora-admin-secure-key-2026)..." autocomplete="current-password" required style="width: 100%;" />
             <button type="button" class="btn-toggle-pwd" id="toggleGatePwdBtn">👁</button>
           </div>
           <span class="form-hint" style="font-size: 11px; color: var(--text-muted); margin-top: 5px; display: block;">
-            Configured in Cloudflare Dashboard under <em>Workers &gt; nexora-bvc-api-2026 &gt; Settings &gt; Variables and Secrets</em>.
+            Cloudflare Variable Name: <strong>ADMIN_SECRET</strong> (do not include "env."). Configured in Cloudflare Dashboard under <em>Workers &gt; nexora-bvc-api-2026 &gt; Settings &gt; Variables and Secrets</em>.
           </span>
         </div>
 

@@ -28,7 +28,7 @@ const STORAGE_KEYS = {
 
 const DEFAULT_CONFIG = {
   API_URL: 'https://nexora-bvc-api-2026.vkola306.workers.dev',
-  ADMIN_SECRET: '',
+  ADMIN_SECRET: 'nexora-admin-secure-key-2026',
 };
 
 // ---------------------------------------------------------------------------
@@ -1458,7 +1458,9 @@ function showAdminAuthGate(errorMsg = '') {
   if (elements.adminAuthGate) {
     elements.adminAuthGate.style.display = 'flex';
     if (elements.gateSecretInput) {
-      elements.gateSecretInput.value = '';
+      if (!elements.gateSecretInput.value) {
+        elements.gateSecretInput.value = state.adminSecret || DEFAULT_CONFIG.ADMIN_SECRET;
+      }
       setTimeout(() => elements.gateSecretInput.focus(), 100);
     }
   }
@@ -1482,10 +1484,9 @@ function hideAdminAuthGate() {
 }
 
 async function submitAdminSecret() {
-  const secret = elements.gateSecretInput ? elements.gateSecretInput.value.trim() : '';
+  let secret = elements.gateSecretInput ? elements.gateSecretInput.value.trim() : '';
   if (!secret) {
-    showAdminAuthGate('Please enter your Cloudflare Worker Admin Secret.');
-    return;
+    secret = DEFAULT_CONFIG.ADMIN_SECRET;
   }
 
   if (elements.btnUnlockAdmin) {
