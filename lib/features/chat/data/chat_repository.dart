@@ -151,27 +151,45 @@ class PersistedChatMessage {
 /// Ensures chat history is persistent across app restarts, offline usage,
 /// and synced across all devices via the authenticated Worker API.
 class ChatRepository {
-  final Uuid _uuid = const Uuid();
-  final http.Client _client;
-  final String _baseUrl;
+  static final ChatRepository _instance = ChatRepository._internal();
 
-  ChatRepository({
+  /// Default singleton factory ensures UI components share the same instance and streams
+  factory ChatRepository({http.Client? client, String? baseUrl}) {
+    if (client != null || baseUrl != null) {
+      return ChatRepository._internal(client: client, baseUrl: baseUrl);
+    }
+    return _instance;
+  }
+
+  ChatRepository._internal({
     http.Client? client,
     String? baseUrl,
   })  : _client = client ?? http.Client(),
         _baseUrl = baseUrl ?? AppConstants.workerBaseUrl;
 
+  final Uuid _uuid = const Uuid();
+  final http.Client _client;
+  final String _baseUrl;
+
   static const String _conversationsKeyPrefix = 'nexora_conversations_';
   static const String _messagesKeyPrefix = 'nexora_messages_';
 
+  // In-memory cache for instant synchronous access
+  final Map<String, List<ChatConversation>> _memoryCache = {};
+
   // StreamController to broadcast real-time conversation updates to the UI
   final _conversationsStreamController = StreamController<List<ChatConversation>>.broadcast();
+
+  /// Synchronously get cached conversations for instant rendering without waiting for SharedPreferences
+  List<ChatConversation> getCachedConversations(String uid) {
+    return _memoryCache[uid] ?? [];
+  }
 
   // ---------------------------------------------------------------------------
   // Firebase Auth Token Helper
   // ---------------------------------------------------------------------------
 
-  Future<Map<String, String>> _getAuthHeaders() async {
+  Future<Map<String, String>> _getAuthHeaders({bool forceRefresh = false}) async {
     final headers = <String, String>{
       'Content-Type': 'application/json',
       'Accept': 'application/json',
@@ -180,7 +198,7 @@ class ChatRepository {
     try {
       final user = FirebaseAuth.instance.currentUser;
       if (user != null) {
-        final token = await user.getIdToken();
+        final token = await user.getIdToken(forceRefresh);
         if (token != null && token.isNotEmpty) {
           headers['Authorization'] = 'Bearer $token';
         }
@@ -210,6 +228,7 @@ class ChatRepository {
           .toList();
 
       conversations.sort((a, b) => b.updatedAt.compareTo(a.updatedAt));
+      _memoryCache[uid] = conversations;
       return conversations;
     } catch (e) {
       debugPrint('[ChatRepository] Error reading local conversations: $e');
@@ -220,11 +239,14 @@ class ChatRepository {
   Future<void> _saveLocalConversations(String uid, List<ChatConversation> list) async {
     if (uid.isEmpty) return;
     try {
+      _memoryCache[uid] = list;
       final prefs = await SharedPreferences.getInstance();
       final key = '$_conversationsKeyPrefix$uid';
       final jsonStr = jsonEncode(list.map((c) => c.toMap()).toList());
       await prefs.setString(key, jsonStr);
-      _conversationsStreamController.add(list);
+      if (!_conversationsStreamController.isClosed) {
+        _conversationsStreamController.add(list);
+      }
     } catch (e) {
       debugPrint('[ChatRepository] Error saving local conversations: $e');
     }
@@ -265,17 +287,26 @@ class ChatRepository {
   }
 
   // ---------------------------------------------------------------------------
-  // Worker API Helpers
+  // Worker API Helpers (with Automatic Token Force-Refresh on 401)
   // ---------------------------------------------------------------------------
 
   /// Fetch conversations from the Worker D1 API.
   Future<List<ChatConversation>> _fetchRemoteConversations() async {
     try {
-      final headers = await _getAuthHeaders();
-      final response = await _client.get(
+      var headers = await _getAuthHeaders();
+      var response = await _client.get(
         Uri.parse('$_baseUrl/chat/conversations?limit=50'),
         headers: headers,
       ).timeout(const Duration(seconds: 15));
+
+      // Auto-retry with force-refreshed token if expired
+      if (response.statusCode == 401) {
+        headers = await _getAuthHeaders(forceRefresh: true);
+        response = await _client.get(
+          Uri.parse('$_baseUrl/chat/conversations?limit=50'),
+          headers: headers,
+        ).timeout(const Duration(seconds: 15));
+      }
 
       if (response.statusCode == 200) {
         final json = jsonDecode(utf8.decode(response.bodyBytes)) as Map<String, dynamic>;
@@ -302,12 +333,20 @@ class ChatRepository {
   /// Fetch messages for a conversation from the Worker D1 API.
   Future<List<PersistedChatMessage>> _fetchRemoteMessages(String conversationId) async {
     try {
-      final headers = await _getAuthHeaders();
+      var headers = await _getAuthHeaders();
       final encodedId = Uri.encodeComponent(conversationId);
-      final response = await _client.get(
+      var response = await _client.get(
         Uri.parse('$_baseUrl/chat/conversations/$encodedId?limit=200'),
         headers: headers,
       ).timeout(const Duration(seconds: 15));
+
+      if (response.statusCode == 401) {
+        headers = await _getAuthHeaders(forceRefresh: true);
+        response = await _client.get(
+          Uri.parse('$_baseUrl/chat/conversations/$encodedId?limit=200'),
+          headers: headers,
+        ).timeout(const Duration(seconds: 15));
+      }
 
       if (response.statusCode == 200) {
         final json = jsonDecode(utf8.decode(response.bodyBytes)) as Map<String, dynamic>;
@@ -337,12 +376,21 @@ class ChatRepository {
     required String title,
   }) async {
     try {
-      final headers = await _getAuthHeaders();
-      final response = await _client.post(
+      var headers = await _getAuthHeaders();
+      var response = await _client.post(
         Uri.parse('$_baseUrl/chat/conversations'),
         headers: headers,
         body: jsonEncode({'id': convId, 'title': title}),
       ).timeout(const Duration(seconds: 10));
+
+      if (response.statusCode == 401) {
+        headers = await _getAuthHeaders(forceRefresh: true);
+        response = await _client.post(
+          Uri.parse('$_baseUrl/chat/conversations'),
+          headers: headers,
+          body: jsonEncode({'id': convId, 'title': title}),
+        ).timeout(const Duration(seconds: 10));
+      }
 
       if (response.statusCode == 200) {
         final json = jsonDecode(utf8.decode(response.bodyBytes)) as Map<String, dynamic>;
@@ -366,7 +414,7 @@ class ChatRepository {
     String? createdAt,
   }) async {
     try {
-      final headers = await _getAuthHeaders();
+      var headers = await _getAuthHeaders();
       final body = <String, dynamic>{
         'id': msgId,
         'conversation_id': conversationId,
@@ -375,11 +423,20 @@ class ChatRepository {
       };
       if (createdAt != null) body['created_at'] = createdAt;
 
-      await _client.post(
+      var response = await _client.post(
         Uri.parse('$_baseUrl/chat/messages'),
         headers: headers,
         body: jsonEncode(body),
       ).timeout(const Duration(seconds: 10));
+
+      if (response.statusCode == 401) {
+        headers = await _getAuthHeaders(forceRefresh: true);
+        response = await _client.post(
+          Uri.parse('$_baseUrl/chat/messages'),
+          headers: headers,
+          body: jsonEncode(body),
+        ).timeout(const Duration(seconds: 10));
+      }
     } catch (e) {
       debugPrint('[ChatRepository] Worker save message error (non-fatal): $e');
     }
@@ -388,13 +445,22 @@ class ChatRepository {
   /// Rename a conversation on the Worker D1 API.
   Future<bool> _renameRemoteConversation(String conversationId, String newTitle) async {
     try {
-      final headers = await _getAuthHeaders();
+      var headers = await _getAuthHeaders();
       final encodedId = Uri.encodeComponent(conversationId);
-      final response = await _client.patch(
+      var response = await _client.patch(
         Uri.parse('$_baseUrl/chat/conversations/$encodedId'),
         headers: headers,
         body: jsonEncode({'title': newTitle}),
       ).timeout(const Duration(seconds: 10));
+
+      if (response.statusCode == 401) {
+        headers = await _getAuthHeaders(forceRefresh: true);
+        response = await _client.patch(
+          Uri.parse('$_baseUrl/chat/conversations/$encodedId'),
+          headers: headers,
+          body: jsonEncode({'title': newTitle}),
+        ).timeout(const Duration(seconds: 10));
+      }
 
       return response.statusCode == 200;
     } catch (e) {
@@ -406,12 +472,20 @@ class ChatRepository {
   /// Delete a conversation on the Worker D1 API.
   Future<bool> _deleteRemoteConversation(String conversationId) async {
     try {
-      final headers = await _getAuthHeaders();
+      var headers = await _getAuthHeaders();
       final encodedId = Uri.encodeComponent(conversationId);
-      final response = await _client.delete(
+      var response = await _client.delete(
         Uri.parse('$_baseUrl/chat/conversations/$encodedId'),
         headers: headers,
       ).timeout(const Duration(seconds: 10));
+
+      if (response.statusCode == 401) {
+        headers = await _getAuthHeaders(forceRefresh: true);
+        response = await _client.delete(
+          Uri.parse('$_baseUrl/chat/conversations/$encodedId'),
+          headers: headers,
+        ).timeout(const Duration(seconds: 10));
+      }
 
       return response.statusCode == 200;
     } catch (e) {
@@ -434,10 +508,15 @@ class ChatRepository {
     return _conversationsStreamController.stream;
   }
 
+  /// Explicitly trigger a refresh from the Worker D1 API (e.g. for pull-to-refresh)
+  Future<void> refreshConversations(String uid) async {
+    await _syncConversations(uid);
+  }
+
   /// Initial sync: load local first, then merge with Worker D1 API
   Future<void> _syncConversations(String uid) async {
     final local = await _getLocalConversations(uid);
-    if (local.isNotEmpty) {
+    if (local.isNotEmpty && !_conversationsStreamController.isClosed) {
       _conversationsStreamController.add(local);
     }
 
@@ -473,16 +552,24 @@ class ChatRepository {
 
         await _saveLocalConversations(uid, merged);
       } else if (local.isNotEmpty) {
-        _conversationsStreamController.add(local);
+        if (!_conversationsStreamController.isClosed) {
+          _conversationsStreamController.add(local);
+        }
       } else {
-        _conversationsStreamController.add([]);
+        if (!_conversationsStreamController.isClosed) {
+          _conversationsStreamController.add([]);
+        }
       }
     } catch (e) {
       debugPrint('[ChatRepository] Worker sync note (offline/fallback): $e');
       if (local.isNotEmpty) {
-        _conversationsStreamController.add(local);
+        if (!_conversationsStreamController.isClosed) {
+          _conversationsStreamController.add(local);
+        }
       } else {
-        _conversationsStreamController.add([]);
+        if (!_conversationsStreamController.isClosed) {
+          _conversationsStreamController.add([]);
+        }
       }
     }
   }

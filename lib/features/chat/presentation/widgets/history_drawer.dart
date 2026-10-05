@@ -268,7 +268,7 @@ class _HistoryDrawerState extends State<HistoryDrawer> {
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            // Drawer Header: "History"
+            // Drawer Header: "History" with manual Sync button
             Padding(
               padding: const EdgeInsets.all(NexoraSpacing.lg),
               child: Row(
@@ -282,9 +282,21 @@ class _HistoryDrawerState extends State<HistoryDrawer> {
                       color: Color(NexoraColors.text),
                     ),
                   ),
-                  IconButton(
-                    icon: const Icon(Icons.close, color: Color(NexoraColors.text)),
-                    onPressed: () => Navigator.pop(context),
+                  Row(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      IconButton(
+                        tooltip: 'Sync conversations',
+                        icon: const Icon(Icons.sync_rounded, color: Color(NexoraColors.textSecondary), size: 20),
+                        onPressed: () async {
+                          await _chatRepository.refreshConversations(uid);
+                        },
+                      ),
+                      IconButton(
+                        icon: const Icon(Icons.close, color: Color(NexoraColors.text)),
+                        onPressed: () => Navigator.pop(context),
+                      ),
+                    ],
                   ),
                 ],
               ),
@@ -359,67 +371,93 @@ class _HistoryDrawerState extends State<HistoryDrawer> {
             const SizedBox(height: NexoraSpacing.md),
             const Divider(color: Color(NexoraColors.divider), height: 1),
 
-            // Persistent Chat List Stream
+            // Persistent Chat List Stream with instant cache + pull-to-refresh
             Expanded(
-              child: StreamBuilder<List<ChatConversation>>(
-                stream: _chatRepository.streamConversations(uid),
-                builder: (context, snapshot) {
-                  if (snapshot.connectionState == ConnectionState.waiting &&
-                      !snapshot.hasData) {
-                    return const Center(
-                      child: SizedBox(
-                        width: 24,
-                        height: 24,
-                        child: CircularProgressIndicator(
-                          strokeWidth: 2,
-                          valueColor: AlwaysStoppedAnimation<Color>(
-                            Color(0xFF171717),
+              child: RefreshIndicator(
+                color: const Color(0xFF171717),
+                onRefresh: () async {
+                  await _chatRepository.refreshConversations(uid);
+                },
+                child: StreamBuilder<List<ChatConversation>>(
+                  initialData: _chatRepository.getCachedConversations(uid).isNotEmpty
+                      ? _chatRepository.getCachedConversations(uid)
+                      : null,
+                  stream: _chatRepository.streamConversations(uid),
+                  builder: (context, snapshot) {
+                    if (snapshot.connectionState == ConnectionState.waiting &&
+                        !snapshot.hasData) {
+                      return const Center(
+                        child: SizedBox(
+                          width: 24,
+                          height: 24,
+                          child: CircularProgressIndicator(
+                            strokeWidth: 2,
+                            valueColor: AlwaysStoppedAnimation<Color>(
+                              Color(0xFF171717),
+                            ),
                           ),
                         ),
+                      );
+                    }
+
+                    final conversations = snapshot.data ?? [];
+                    if (conversations.isEmpty) {
+                      return ListView(
+                        physics: const AlwaysScrollableScrollPhysics(),
+                        children: [
+                          SizedBox(
+                            height: MediaQuery.of(context).size.height * 0.4,
+                            child: _buildEmptyState(
+                              'No conversations yet.\nAsk a question to start saving your chat history.',
+                            ),
+                          ),
+                        ],
+                      );
+                    }
+
+                    final filtered = _chatRepository.filterConversations(conversations, _searchQuery);
+                    if (filtered.isEmpty) {
+                      return ListView(
+                        physics: const AlwaysScrollableScrollPhysics(),
+                        children: [
+                          SizedBox(
+                            height: MediaQuery.of(context).size.height * 0.4,
+                            child: _buildNoMatchState(),
+                          ),
+                        ],
+                      );
+                    }
+
+                    final pinned = filtered.where((c) => c.isPinned).toList();
+                    final recent = filtered.where((c) => !c.isPinned).toList();
+
+                    return ListView(
+                      physics: const AlwaysScrollableScrollPhysics(),
+                      padding: const EdgeInsets.symmetric(
+                        horizontal: NexoraSpacing.md,
+                        vertical: NexoraSpacing.md,
                       ),
-                    );
-                  }
+                      children: [
+                        // PINNED Section
+                        if (pinned.isNotEmpty) ...[
+                          _buildSectionHeader('PINNED'),
+                          ...pinned.map(
+                            (conv) => _buildChatItem(conv, uid, isPinned: true),
+                          ),
+                          const SizedBox(height: NexoraSpacing.lg),
+                        ],
 
-                  final conversations = snapshot.data ?? [];
-                  if (conversations.isEmpty) {
-                    return _buildEmptyState(
-                      'No conversations yet.\nAsk a question to start saving your chat history.',
-                    );
-                  }
-
-                  final filtered = _chatRepository.filterConversations(conversations, _searchQuery);
-                  if (filtered.isEmpty) {
-                    return _buildNoMatchState();
-                  }
-
-                  final pinned = filtered.where((c) => c.isPinned).toList();
-                  final recent = filtered.where((c) => !c.isPinned).toList();
-
-                  return ListView(
-                    padding: const EdgeInsets.symmetric(
-                      horizontal: NexoraSpacing.md,
-                      vertical: NexoraSpacing.md,
-                    ),
-                    children: [
-                      // PINNED Section
-                      if (pinned.isNotEmpty) ...[
-                        _buildSectionHeader('PINNED'),
-                        ...pinned.map(
-                          (conv) => _buildChatItem(conv, uid, isPinned: true),
-                        ),
-                        const SizedBox(height: NexoraSpacing.lg),
+                        // RECENT Section
+                        if (recent.isNotEmpty) ...[
+                          _buildSectionHeader('RECENT'),
+                          ...recent.map(
+                            (conv) => _buildChatItem(conv, uid, isPinned: false),
+                          ),
+                        ],
                       ],
-
-                      // RECENT Section
-                      if (recent.isNotEmpty) ...[
-                        _buildSectionHeader('RECENT'),
-                        ...recent.map(
-                          (conv) => _buildChatItem(conv, uid, isPinned: false),
-                        ),
-                      ],
-                    ],
-                  );
-                },
+                    );
+                  },
+                ),
               ),
             ),
 
