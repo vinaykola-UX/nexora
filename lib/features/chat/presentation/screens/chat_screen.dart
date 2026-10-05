@@ -1,7 +1,13 @@
 import 'dart:async';
+import 'dart:io';
+import 'package:dio/dio.dart';
 import 'package:firebase_auth/firebase_auth.dart';
+import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:go_router/go_router.dart';
+import 'package:open_filex/open_filex.dart';
+import 'package:path_provider/path_provider.dart';
 import 'package:url_launcher/url_launcher.dart';
 
 import '../../../../app/router/app_router.dart';
@@ -16,6 +22,7 @@ import '../../../../services/text_to_speech_service.dart';
 import '../../data/chat_repository.dart';
 import '../widgets/history_drawer.dart';
 import '../widgets/markdown_renderer.dart';
+
 
 /// Main chat screen displaying real-time official BVC College retrieval results with persistent history
 class ChatScreen extends StatefulWidget {
@@ -397,18 +404,69 @@ class _ChatScreenState extends State<ChatScreen> {
   }
 
   Future<void> _openOfficialUrl(String url) async {
+    if (url.isEmpty) return;
+
     try {
       final uri = Uri.parse(url);
-      if (await canLaunchUrl(uri)) {
-        await launchUrl(uri, mode: LaunchMode.externalApplication);
-      } else {
-        if (mounted) {
-          ScaffoldMessenger.of(context).showSnackBar(
-            SnackBar(content: Text('Could not open link: $url')),
-          );
-        }
+
+      // Check if this is a PDF URL — offer download instead of just opening
+      final lowerUrl = url.toLowerCase();
+      if (lowerUrl.endsWith('.pdf') ||
+          lowerUrl.contains('.pdf?') ||
+          lowerUrl.contains('/pdf/') ||
+          lowerUrl.contains('type=pdf')) {
+        await _downloadAndOpenPdf(url);
+        return;
+      }
+
+      // Strategy 1: Launch in external browser (most reliable)
+      try {
+        final launched = await launchUrl(
+          uri,
+          mode: LaunchMode.externalApplication,
+        );
+        if (launched) return;
+      } catch (_) {
+        // Fall through to next strategy
+      }
+
+      // Strategy 2: In-app browser view
+      try {
+        final launched = await launchUrl(
+          uri,
+          mode: LaunchMode.inAppBrowserView,
+        );
+        if (launched) return;
+      } catch (_) {
+        // Fall through to next strategy
+      }
+
+      // Strategy 3: Platform default
+      try {
+        final launched = await launchUrl(uri);
+        if (launched) return;
+      } catch (_) {
+        // All strategies exhausted
+      }
+
+      // All strategies failed — show error
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('Could not open link: $url'),
+            action: SnackBarAction(
+              label: 'Copy',
+              onPressed: () {
+                // Copy URL to clipboard as last resort
+                final data = ClipboardData(text: url);
+                Clipboard.setData(data);
+              },
+            ),
+          ),
+        );
       }
     } catch (e) {
+      debugPrint('[ChatScreen] Error opening URL: $e');
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(content: Text('Error opening link: $e')),
@@ -416,6 +474,151 @@ class _ChatScreenState extends State<ChatScreen> {
       }
     }
   }
+
+  /// Downloads a remote PDF to device storage, then opens it with the
+  /// platform's native PDF viewer using open_filex.
+  Future<void> _downloadAndOpenPdf(String pdfUrl) async {
+    if (!mounted) return;
+
+    // Show download-in-progress snackbar
+    ScaffoldMessenger.of(context).showSnackBar(
+      const SnackBar(
+        content: Row(
+          children: [
+            SizedBox(
+              width: 18,
+              height: 18,
+              child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white),
+            ),
+            SizedBox(width: 12),
+            Expanded(child: Text('Downloading PDF...')),
+          ],
+        ),
+        duration: Duration(seconds: 30),
+      ),
+    );
+
+    try {
+      // Determine filename from URL
+      final uri = Uri.parse(pdfUrl);
+      String fileName = uri.pathSegments.isNotEmpty
+          ? uri.pathSegments.last
+          : 'document_${DateTime.now().millisecondsSinceEpoch}.pdf';
+      if (!fileName.toLowerCase().endsWith('.pdf')) {
+        fileName += '.pdf';
+      }
+      // Sanitize filename — remove special characters
+      fileName = fileName.replaceAll(RegExp(r'[^\w\-.]'), '_');
+
+      // Get downloads directory
+      final Directory dir;
+      if (!kIsWeb && defaultTargetPlatform == TargetPlatform.android) {
+        // Use app-specific external storage on Android
+        final externalDir = await getExternalStorageDirectory();
+        dir = externalDir ?? await getApplicationDocumentsDirectory();
+      } else {
+        dir = await getApplicationDocumentsDirectory();
+      }
+
+      final savePath = '${dir.path}/$fileName';
+
+      // Download file using dio
+      final dio = Dio();
+      await dio.download(
+        pdfUrl,
+        savePath,
+        options: Options(
+          followRedirects: true,
+          receiveTimeout: const Duration(seconds: 60),
+        ),
+      );
+
+      // Dismiss the downloading snackbar
+      if (mounted) {
+        ScaffoldMessenger.of(context).hideCurrentSnackBar();
+      }
+
+      // Open the downloaded file with the platform's default PDF viewer
+      final result = await OpenFilex.open(savePath);
+
+      if (result.type != ResultType.done) {
+        debugPrint('[ChatScreen] OpenFilex result: ${result.type} - ${result.message}');
+        // Fallback: try launching the URL directly in browser
+        try {
+          await launchUrl(
+            Uri.parse(pdfUrl),
+            mode: LaunchMode.externalApplication,
+          );
+        } catch (_) {
+          if (mounted) {
+            ScaffoldMessenger.of(context).showSnackBar(
+              SnackBar(
+                content: Text('Downloaded but could not open: $fileName'),
+                action: SnackBarAction(
+                  label: 'Open Folder',
+                  onPressed: () {
+                    if (!kIsWeb && defaultTargetPlatform == TargetPlatform.windows) {
+                      Process.run('explorer.exe', [dir.path]);
+                    }
+                  },
+                ),
+              ),
+            );
+          }
+        }
+      } else {
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(
+              content: Text('PDF saved: $fileName'),
+              duration: const Duration(seconds: 2),
+            ),
+          );
+        }
+      }
+    } catch (e) {
+      debugPrint('[ChatScreen] PDF download error: $e');
+      if (mounted) {
+        ScaffoldMessenger.of(context).hideCurrentSnackBar();
+      }
+
+      // Fallback: try opening the PDF URL directly in the browser
+      try {
+        final launched = await launchUrl(
+          Uri.parse(pdfUrl),
+          mode: LaunchMode.externalApplication,
+        );
+        if (!launched && mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(
+              content: const Text('Could not download or open PDF'),
+              action: SnackBarAction(
+                label: 'Copy Link',
+                onPressed: () {
+                  Clipboard.setData(ClipboardData(text: pdfUrl));
+                },
+              ),
+            ),
+          );
+        }
+      } catch (_) {
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(
+              content: const Text('Could not download or open PDF'),
+              action: SnackBarAction(
+                label: 'Copy Link',
+                onPressed: () {
+                  Clipboard.setData(ClipboardData(text: pdfUrl));
+                },
+              ),
+            ),
+          );
+        }
+      }
+    }
+  }
+
 
   String _getCopyableText(_ChatMessage message) {
     final buffer = StringBuffer(message.text);

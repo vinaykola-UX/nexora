@@ -1,7 +1,10 @@
 import 'dart:convert';
 import 'dart:io';
+import 'package:dio/dio.dart';
 import 'package:flutter/foundation.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:open_filex/open_filex.dart';
+import 'package:path_provider/path_provider.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:url_launcher/url_launcher.dart';
 import '../domain/download_item.dart';
@@ -140,36 +143,114 @@ class DownloadsRepository {
     }
   }
 
-  /// Opens the downloaded file using the platform's default application
+  /// Opens the downloaded file using the platform's default application.
+  /// Uses open_filex for reliable cross-platform file opening with MIME
+  /// type detection, falling back to url_launcher or Process.run.
   Future<bool> openFile(DownloadItem item) async {
     try {
-      // 1. Windows Desktop specific execution
-      if (!kIsWeb && defaultTargetPlatform == TargetPlatform.windows) {
+      // 1. Try to open the local file with open_filex (cross-platform)
+      if (!kIsWeb) {
         final file = File(item.filePath);
         if (await file.exists()) {
-          final result = await Process.run('cmd', ['/c', 'start', '', item.filePath]);
-          return result.exitCode == 0;
+          final result = await OpenFilex.open(item.filePath);
+          if (result.type == ResultType.done) {
+            return true;
+          }
+          debugPrint('[DownloadsRepository] OpenFilex failed: ${result.type} - ${result.message}');
+
+          // Fallback for Windows: cmd /c start
+          if (defaultTargetPlatform == TargetPlatform.windows) {
+            final cmdResult = await Process.run('cmd', ['/c', 'start', '', item.filePath]);
+            if (cmdResult.exitCode == 0) return true;
+          }
         }
       }
 
-      // 2. Mobile or URL fallback via url_launcher
+      // 2. If local file doesn't exist but we have a download URL, download then open
       if (item.downloadUrl != null && item.downloadUrl!.isNotEmpty) {
-        final uri = Uri.parse(item.downloadUrl!);
-        if (await canLaunchUrl(uri)) {
-          return await launchUrl(uri, mode: LaunchMode.externalApplication);
+        final lowerUrl = item.downloadUrl!.toLowerCase();
+        if (lowerUrl.startsWith('http://') || lowerUrl.startsWith('https://')) {
+          return await downloadAndOpenRemoteFile(item.downloadUrl!, item.fileName);
         }
       }
 
-      final fileUri = Uri.file(item.filePath);
-      if (await canLaunchUrl(fileUri)) {
-        return await launchUrl(fileUri);
+      // 3. Last resort: try launching file URI via url_launcher
+      try {
+        final fileUri = Uri.file(item.filePath);
+        return await launchUrl(fileUri, mode: LaunchMode.externalApplication);
+      } catch (_) {
+        // url_launcher failed
       }
+
       return false;
     } catch (e) {
       debugPrint('[DownloadsRepository] Error opening file: $e');
       return false;
     }
   }
+
+  /// Downloads a remote file to local storage and opens it with the
+  /// platform's default application.
+  Future<bool> downloadAndOpenRemoteFile(String remoteUrl, String fileName) async {
+    try {
+      // Sanitize filename
+      String safeName = fileName.replaceAll(RegExp(r'[^\w\-.]'), '_');
+      if (safeName.isEmpty) {
+        safeName = 'download_${DateTime.now().millisecondsSinceEpoch}.pdf';
+      }
+
+      // Determine save directory
+      final Directory dir;
+      if (!kIsWeb && defaultTargetPlatform == TargetPlatform.android) {
+        final externalDir = await getExternalStorageDirectory();
+        dir = externalDir ?? await getApplicationDocumentsDirectory();
+      } else {
+        dir = await getApplicationDocumentsDirectory();
+      }
+
+      final savePath = '${dir.path}/$safeName';
+
+      // Download
+      final dio = Dio();
+      await dio.download(
+        remoteUrl,
+        savePath,
+        options: Options(
+          followRedirects: true,
+          receiveTimeout: const Duration(seconds: 60),
+        ),
+      );
+
+      // Open
+      final result = await OpenFilex.open(savePath);
+      if (result.type == ResultType.done) {
+        return true;
+      }
+
+      // Fallback: try browser
+      try {
+        return await launchUrl(
+          Uri.parse(remoteUrl),
+          mode: LaunchMode.externalApplication,
+        );
+      } catch (_) {
+        return false;
+      }
+    } catch (e) {
+      debugPrint('[DownloadsRepository] Error downloading remote file: $e');
+
+      // Final fallback: just open in browser
+      try {
+        return await launchUrl(
+          Uri.parse(remoteUrl),
+          mode: LaunchMode.externalApplication,
+        );
+      } catch (_) {
+        return false;
+      }
+    }
+  }
+
 
   /// Reveals the downloaded file in Windows File Explorer
   Future<bool> showInExplorer(DownloadItem item) async {
