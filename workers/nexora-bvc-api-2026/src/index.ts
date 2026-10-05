@@ -31,6 +31,7 @@ import { BVCStorage } from './bvc/bvc_storage';
 import { BVCNormalizer } from './bvc/bvc_normalizer';
 import { MemoryStorage } from './memory/memory_storage';
 import { MemoryManager } from './memory/memory_manager';
+import { ChatStorage } from './chat/chat_storage';
 
 export interface Env extends EnvAIConfig {
   ENVIRONMENT?: string;
@@ -1907,6 +1908,155 @@ export default {
         }
       }
 
+      // -----------------------------------------------------------------------
+      // 8b. Cloud-Synced Chat History Routes (D1 Scoped by Firebase UID)
+      // -----------------------------------------------------------------------
+      if (
+        path === '/chat/conversations' ||
+        path.startsWith('/chat/conversations/') ||
+        path === '/chat/messages'
+      ) {
+        const chatUser = await FirebaseAuthGuard.authenticate(request, {
+          environment: env.ENVIRONMENT,
+        });
+        if (!chatUser) {
+          return jsonResponse(
+            {
+              success: false,
+              error: 'Unauthorized',
+              message: 'Valid Firebase authentication required. Pass Authorization: Bearer <Firebase_ID_Token>.',
+            },
+            401
+          );
+        }
+
+        if (!env.DB) {
+          return jsonResponse(
+            {
+              success: false,
+              error: 'Database Unavailable',
+              message: 'D1 database binding is required.',
+            },
+            503
+          );
+        }
+
+        // GET /chat/conversations - List user's conversations
+        if (request.method === 'GET' && path === '/chat/conversations') {
+          const limit = parseInt(url.searchParams.get('limit') || '50', 10);
+          const offset = parseInt(url.searchParams.get('offset') || '0', 10);
+          const conversations = await ChatStorage.listConversations(env.DB, chatUser.uid, limit, offset);
+          return jsonResponse({ success: true, count: conversations.length, conversations });
+        }
+
+        // POST /chat/conversations - Create or upsert conversation
+        if (request.method === 'POST' && path === '/chat/conversations') {
+          let bBody: any = {};
+          try {
+            bBody = await request.json();
+          } catch (_) {}
+          const conv = await ChatStorage.createConversation(env.DB, chatUser.uid, {
+            id: bBody?.id,
+            title: bBody?.title,
+          });
+          return jsonResponse({ success: true, conversation: conv });
+        }
+
+        // POST /chat/messages - Save message idempotently
+        if (request.method === 'POST' && path === '/chat/messages') {
+          let bBody: any;
+          try {
+            bBody = await request.json();
+          } catch {
+            return jsonResponse({ success: false, error: 'Bad Request', message: 'Invalid JSON body.' }, 400);
+          }
+          const convId = bBody?.conversation_id || bBody?.conversationId;
+          const content = bBody?.content || bBody?.text;
+          const role = bBody?.role || 'user';
+          const msgId = bBody?.id;
+          const createdAt = bBody?.created_at || bBody?.createdAt;
+
+          if (!convId || typeof convId !== 'string' || !convId.trim()) {
+            return jsonResponse({ success: false, error: 'Validation Error', message: 'conversation_id is required.' }, 400);
+          }
+          if (!content || typeof content !== 'string' || !content.trim()) {
+            return jsonResponse({ success: false, error: 'Validation Error', message: 'content is required.' }, 400);
+          }
+
+          const savedMsg = await ChatStorage.saveMessage(env.DB, chatUser.uid, {
+            id: msgId,
+            conversation_id: convId.trim(),
+            role: role === 'assistant' ? 'assistant' : (role === 'system' ? 'system' : 'user'),
+            content: content.trim(),
+            created_at: createdAt,
+          });
+          return jsonResponse({ success: true, message: savedMsg });
+        }
+
+        // GET /chat/conversations/:id - Retrieve conversation and its messages
+        if (request.method === 'GET' && path.startsWith('/chat/conversations/')) {
+          const convId = path.replace('/chat/conversations/', '').trim();
+          if (!convId) {
+            return jsonResponse({ success: false, error: 'Bad Request', message: 'Conversation ID is required.' }, 400);
+          }
+          const conversation = await ChatStorage.getConversation(env.DB, chatUser.uid, convId);
+          if (!conversation) {
+            return jsonResponse(
+              { success: false, error: 'Not Found', message: 'Conversation not found or access denied.' },
+              404
+            );
+          }
+          const limit = parseInt(url.searchParams.get('limit') || '100', 10);
+          const offset = parseInt(url.searchParams.get('offset') || '0', 10);
+          const messages = await ChatStorage.getMessages(env.DB, chatUser.uid, convId, limit, offset);
+          return jsonResponse({ success: true, conversation, messages });
+        }
+
+        // PATCH /chat/conversations/:id - Rename conversation
+        if (request.method === 'PATCH' && path.startsWith('/chat/conversations/')) {
+          const convId = path.replace('/chat/conversations/', '').trim();
+          if (!convId) {
+            return jsonResponse({ success: false, error: 'Bad Request', message: 'Conversation ID is required.' }, 400);
+          }
+          let bBody: any;
+          try {
+            bBody = await request.json();
+          } catch {
+            return jsonResponse({ success: false, error: 'Bad Request', message: 'Invalid JSON body.' }, 400);
+          }
+          const newTitle = bBody?.title;
+          if (!newTitle || typeof newTitle !== 'string' || !newTitle.trim()) {
+            return jsonResponse({ success: false, error: 'Validation Error', message: 'title is required.' }, 400);
+          }
+          const conversation = await ChatStorage.getConversation(env.DB, chatUser.uid, convId);
+          if (!conversation) {
+            return jsonResponse(
+              { success: false, error: 'Not Found', message: 'Conversation not found or access denied.' },
+              404
+            );
+          }
+          const updated = await ChatStorage.updateConversation(env.DB, chatUser.uid, convId, newTitle.trim());
+          return jsonResponse({ success: updated, message: updated ? 'Conversation updated.' : 'Failed to update conversation.' });
+        }
+
+        // DELETE /chat/conversations/:id - Delete conversation and its messages
+        if (request.method === 'DELETE' && path.startsWith('/chat/conversations/')) {
+          const convId = path.replace('/chat/conversations/', '').trim();
+          if (!convId) {
+            return jsonResponse({ success: false, error: 'Bad Request', message: 'Conversation ID is required.' }, 400);
+          }
+          const conversation = await ChatStorage.getConversation(env.DB, chatUser.uid, convId);
+          if (!conversation) {
+            return jsonResponse(
+              { success: false, error: 'Not Found', message: 'Conversation not found or access denied.' },
+              404
+            );
+          }
+          const deleted = await ChatStorage.deleteConversation(env.DB, chatUser.uid, convId);
+          return jsonResponse({ success: deleted, message: deleted ? 'Conversation deleted successfully.' : 'Failed to delete conversation.' });
+        }
+      }
+
       // 9. Grounded Conversational AI Route
       if (request.method === 'POST' && (path === '/chat' || path === '/ask')) {
         let body: any;
@@ -2110,6 +2260,33 @@ export default {
                   });
                 }
               }
+            }
+
+            // 5. Cloud-synced chat history persistence (chat_conversations & chat_messages)
+            try {
+              const userMsgId = body?.message_id || body?.user_message_id;
+              const assistantMsgId = body?.assistant_message_id;
+
+              await ChatStorage.createConversation(env.DB, studentUser.uid, {
+                id: activeConvId,
+                title: MemoryManager.generateTitle(trimmedMessage),
+              });
+
+              await ChatStorage.saveMessage(env.DB, studentUser.uid, {
+                id: userMsgId,
+                conversation_id: activeConvId,
+                role: 'user',
+                content: trimmedMessage,
+              });
+
+              await ChatStorage.saveMessage(env.DB, studentUser.uid, {
+                id: assistantMsgId,
+                conversation_id: activeConvId,
+                role: 'assistant',
+                content: chatResponse.answer,
+              });
+            } catch (chatStorageErr) {
+              console.warn('[Nexora Worker] ChatStorage sync error (non-fatal):', chatStorageErr);
             }
           } catch (postErr) {
             console.warn('[Nexora Worker] Post-generation persistence error (non-fatal):', postErr);

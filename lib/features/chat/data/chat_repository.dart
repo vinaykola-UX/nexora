@@ -1,15 +1,17 @@
 import 'dart:async';
 import 'dart:convert';
-import 'package:cloud_firestore/cloud_firestore.dart';
+import 'dart:io';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/foundation.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:http/http.dart' as http;
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:uuid/uuid.dart';
 
+import '../../../core/constants/app_constants.dart';
 import '../../../models/search_response_model.dart';
 
-/// Representation of a persisted conversation in Firestore & local storage
+/// Representation of a persisted conversation (local + cloud-synced via Worker D1)
 class ChatConversation {
   final String id;
   final String title;
@@ -27,14 +29,9 @@ class ChatConversation {
     this.lastMessage,
   });
 
-  factory ChatConversation.fromFirestore(DocumentSnapshot<Map<String, dynamic>> doc) {
-    final data = doc.data() ?? {};
-    return ChatConversation.fromMap(doc.id, data);
-  }
-
+  /// Deserialize from local SharedPreferences JSON or Worker API response
   factory ChatConversation.fromMap(String id, Map<String, dynamic> data) {
     DateTime parseTime(dynamic val) {
-      if (val is Timestamp) return val.toDate();
       if (val is String) return DateTime.tryParse(val) ?? DateTime.now();
       if (val is int) return DateTime.fromMillisecondsSinceEpoch(val);
       return DateTime.now();
@@ -43,10 +40,18 @@ class ChatConversation {
     return ChatConversation(
       id: id,
       title: data['title'] as String? ?? 'New Conversation',
-      createdAt: parseTime(data['createdAt']),
-      updatedAt: parseTime(data['updatedAt']),
+      createdAt: parseTime(data['createdAt'] ?? data['created_at']),
+      updatedAt: parseTime(data['updatedAt'] ?? data['updated_at']),
       isPinned: data['isPinned'] as bool? ?? false,
-      lastMessage: data['lastMessage'] as String?,
+      lastMessage: (data['lastMessage'] ?? data['last_message']) as String?,
+    );
+  }
+
+  /// Deserialize from Worker API JSON response
+  factory ChatConversation.fromWorkerJson(Map<String, dynamic> data) {
+    return ChatConversation.fromMap(
+      data['id'] as String? ?? '',
+      data,
     );
   }
 
@@ -60,19 +65,9 @@ class ChatConversation {
       if (lastMessage != null) 'lastMessage': lastMessage,
     };
   }
-
-  Map<String, dynamic> toFirestoreMap() {
-    return {
-      'title': title,
-      'createdAt': Timestamp.fromDate(createdAt),
-      'updatedAt': Timestamp.fromDate(updatedAt),
-      'isPinned': isPinned,
-      if (lastMessage != null) 'lastMessage': lastMessage,
-    };
-  }
 }
 
-/// Representation of a persisted message in Firestore & local storage
+/// Representation of a persisted message (local + cloud-synced via Worker D1)
 class PersistedChatMessage {
   final String id;
   final String text;
@@ -92,14 +87,8 @@ class PersistedChatMessage {
     this.retryQuery,
   });
 
-  factory PersistedChatMessage.fromFirestore(DocumentSnapshot<Map<String, dynamic>> doc) {
-    final data = doc.data() ?? {};
-    return PersistedChatMessage.fromMap(doc.id, data);
-  }
-
   factory PersistedChatMessage.fromMap(String id, Map<String, dynamic> data) {
     DateTime parseTime(dynamic val) {
-      if (val is Timestamp) return val.toDate();
       if (val is String) return DateTime.tryParse(val) ?? DateTime.now();
       if (val is int) return DateTime.fromMillisecondsSinceEpoch(val);
       return DateTime.now();
@@ -116,12 +105,20 @@ class PersistedChatMessage {
 
     return PersistedChatMessage(
       id: id,
-      text: data['text'] as String? ?? '',
-      isUser: data['isUser'] as bool? ?? false,
-      timestamp: parseTime(data['timestamp']),
+      text: data['text'] as String? ?? data['content'] as String? ?? '',
+      isUser: data['isUser'] as bool? ?? (data['role'] == 'user'),
+      timestamp: parseTime(data['timestamp'] ?? data['created_at']),
       searchResponse: parsedSearch,
       isError: data['isError'] as bool? ?? false,
       retryQuery: data['retryQuery'] as String?,
+    );
+  }
+
+  /// Deserialize from Worker API JSON response
+  factory PersistedChatMessage.fromWorkerJson(Map<String, dynamic> data) {
+    return PersistedChatMessage.fromMap(
+      data['id'] as String? ?? '',
+      data,
     );
   }
 
@@ -144,35 +141,25 @@ class PersistedChatMessage {
         },
     };
   }
-
-  Map<String, dynamic> toFirestoreMap() {
-    return {
-      'text': text,
-      'isUser': isUser,
-      'timestamp': Timestamp.fromDate(timestamp),
-      'isError': isError,
-      if (retryQuery != null) 'retryQuery': retryQuery,
-      if (searchResponse != null)
-        'searchResponse': {
-          'success': searchResponse!.success,
-          'query': searchResponse!.query,
-          'results': searchResponse!.results.map((r) => r.toJson()).toList(),
-          'sources': searchResponse!.sources.map((s) => s.toJson()).toList(),
-          if (searchResponse!.message != null) 'message': searchResponse!.message,
-          if (searchResponse!.error != null) 'error': searchResponse!.error,
-        },
-    };
-  }
 }
 
-/// Dual-layer Chat Repository (Local SharedPreferences + Cloud Firestore)
-/// Ensures chat history is 100% persistent across app restarts, offline usage, and device reboots.
-class ChatRepository {
-  final FirebaseFirestore _firestore;
-  final Uuid _uuid = const Uuid();
+// ---------------------------------------------------------------------------
+// Chat Repository — Cloud-Synced via Cloudflare Worker D1 API
+// ---------------------------------------------------------------------------
 
-  ChatRepository({FirebaseFirestore? firestore})
-      : _firestore = firestore ?? FirebaseFirestore.instance;
+/// Dual-layer Chat Repository (Local SharedPreferences + Cloud Worker D1)
+/// Ensures chat history is persistent across app restarts, offline usage,
+/// and synced across all devices via the authenticated Worker API.
+class ChatRepository {
+  final Uuid _uuid = const Uuid();
+  final http.Client _client;
+  final String _baseUrl;
+
+  ChatRepository({
+    http.Client? client,
+    String? baseUrl,
+  })  : _client = client ?? http.Client(),
+        _baseUrl = baseUrl ?? AppConstants.workerBaseUrl;
 
   static const String _conversationsKeyPrefix = 'nexora_conversations_';
   static const String _messagesKeyPrefix = 'nexora_messages_';
@@ -180,8 +167,28 @@ class ChatRepository {
   // StreamController to broadcast real-time conversation updates to the UI
   final _conversationsStreamController = StreamController<List<ChatConversation>>.broadcast();
 
-  CollectionReference<Map<String, dynamic>> _userConversations(String uid) {
-    return _firestore.collection('students').doc(uid).collection('conversations');
+  // ---------------------------------------------------------------------------
+  // Firebase Auth Token Helper
+  // ---------------------------------------------------------------------------
+
+  Future<Map<String, String>> _getAuthHeaders() async {
+    final headers = <String, String>{
+      'Content-Type': 'application/json',
+      'Accept': 'application/json',
+      'User-Agent': 'Nexora-Flutter-App/1.0',
+    };
+    try {
+      final user = FirebaseAuth.instance.currentUser;
+      if (user != null) {
+        final token = await user.getIdToken();
+        if (token != null && token.isNotEmpty) {
+          headers['Authorization'] = 'Bearer $token';
+        }
+      }
+    } catch (e) {
+      debugPrint('[ChatRepository] Note obtaining Firebase auth token: $e');
+    }
+    return headers;
   }
 
   // ---------------------------------------------------------------------------
@@ -258,6 +265,162 @@ class ChatRepository {
   }
 
   // ---------------------------------------------------------------------------
+  // Worker API Helpers
+  // ---------------------------------------------------------------------------
+
+  /// Fetch conversations from the Worker D1 API.
+  Future<List<ChatConversation>> _fetchRemoteConversations() async {
+    try {
+      final headers = await _getAuthHeaders();
+      final response = await _client.get(
+        Uri.parse('$_baseUrl/chat/conversations?limit=50'),
+        headers: headers,
+      ).timeout(const Duration(seconds: 15));
+
+      if (response.statusCode == 200) {
+        final json = jsonDecode(utf8.decode(response.bodyBytes)) as Map<String, dynamic>;
+        if (json['success'] == true && json['conversations'] is List) {
+          final list = (json['conversations'] as List)
+              .whereType<Map<String, dynamic>>()
+              .map((c) => ChatConversation.fromWorkerJson(c))
+              .toList();
+          list.sort((a, b) => b.updatedAt.compareTo(a.updatedAt));
+          return list;
+        }
+      }
+      debugPrint('[ChatRepository] Worker list conversations HTTP ${response.statusCode}');
+    } on SocketException catch (e) {
+      debugPrint('[ChatRepository] Network error fetching conversations: $e');
+    } on TimeoutException catch (e) {
+      debugPrint('[ChatRepository] Timeout fetching conversations: $e');
+    } catch (e) {
+      debugPrint('[ChatRepository] Worker conversations fetch error: $e');
+    }
+    return [];
+  }
+
+  /// Fetch messages for a conversation from the Worker D1 API.
+  Future<List<PersistedChatMessage>> _fetchRemoteMessages(String conversationId) async {
+    try {
+      final headers = await _getAuthHeaders();
+      final encodedId = Uri.encodeComponent(conversationId);
+      final response = await _client.get(
+        Uri.parse('$_baseUrl/chat/conversations/$encodedId?limit=200'),
+        headers: headers,
+      ).timeout(const Duration(seconds: 15));
+
+      if (response.statusCode == 200) {
+        final json = jsonDecode(utf8.decode(response.bodyBytes)) as Map<String, dynamic>;
+        if (json['success'] == true && json['messages'] is List) {
+          final list = (json['messages'] as List)
+              .whereType<Map<String, dynamic>>()
+              .map((m) => PersistedChatMessage.fromWorkerJson(m))
+              .toList();
+          list.sort((a, b) => a.timestamp.compareTo(b.timestamp));
+          return list;
+        }
+      }
+      debugPrint('[ChatRepository] Worker fetch messages HTTP ${response.statusCode}');
+    } on SocketException catch (e) {
+      debugPrint('[ChatRepository] Network error fetching messages: $e');
+    } on TimeoutException catch (e) {
+      debugPrint('[ChatRepository] Timeout fetching messages: $e');
+    } catch (e) {
+      debugPrint('[ChatRepository] Worker messages fetch error: $e');
+    }
+    return [];
+  }
+
+  /// Create or upsert a conversation on the Worker D1 API.
+  Future<ChatConversation?> _createRemoteConversation({
+    required String convId,
+    required String title,
+  }) async {
+    try {
+      final headers = await _getAuthHeaders();
+      final response = await _client.post(
+        Uri.parse('$_baseUrl/chat/conversations'),
+        headers: headers,
+        body: jsonEncode({'id': convId, 'title': title}),
+      ).timeout(const Duration(seconds: 10));
+
+      if (response.statusCode == 200) {
+        final json = jsonDecode(utf8.decode(response.bodyBytes)) as Map<String, dynamic>;
+        if (json['success'] == true && json['conversation'] is Map<String, dynamic>) {
+          return ChatConversation.fromWorkerJson(json['conversation'] as Map<String, dynamic>);
+        }
+      }
+      debugPrint('[ChatRepository] Worker create conversation HTTP ${response.statusCode}');
+    } catch (e) {
+      debugPrint('[ChatRepository] Worker create conversation error: $e');
+    }
+    return null;
+  }
+
+  /// Save a message to the Worker D1 API (idempotent).
+  Future<void> _saveRemoteMessage({
+    required String msgId,
+    required String conversationId,
+    required String role,
+    required String content,
+    String? createdAt,
+  }) async {
+    try {
+      final headers = await _getAuthHeaders();
+      final body = <String, dynamic>{
+        'id': msgId,
+        'conversation_id': conversationId,
+        'role': role,
+        'content': content,
+      };
+      if (createdAt != null) body['created_at'] = createdAt;
+
+      await _client.post(
+        Uri.parse('$_baseUrl/chat/messages'),
+        headers: headers,
+        body: jsonEncode(body),
+      ).timeout(const Duration(seconds: 10));
+    } catch (e) {
+      debugPrint('[ChatRepository] Worker save message error (non-fatal): $e');
+    }
+  }
+
+  /// Rename a conversation on the Worker D1 API.
+  Future<bool> _renameRemoteConversation(String conversationId, String newTitle) async {
+    try {
+      final headers = await _getAuthHeaders();
+      final encodedId = Uri.encodeComponent(conversationId);
+      final response = await _client.patch(
+        Uri.parse('$_baseUrl/chat/conversations/$encodedId'),
+        headers: headers,
+        body: jsonEncode({'title': newTitle}),
+      ).timeout(const Duration(seconds: 10));
+
+      return response.statusCode == 200;
+    } catch (e) {
+      debugPrint('[ChatRepository] Worker rename conversation error: $e');
+      return false;
+    }
+  }
+
+  /// Delete a conversation on the Worker D1 API.
+  Future<bool> _deleteRemoteConversation(String conversationId) async {
+    try {
+      final headers = await _getAuthHeaders();
+      final encodedId = Uri.encodeComponent(conversationId);
+      final response = await _client.delete(
+        Uri.parse('$_baseUrl/chat/conversations/$encodedId'),
+        headers: headers,
+      ).timeout(const Duration(seconds: 10));
+
+      return response.statusCode == 200;
+    } catch (e) {
+      debugPrint('[ChatRepository] Worker delete conversation error: $e');
+      return false;
+    }
+  }
+
+  // ---------------------------------------------------------------------------
   // Public Conversation APIs
   // ---------------------------------------------------------------------------
 
@@ -271,7 +434,7 @@ class ChatRepository {
     return _conversationsStreamController.stream;
   }
 
-  /// Initial sync: load local first, then merge with Firestore
+  /// Initial sync: load local first, then merge with Worker D1 API
   Future<void> _syncConversations(String uid) async {
     final local = await _getLocalConversations(uid);
     if (local.isNotEmpty) {
@@ -279,22 +442,30 @@ class ChatRepository {
     }
 
     try {
-      final snapshot = await _userConversations(uid)
-          .orderBy('updatedAt', descending: true)
-          .get();
+      final remote = await _fetchRemoteConversations();
 
-      if (snapshot.docs.isNotEmpty) {
-        final remote = snapshot.docs
-            .map((doc) => ChatConversation.fromFirestore(doc))
-            .toList();
+      if (remote.isNotEmpty) {
+        // Merge remote and local — remote is authoritative, local provides isPinned
+        final localPinMap = <String, bool>{};
+        for (final c in local) {
+          localPinMap[c.id] = c.isPinned;
+        }
 
-        // Merge remote and local (remote takes precedence on conflict)
         final map = <String, ChatConversation>{};
         for (final c in local) {
           map[c.id] = c;
         }
         for (final c in remote) {
-          map[c.id] = c;
+          // Preserve local-only isPinned state since Worker API doesn't store it
+          final preservedPin = localPinMap[c.id] ?? false;
+          map[c.id] = ChatConversation(
+            id: c.id,
+            title: c.title,
+            createdAt: c.createdAt,
+            updatedAt: c.updatedAt,
+            isPinned: preservedPin,
+            lastMessage: c.lastMessage,
+          );
         }
 
         final merged = map.values.toList()
@@ -307,7 +478,7 @@ class ChatRepository {
         _conversationsStreamController.add([]);
       }
     } catch (e) {
-      debugPrint('[ChatRepository] Firestore sync note (offline/fallback): $e');
+      debugPrint('[ChatRepository] Worker sync note (offline/fallback): $e');
       if (local.isNotEmpty) {
         _conversationsStreamController.add(local);
       } else {
@@ -323,24 +494,23 @@ class ChatRepository {
     if (local.isNotEmpty) return local;
 
     try {
-      final snapshot = await _userConversations(uid)
-          .orderBy('updatedAt', descending: true)
-          .get();
-      final remote = snapshot.docs.map((doc) => ChatConversation.fromFirestore(doc)).toList();
-      await _saveLocalConversations(uid, remote);
-      return remote;
-    } catch (_) {
-      return local;
-    }
+      final remote = await _fetchRemoteConversations();
+      if (remote.isNotEmpty) {
+        await _saveLocalConversations(uid, remote);
+        return remote;
+      }
+    } catch (_) {}
+    return local;
   }
 
   /// Create a new conversation doc
   Future<String> createConversation(String uid, {required String title}) async {
     final convId = _uuid.v4();
     final now = DateTime.now();
+    final safeTitle = title.trim().isEmpty ? 'New Chat' : title.trim();
     final conv = ChatConversation(
       id: convId,
-      title: title.trim().isEmpty ? 'New Chat' : title.trim(),
+      title: safeTitle,
       createdAt: now,
       updatedAt: now,
       isPinned: false,
@@ -351,12 +521,8 @@ class ChatRepository {
     local.insert(0, conv);
     await _saveLocalConversations(uid, local);
 
-    // 2. Persist to Firestore in background
-    try {
-      await _userConversations(uid).doc(convId).set(conv.toFirestoreMap());
-    } catch (e) {
-      debugPrint('[ChatRepository] Firestore createConversation error: $e');
-    }
+    // 2. Persist to Worker D1 in background
+    _createRemoteConversation(convId: convId, title: safeTitle);
 
     return convId;
   }
@@ -414,24 +580,14 @@ class ChatRepository {
       await _saveLocalConversations(uid, conversations);
     }
 
-    // 3. Persist to Firestore
-    try {
-      final convRef = _userConversations(uid).doc(conversationId);
-      final batch = _firestore.batch();
-      final msgRef = convRef.collection('messages').doc(msgId);
-      batch.set(msgRef, message.toFirestoreMap());
-
-      final updateData = <String, dynamic>{
-        'updatedAt': Timestamp.fromDate(now),
-        'lastMessage': text.length > 80 ? '${text.substring(0, 80)}...' : text,
-        if (convIndex != -1 && isUser) 'title': newTitle,
-      };
-
-      batch.set(convRef, updateData, SetOptions(merge: true));
-      await batch.commit();
-    } catch (e) {
-      debugPrint('[ChatRepository] Firestore saveMessage note: $e');
-    }
+    // 3. Persist to Worker D1 API in background (fire-and-forget)
+    _saveRemoteMessage(
+      msgId: msgId,
+      conversationId: conversationId,
+      role: isUser ? 'user' : 'assistant',
+      content: text,
+      createdAt: now.toIso8601String(),
+    );
   }
 
   /// Load all messages for a specific conversation
@@ -441,23 +597,45 @@ class ChatRepository {
     // 1. Return local messages first for instant rendering
     final local = await _getLocalMessages(uid, conversationId);
 
-    // 2. Fetch from Firestore to ensure full sync
+    // 2. Fetch from Worker D1 to ensure cross-device sync
     try {
-      final snapshot = await _userConversations(uid)
-          .doc(conversationId)
-          .collection('messages')
-          .orderBy('timestamp', descending: false)
-          .get();
+      final remote = await _fetchRemoteMessages(conversationId);
+      if (remote.isNotEmpty) {
+        // Merge: remote messages are content-only (no searchResponse, isError, retryQuery).
+        // For messages that exist locally, prefer local metadata. For new remote messages, use remote.
+        final localById = <String, PersistedChatMessage>{};
+        for (final m in local) {
+          localById[m.id] = m;
+        }
 
-      if (snapshot.docs.isNotEmpty) {
-        final remote = snapshot.docs
-            .map((doc) => PersistedChatMessage.fromFirestore(doc))
-            .toList();
-        await _saveLocalMessages(uid, conversationId, remote);
-        return remote;
+        final merged = <PersistedChatMessage>[];
+        final seenIds = <String>{};
+
+        // First: add all remote messages (with local enrichment if available)
+        for (final rm in remote) {
+          seenIds.add(rm.id);
+          final localMatch = localById[rm.id];
+          if (localMatch != null) {
+            // Prefer local version (has searchResponse, isError, etc.)
+            merged.add(localMatch);
+          } else {
+            merged.add(rm);
+          }
+        }
+
+        // Then: add local-only messages that aren't on the server yet
+        for (final lm in local) {
+          if (!seenIds.contains(lm.id)) {
+            merged.add(lm);
+          }
+        }
+
+        merged.sort((a, b) => a.timestamp.compareTo(b.timestamp));
+        await _saveLocalMessages(uid, conversationId, merged);
+        return merged;
       }
     } catch (e) {
-      debugPrint('[ChatRepository] getMessages Firestore note: $e');
+      debugPrint('[ChatRepository] getMessages Worker note: $e');
     }
 
     return local;
@@ -475,20 +653,12 @@ class ChatRepository {
     final prefs = await SharedPreferences.getInstance();
     await prefs.remove('$_messagesKeyPrefix${uid}_$conversationId');
 
-    // 2. Delete from Firestore
+    // 2. Delete from Worker D1 API
     try {
-      final convRef = _userConversations(uid).doc(conversationId);
-      final messagesSnapshot = await convRef.collection('messages').get();
-
-      final batch = _firestore.batch();
-      for (final doc in messagesSnapshot.docs) {
-        batch.delete(doc.reference);
-      }
-      batch.delete(convRef);
-      await batch.commit();
-      debugPrint('[ChatRepository] Permanently deleted conversation $conversationId from Firestore');
+      final deleted = await _deleteRemoteConversation(conversationId);
+      debugPrint('[ChatRepository] Worker delete conversation $conversationId: $deleted');
     } catch (e) {
-      debugPrint('[ChatRepository] Firestore delete note: $e');
+      debugPrint('[ChatRepository] Worker delete error: $e');
     }
   }
 
@@ -511,22 +681,19 @@ class ChatRepository {
       await _saveLocalConversations(uid, conversations);
     }
 
-    // 2. Update in Firestore
+    // 2. Update on Worker D1 API
     try {
-      await _userConversations(uid).doc(conversationId).update({
-        'title': newTitle.trim(),
-        'updatedAt': FieldValue.serverTimestamp(),
-      });
+      await _renameRemoteConversation(conversationId, newTitle.trim());
     } catch (e) {
-      debugPrint('[ChatRepository] Firestore rename note: $e');
+      debugPrint('[ChatRepository] Worker rename error: $e');
     }
   }
 
-  /// Toggle pin status of a conversation
+  /// Toggle pin status of a conversation (local-only since Worker doesn't store pin state)
   Future<void> togglePinConversation(String uid, String conversationId, bool isPinned) async {
     if (uid.isEmpty || conversationId.isEmpty) return;
 
-    // 1. Update locally
+    // Update locally only — pinning is a client-side preference
     final conversations = await _getLocalConversations(uid);
     final idx = conversations.indexWhere((c) => c.id == conversationId);
     if (idx != -1) {
@@ -539,15 +706,6 @@ class ChatRepository {
         lastMessage: conversations[idx].lastMessage,
       );
       await _saveLocalConversations(uid, conversations);
-    }
-
-    // 2. Update in Firestore
-    try {
-      await _userConversations(uid).doc(conversationId).update({
-        'isPinned': isPinned,
-      });
-    } catch (e) {
-      debugPrint('[ChatRepository] Firestore pin note: $e');
     }
   }
 
