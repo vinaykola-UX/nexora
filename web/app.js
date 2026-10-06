@@ -208,6 +208,25 @@ const AuthManager = {
     }
   },
 
+  async getAuthHeader() {
+    try {
+      if (this.authInstance && this.authInstance.currentUser) {
+        const token = await this.authInstance.currentUser.getIdToken();
+        if (token) return { 'Authorization': `Bearer ${token}` };
+      }
+    } catch (e) {
+      console.warn('[Nexora Auth] getIdToken notice:', e);
+    }
+    const user = this.getStoredUser();
+    if (user && user.token) {
+      return { 'Authorization': `Bearer ${user.token}` };
+    }
+    if (user && user.uid) {
+      return { 'Authorization': `Bearer ${user.uid}` };
+    }
+    return {};
+  },
+
   saveStoredUser(userObj) {
     AppState.studentUser = userObj;
     AppState.authUser = userObj;
@@ -383,6 +402,16 @@ const AuthManager = {
       const rollMatch = email.split('@')[0].toUpperCase();
       const meta = this.parseStudentMetadata(rollMatch);
 
+      let idToken = null;
+      try {
+        if (firebaseUser && typeof firebaseUser.getIdToken === 'function') {
+          idToken = await firebaseUser.getIdToken();
+        }
+      } catch (_) {}
+      if (!idToken && firebaseUser.uid) {
+        idToken = firebaseUser.uid;
+      }
+
       const existingUser = this.getStoredUser() || {};
       const updatedUser = {
         uid: firebaseUser.uid,
@@ -397,6 +426,7 @@ const AuthManager = {
         profileComplete: existingUser.profileComplete || false,
         termsAccepted: existingUser.termsAccepted || false,
         isAuthorized: false,
+        token: idToken,
       };
 
       this.saveStoredUser(updatedUser);
@@ -542,6 +572,16 @@ const AuthManager = {
       const rollMatch = user.email.split('@')[0].toUpperCase();
       const meta = this.parseStudentMetadata(rollMatch);
 
+      let idToken = null;
+      try {
+        if (user && typeof user.getIdToken === 'function') {
+          idToken = await user.getIdToken();
+        }
+      } catch (_) {}
+      if (!idToken && user.uid) {
+        idToken = user.uid;
+      }
+
       const existingUser = this.getStoredUser() || {};
       const updatedUser = {
         uid: user.uid,
@@ -556,6 +596,7 @@ const AuthManager = {
         profileComplete: existingUser.profileComplete || false,
         termsAccepted: existingUser.termsAccepted || false,
         isAuthorized: false,
+        token: idToken,
       };
 
       this.saveStoredUser(updatedUser);
@@ -1539,11 +1580,13 @@ async function sendMessage() {
       payload.student_roll_number = AppState.studentUser.rollNumber;
     }
 
+    const authHeaders = await AuthManager.getAuthHeader();
     const endpoint = `${AppState.apiUrl}/chat`;
     const response = await fetch(endpoint, {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
+        ...authHeaders,
       },
       body: JSON.stringify(payload),
     });
@@ -1553,7 +1596,7 @@ async function sendMessage() {
       console.warn(`[Nexora Web] /chat returned ${response.status}, attempting fallback to /ask...`);
       const fallbackResp = await fetch(`${AppState.apiUrl}/ask`, {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        headers: { 'Content-Type': 'application/json', ...authHeaders },
         body: JSON.stringify({ question: fullPrompt, conversation_id: chat.id }),
       });
 
@@ -1718,10 +1761,11 @@ async function connectStudentPortal(rollNumber, password) {
   showToast('Connecting to BVC Student Portal...', 'info');
 
   try {
+    const authHeaders = await AuthManager.getAuthHeader();
     const resp = await fetch(`${AppState.apiUrl}/student/bvc/connect`, {
       method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ roll_number: rollNumber, password }),
+      headers: { 'Content-Type': 'application/json', ...authHeaders },
+      body: JSON.stringify({ rollNumber: rollNumber, roll_number: rollNumber, password }),
     });
 
     const data = await resp.json();
@@ -1753,9 +1797,10 @@ async function syncStudentPortalData() {
   if (!AppState.studentUser) return;
 
   try {
+    const authHeaders = await AuthManager.getAuthHeader();
     const [attResp, resResp] = await Promise.allSettled([
-      fetch(`${AppState.apiUrl}/student/attendance?roll=${AppState.studentUser.rollNumber}`),
-      fetch(`${AppState.apiUrl}/student/results?roll=${AppState.studentUser.rollNumber}`),
+      fetch(`${AppState.apiUrl}/student/attendance?roll=${AppState.studentUser.rollNumber}`, { headers: authHeaders }),
+      fetch(`${AppState.apiUrl}/student/results?roll=${AppState.studentUser.rollNumber}`, { headers: authHeaders }),
     ]);
 
     let attendance = { overall_percentage: '82.4%', status: 'Satisfactory', subjects: [] };

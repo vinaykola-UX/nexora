@@ -1613,7 +1613,7 @@ export default {
             return jsonResponse({ success: false, error: 'Bad Request', message: 'Invalid JSON body. Required: { rollNumber }' }, 400);
           }
 
-          const rawRoll = bBody?.rollNumber;
+          const rawRoll = bBody?.rollNumber || bBody?.roll_number;
           if (!rawRoll || typeof rawRoll !== 'string') {
             return jsonResponse({ success: false, error: 'Validation Error', message: 'rollNumber is required and must be a string.' }, 400);
           }
