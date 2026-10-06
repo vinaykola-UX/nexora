@@ -1,0 +1,883 @@
+<!DOCTYPE html>
+<html lang="en" data-theme="light">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no" />
+  <title>Nexora AI — Intelligent Academic Assistant for BVC Engineering College</title>
+  <meta name="description" content="Nexora AI is the official-grounded academic assistant for BVC Engineering College. Explore R20/R23 autonomous regulations, student attendance, SGPA results, study materials, and campus circulars with zero broken links." />
+  <meta name="theme-color" content="#FAF9F5" />
+  <link rel="icon" type="image/png" href="assets/app_icon.png" />
+
+  <!-- Typography -->
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;500;600;700;800&family=Inter:wght@300;400;500;600;700&family=JetBrains+Mono:wght@400;500;600&display=swap" rel="stylesheet" />
+
+  <!-- Client-side PDF Extraction Library -->
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js"></script>
+
+  <!-- Firebase App & Auth SDK (v10 compat) -->
+  <script src="https://www.gstatic.com/firebasejs/10.8.0/firebase-app-compat.js"></script>
+  <script src="https://www.gstatic.com/firebasejs/10.8.0/firebase-auth-compat.js"></script>
+
+  <!-- Stylesheet -->
+  <link rel="stylesheet" href="styles.css" />
+</head>
+<body>
+  <!-- ===================================================================
+       Screen Router Container
+       =================================================================== -->
+  <div id="screenContainer">
+
+    <!-- ===============================================================
+         Screen 1: Onboarding / Welcome Screen (Figma Spec)
+         =============================================================== -->
+    <div class="app-screen" id="screenOnboarding">
+      <div class="auth-screen-layout">
+        <div class="auth-card onboarding-card">
+          <!-- BVC Emblem Card -->
+          <div class="onboarding-emblem-wrap">
+            <img src="assets/app_icon.png" alt="Nexora BVC AI Emblem" />
+          </div>
+
+          <div class="auth-brand-badge">
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5">
+              <path d="M12 2L15.09 8.26L22 9.27L17 14.14L18.18 21.02L12 17.77L5.82 21.02L7 14.14L2 9.27L8.91 8.26L12 2Z" fill="currentColor"></path>
+            </svg>
+            <span>BVC Engineering College • Autonomous</span>
+          </div>
+
+          <h1 class="auth-title">Nexora AI</h1>
+          <p class="auth-subtitle">
+            Welcome to Nexora college-aware app,<br/>your all in one college AI assistant
+          </p>
+
+          <!-- Key Highlight Features -->
+          <div class="onboarding-features">
+            <div class="onboarding-feature-item">
+              <div class="feature-icon-badge">🎓</div>
+              <div class="feature-item-text">
+                <span class="feature-item-title">Autonomous Regulations (R20 & R23)</span>
+                <span class="feature-item-desc">Instant grounded answers on grading rules, credits, SGPA formulas, and branch syllabi.</span>
+              </div>
+            </div>
+
+            <div class="onboarding-feature-item">
+              <div class="feature-icon-badge">⚡</div>
+              <div class="feature-item-text">
+                <span class="feature-item-title">Direct BVC Student Portal Sync</span>
+                <span class="feature-item-desc">Secure automated link with SBLogin.aspx for real-time attendance and academic records.</span>
+              </div>
+            </div>
+
+            <div class="onboarding-feature-item">
+              <div class="feature-icon-badge">🔗</div>
+              <div class="feature-item-text">
+                <span class="feature-item-title">Zero Broken Links & Direct Downloads</span>
+                <span class="feature-item-desc">Verified circulars, autonomous notifications, and study materials download directly to your disk.</span>
+              </div>
+            </div>
+          </div>
+
+          <!-- Get Started Pill Button -->
+          <button class="btn-auth-primary" id="btnOnboardingGetStarted" onclick="ScreenRouter.navigate('login')">
+            <span>Get Started</span>
+            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5">
+              <line x1="5" y1="12" x2="19" y2="12"></line>
+              <polyline points="12 5 19 12 12 19"></polyline>
+            </svg>
+          </button>
+
+          <p class="auth-footer-prompt">
+            Already have an institutional account? 
+            <button class="auth-text-link" onclick="ScreenRouter.navigate('login')">Sign In</button>
+          </p>
+        </div>
+      </div>
+    </div>
+
+    <!-- ===============================================================
+         Screen 2: Login Screen (Institutional Access Gate)
+         =============================================================== -->
+    <div class="app-screen" id="screenLogin">
+      <div class="auth-screen-layout">
+        <div class="auth-card">
+          <div class="auth-header">
+            <div class="auth-brand-badge">
+              <span>🏛️</span>
+              <span>BVC Engineering College</span>
+            </div>
+            <h2 class="auth-title">Sign In to Nexora</h2>
+            <p class="auth-subtitle">
+              Enter your official college email credentials (@bvcgroup.in) to access your AI companion.
+            </p>
+          </div>
+
+          <form class="auth-form" id="loginForm" onsubmit="AuthManager.handleEmailLogin(event)">
+            <!-- Email Field -->
+            <div class="auth-form-group">
+              <label class="auth-form-label" for="loginEmail">
+                <span>College Email</span>
+                <span class="auth-form-label-tag">@bvcgroup.in</span>
+              </label>
+              <input
+                type="email"
+                id="loginEmail"
+                class="auth-form-input"
+                placeholder="e.g. 25221a0568@bvcgroup.in"
+                required
+                autocomplete="email"
+              />
+              <div class="auth-field-error" id="loginEmailError"></div>
+            </div>
+
+            <!-- Password Field -->
+            <div class="auth-form-group">
+              <label class="auth-form-label" for="loginPassword">
+                <span>Password</span>
+              </label>
+              <div class="auth-input-wrapper">
+                <input
+                  type="password"
+                  id="loginPassword"
+                  class="auth-form-input input-has-icon"
+                  placeholder="Enter your password"
+                  required
+                  autocomplete="current-password"
+                />
+                <button type="button" class="auth-input-icon-btn" id="loginTogglePasswordBtn" onclick="togglePasswordVisibility('loginPassword', this)">
+                  <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                    <path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"></path>
+                    <circle cx="12" cy="12" r="3"></circle>
+                  </svg>
+                </button>
+              </div>
+              <div class="auth-field-error" id="loginPasswordError"></div>
+            </div>
+
+            <!-- Options Row (Remember me & Forgot Password) -->
+            <div class="auth-options-row">
+              <label class="auth-checkbox-label">
+                <input type="checkbox" id="loginRememberMe" checked />
+                <span>Remember me</span>
+              </label>
+              <button type="button" class="auth-text-link" onclick="openModal('forgotPasswordModal')">
+                Forgot password?
+              </button>
+            </div>
+
+            <!-- Submit Button -->
+            <button type="submit" class="btn-auth-primary" id="loginSubmitBtn">
+              <span>Sign In</span>
+              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5">
+                <line x1="5" y1="12" x2="19" y2="12"></line>
+                <polyline points="12 5 19 12 12 19"></polyline>
+              </svg>
+            </button>
+
+            <!-- Quick Demo Student One-Click Tester -->
+            <button type="button" class="demo-pill-btn" onclick="AuthManager.fillDemoStudent('25221A0568')" title="Pre-fill verified BVC student for testing">
+              <span>⚡</span>
+              <span>Quick Test: Demo Student (25221A0568 • CSE)</span>
+            </button>
+
+            <!-- Social Divider -->
+            <div class="auth-divider">or continue with</div>
+
+            <!-- Google Sign-In Button -->
+            <button type="button" class="btn-auth-google" id="loginGoogleBtn" onclick="AuthManager.handleGoogleLogin()">
+              <svg width="18" height="18" viewBox="0 0 24 24">
+                <path fill="#4285F4" d="M23.745 12.27c0-.7-.06-1.4-.19-2.07H12v4.51h6.6c-.29 1.52-1.14 2.8-2.4 3.66v3.05h3.88c2.27-2.09 3.66-5.17 3.66-9.15z"></path>
+                <path fill="#34A853" d="M12 24c3.24 0 5.95-1.08 7.93-2.91l-3.88-3.05c-1.08.72-2.45 1.16-4.05 1.16-3.12 0-5.77-2.1-6.72-4.93H1.24v3.15C3.26 21.36 7.33 24 12 24z"></path>
+                <path fill="#FBBC05" d="M5.28 14.27c-.25-.72-.38-1.49-.38-2.27s.13-1.55.38-2.27V6.58H1.24C.45 8.15 0 9.92 0 12s.45 3.85 1.24 5.42l4.04-3.15z"></path>
+                <path fill="#EA4335" d="M12 4.75c1.77 0 3.35.61 4.6 1.8l3.42-3.42C17.95 1.19 15.24 0 12 0 7.33 0 3.26 2.64 1.24 6.58l4.04 3.15c.95-2.83 3.6-4.98 6.72-4.98z"></path>
+              </svg>
+              <span>Sign in with Google (@bvcgroup.in)</span>
+            </button>
+          </form>
+
+          <p class="auth-footer-prompt">
+            Don't have an account? 
+            <button class="auth-text-link" onclick="ScreenRouter.navigate('signup')">Create an account</button>
+          </p>
+        </div>
+      </div>
+    </div>
+
+    <!-- ===============================================================
+         Screen 3: Sign Up / Registration Screen (Figma Spec)
+         =============================================================== -->
+    <div class="app-screen" id="screenSignup">
+      <div class="auth-screen-layout">
+        <div class="auth-card">
+          <div class="auth-header">
+            <div class="auth-brand-badge">
+              <span>🎓</span>
+              <span>New Student Enrollment</span>
+            </div>
+            <h2 class="auth-title">Create BVC Account</h2>
+            <p class="auth-subtitle">
+              Register with your official BVC Engineering College email to join Nexora AI.
+            </p>
+          </div>
+
+          <form class="auth-form" id="signupForm" onsubmit="AuthManager.handleEmailSignup(event)">
+            <!-- Full Name -->
+            <div class="auth-form-group">
+              <label class="auth-form-label" for="signupFullName">Full Name</label>
+              <input
+                type="text"
+                id="signupFullName"
+                class="auth-form-input"
+                placeholder="e.g. Kola Vinay"
+                required
+              />
+            </div>
+
+            <!-- College Email -->
+            <div class="auth-form-group">
+              <label class="auth-form-label" for="signupEmail">
+                <span>College Email</span>
+                <span class="auth-form-label-tag">@bvcgroup.in</span>
+              </label>
+              <input
+                type="email"
+                id="signupEmail"
+                class="auth-form-input"
+                placeholder="e.g. 25221a0568@bvcgroup.in"
+                required
+                oninput="AuthManager.validateSignupEmail(this.value)"
+              />
+              <div class="auth-field-error" id="signupEmailError"></div>
+            </div>
+
+            <!-- Official BVC Roll Number -->
+            <div class="auth-form-group">
+              <label class="auth-form-label" for="signupRollNumber">
+                <span>Official BVC Roll Number</span>
+                <span class="auth-form-label-tag">e.g. 25221A0568</span>
+              </label>
+              <input
+                type="text"
+                id="signupRollNumber"
+                class="auth-form-input"
+                placeholder="25221A0568"
+                style="text-transform: uppercase;"
+                required
+                maxlength="10"
+              />
+              <div class="auth-field-error" id="signupRollError"></div>
+            </div>
+
+            <!-- Password -->
+            <div class="auth-form-group">
+              <label class="auth-form-label" for="signupPassword">Password (min 6 characters)</label>
+              <input
+                type="password"
+                id="signupPassword"
+                class="auth-form-input"
+                placeholder="Create a strong password"
+                required
+                minlength="6"
+              />
+              <div class="auth-field-error" id="signupPasswordError"></div>
+            </div>
+
+            <!-- Confirm Password -->
+            <div class="auth-form-group">
+              <label class="auth-form-label" for="signupConfirmPassword">Confirm Password</label>
+              <input
+                type="password"
+                id="signupConfirmPassword"
+                class="auth-form-input"
+                placeholder="Re-enter your password"
+                required
+              />
+              <div class="auth-field-error" id="signupConfirmError"></div>
+            </div>
+
+            <!-- Academic Integrity Checkbox -->
+            <div class="auth-options-row" style="margin-top: 4px;">
+              <label class="auth-checkbox-label">
+                <input type="checkbox" id="signupTermsAgree" required />
+                <span>I agree to BVC Academic Integrity and autonomous regulations</span>
+              </label>
+            </div>
+
+            <!-- Submit Button -->
+            <button type="submit" class="btn-auth-primary" id="signupSubmitBtn">
+              <span>Create Account</span>
+              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5">
+                <line x1="5" y1="12" x2="19" y2="12"></line>
+                <polyline points="12 5 19 12 12 19"></polyline>
+              </svg>
+            </button>
+          </form>
+
+          <p class="auth-footer-prompt">
+            Already have an account? 
+            <button class="auth-text-link" onclick="ScreenRouter.navigate('login')">Sign In</button>
+          </p>
+        </div>
+      </div>
+    </div>
+
+    <!-- ===============================================================
+         Screen 4: Email Verification Screen (Figma Spec)
+         =============================================================== -->
+    <div class="app-screen" id="screenVerifyEmail">
+      <div class="auth-screen-layout">
+        <div class="auth-card" style="text-align: center;">
+          <div class="verify-icon-box">
+            <svg width="34" height="34" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+              <path d="M4 4h16c1.1 0 2 .9 2 2v12c0 1.1-.9 2-2 2H4c-1.1 0-2-.9-2-2V6c0-1.1.9-2 2-2z"></path>
+              <polyline points="22,6 12,13 2,6"></polyline>
+            </svg>
+          </div>
+
+          <h2 class="auth-title">Verify College Email</h2>
+          <p class="auth-subtitle">
+            We have sent an official verification link to your BVC institutional inbox:
+          </p>
+
+          <div class="email-highlight-badge" id="verifyEmailDisplay">
+            student@bvcgroup.in
+          </div>
+
+          <div class="verify-notice-box">
+            Please check your college email inbox (and spam/junk folder) and click the link to confirm your account. 
+            This ensures protected academic access for authorized BVC students only.
+          </div>
+
+          <div class="verify-actions-group">
+            <button type="button" class="btn-auth-primary" id="verifyContinueBtn" onclick="AuthManager.checkEmailVerification()">
+              <span>I've Verified My Email — Continue</span>
+              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5">
+                <line x1="5" y1="12" x2="19" y2="12"></line>
+                <polyline points="12 5 19 12 12 19"></polyline>
+              </svg>
+            </button>
+
+            <button type="button" class="btn-secondary" id="verifyResendBtn" onclick="AuthManager.resendVerificationEmail()" style="width: 100%; padding: 11px;">
+              <span>Resend Verification Email</span>
+            </button>
+          </div>
+
+          <p class="auth-footer-prompt">
+            Wrong email address? 
+            <button class="auth-text-link" onclick="AuthManager.signOut()">Sign in with another account</button>
+          </p>
+        </div>
+      </div>
+    </div>
+
+    <!-- ===============================================================
+         Screen 5: Class Setup / Connect BVC Student Portal (Figma Spec)
+         =============================================================== -->
+    <div class="app-screen" id="screenClassSetup">
+      <div class="auth-screen-layout">
+        <div class="auth-card auth-card-wide">
+          <div class="auth-header">
+            <div class="auth-brand-badge">
+              <span>🏛️</span>
+              <span>BVC Autonomous Portal</span>
+            </div>
+            <h2 class="auth-title">Connect Student Portal</h2>
+            <p class="auth-subtitle">
+              Verify your official roll number with the BVC examination server to link your academic record.
+            </p>
+          </div>
+
+          <div class="portal-connect-box">
+            <div class="auth-form-group">
+              <label class="auth-form-label" for="portalRollInput">
+                <span>Official BVC Roll Number</span>
+                <span class="auth-form-label-tag">e.g. 25221A0568</span>
+              </label>
+              <div style="display: flex; gap: 8px;">
+                <input
+                  type="text"
+                  id="portalRollInput"
+                  class="auth-form-input"
+                  placeholder="25221A0568"
+                  style="text-transform: uppercase; font-family: var(--font-mono); font-weight: 600;"
+                  maxlength="10"
+                />
+                <button type="button" class="btn-primary" id="btnVerifyPortalRoll" onclick="AuthManager.verifyRollNumber()" style="white-space: nowrap; padding: 0 18px;">
+                  Verify Roll
+                </button>
+              </div>
+              <div class="auth-field-error" id="portalRollError"></div>
+            </div>
+          </div>
+
+          <!-- Verified Student Card (Dynamically Rendered upon verification) -->
+          <div id="verifiedStudentCardContainer" style="display: none;">
+            <div class="verified-student-card">
+              <div class="verified-card-header">
+                <span class="verified-card-tag">
+                  <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3">
+                    <polyline points="20 6 9 17 4 12"></polyline>
+                  </svg>
+                  <span>BVC STUDENT VERIFIED</span>
+                </span>
+                <span style="font-size: 0.74rem; color: var(--color-success); font-weight: 600;">PORTAL LINKED</span>
+              </div>
+              <div class="verified-details-grid">
+                <div class="verified-detail-row">
+                  <span class="detail-label">Student Name</span>
+                  <span class="detail-value" id="cardStudentName">KOLA VINAY</span>
+                </div>
+                <div class="verified-detail-row">
+                  <span class="detail-label">Roll Number</span>
+                  <span class="detail-value" id="cardRollNumber">25221A0568</span>
+                </div>
+                <div class="verified-detail-row">
+                  <span class="detail-label">Branch</span>
+                  <span class="detail-value" id="cardBranch">Computer Science & Engineering</span>
+                </div>
+                <div class="verified-detail-row">
+                  <span class="detail-label">Academic Year / Reg</span>
+                  <span class="detail-value" id="cardRegulation">III B.Tech - R20 Autonomous</span>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          <button type="button" class="btn-auth-primary" id="portalProceedBtn" onclick="AuthManager.completeClassSetup()" disabled style="margin-top: 10px;">
+            <span>Continue to Academic Terms</span>
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5">
+              <line x1="5" y1="12" x2="19" y2="12"></line>
+              <polyline points="12 5 19 12 12 19"></polyline>
+            </svg>
+          </button>
+        </div>
+      </div>
+    </div>
+
+    <!-- ===============================================================
+         Screen 6: Terms and Conditions & Academic Integrity (Figma Spec)
+         =============================================================== -->
+    <div class="app-screen" id="screenTerms">
+      <div class="auth-screen-layout">
+        <div class="auth-card auth-card-wide">
+          <div class="auth-header">
+            <div class="auth-brand-badge">
+              <span>📜</span>
+              <span>Academic Integrity Guidelines</span>
+            </div>
+            <h2 class="auth-title">Terms & College Guidelines</h2>
+            <p class="auth-subtitle">
+              Please review and accept before entering the Nexora AI academic workspace.
+            </p>
+          </div>
+
+          <div class="terms-scroll-area">
+            <h4>1. Grounded Autonomous Regulations (R20 & R23)</h4>
+            <p>
+              Nexora AI answers academic questions based strictly on official BVC Engineering College Autonomous curriculum syllabi, examination committee guidelines, and verified Board of Studies circulars.
+            </p>
+
+            <h4>2. Academic Integrity & Responsible Use</h4>
+            <p>
+              Nexora AI is designed for active learning, subject comprehension, and personal study assistance. Using Nexora AI during proctored mid-term or end-semester examinations is strictly prohibited under BVCEC autonomous examination codes.
+            </p>
+
+            <h4>3. Student Privacy & Data Confidentiality</h4>
+            <p>
+              Your official roll number and portal session tokens are encrypted within your local browser session and secured Cloudflare workers. No student examination records or personal identities are shared with unauthorized parties.
+            </p>
+
+            <h4>4. Zero Broken Links Policy</h4>
+            <p>
+              All academic resources, examination schedules, and syllabus links are validated against official BVC domains (bvcec.edu.in, bvcecautonomous.com). PDFs download directly to your device storage.
+            </p>
+          </div>
+
+          <div class="auth-options-row" style="margin-bottom: 20px;">
+            <label class="auth-checkbox-label">
+              <input type="checkbox" id="termsAgreementCheckbox" onchange="document.getElementById('termsAcceptBtn').disabled = !this.checked;" />
+              <span>I have read and agree to the Academic Integrity guidelines and Nexora Terms</span>
+            </label>
+          </div>
+
+          <button type="button" class="btn-auth-primary" id="termsAcceptBtn" onclick="AuthManager.acceptTermsAndEnterChat()" disabled>
+            <span>Agree & Enter Nexora AI</span>
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5">
+              <path d="M12 2L15.09 8.26L22 9.27L17 14.14L18.18 21.02L12 17.77L5.82 21.02L7 14.14L2 9.27L8.91 8.26L12 2Z" fill="currentColor"></path>
+            </svg>
+          </button>
+        </div>
+      </div>
+    </div>
+
+    <!-- ===============================================================
+         Screen 7: Main Authenticated Claude-Style Chat Application
+         =============================================================== -->
+    <div class="app-screen app-screen-chat" id="screenChat">
+      <div class="app-container">
+
+    <!-- ===================================================================
+         Left Sidebar (Claude Style)
+         =================================================================== -->
+    <aside class="sidebar" id="appSidebar">
+      <!-- Header / Logo -->
+      <div class="sidebar-header">
+        <a href="#" class="brand-wrapper" onclick="createNewConversation(); return false;">
+          <div class="brand-logo-icon">
+            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5">
+              <path d="M12 2L15.09 8.26L22 9.27L17 14.14L18.18 21.02L12 17.77L5.82 21.02L7 14.14L2 9.27L8.91 8.26L12 2Z" fill="currentColor"></path>
+            </svg>
+          </div>
+          <div class="brand-title-group">
+            <span class="brand-title">Nexora</span>
+            <span class="brand-badge">BVC AI</span>
+          </div>
+        </a>
+
+        <button class="sidebar-toggle-btn" id="sidebarToggleBtn" title="Collapse sidebar">
+          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+            <rect x="3" y="3" width="18" height="18" rx="2" ry="2"></rect>
+            <line x1="9" y1="3" x2="9" y2="21"></line>
+          </svg>
+        </button>
+      </div>
+
+      <!-- Action Area: + New Chat Pill (Claude Style) -->
+      <div class="sidebar-action-area">
+        <button class="btn-new-chat" id="newChatBtn">
+          <div class="btn-new-chat-left">
+            <span class="btn-new-chat-icon">
+              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5">
+                <line x1="12" y1="5" x2="12" y2="19"></line>
+                <line x1="5" y1="12" x2="19" y2="12"></line>
+              </svg>
+            </span>
+            <span>New Chat</span>
+          </div>
+          <span class="keyboard-shortcut">Ctrl K</span>
+        </button>
+      </div>
+
+      <!-- Quick Campus Tools Navigation -->
+      <div class="quick-tools-nav">
+        <button class="nav-item-btn" onclick="openModal('portalModal')">
+          <span class="nav-item-icon">🎓</span>
+          <span>BVC Student Portal</span>
+        </button>
+        <button class="nav-item-btn" onclick="openModal('knowledgeModal')">
+          <span class="nav-item-icon">📚</span>
+          <span>Academic Knowledge</span>
+        </button>
+        <button class="nav-item-btn" onclick="sendQuickPrompt('Show official examination circulars and verified BVC links.')">
+          <span class="nav-item-icon">🏛️</span>
+          <span>Verified Exam Links</span>
+        </button>
+      </div>
+
+      <!-- Chat History List Grouped by Timeline -->
+      <div class="sidebar-history-container" id="historyContainer">
+        <!-- Rendered dynamically by app.js -->
+      </div>
+
+      <!-- Sidebar Footer / Student Profile & Settings -->
+      <div class="sidebar-footer">
+        <button class="user-profile-btn" onclick="openModal('portalModal')" title="View BVC Profile">
+          <div class="user-avatar" id="userAvatarDisplay">KV</div>
+          <div class="user-info">
+            <span class="user-name" id="userNameDisplay">Authorized Student</span>
+            <span class="user-status">
+              <span class="status-dot-mini"></span>
+              <span id="userStatusRollDisplay">BVC Online</span>
+            </span>
+          </div>
+        </button>
+
+        <div class="footer-actions">
+          <button class="footer-btn" id="themeToggleBtn" title="Toggle Dark/Light Mode">
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+              <path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z"></path>
+            </svg>
+          </button>
+          <button class="footer-btn" onclick="openModal('settingsModal')" title="Settings & Worker API">
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+              <circle cx="12" cy="12" r="3"></circle>
+              <path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1 0 2.83 2 2 0 0 1-2.83 0l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-2 2 2 2 0 0 1-2-2v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83 0 2 2 0 0 1 0-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1-2-2 2 2 0 0 1 2-2h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 0-2.83 2 2 0 0 1 2.83 0l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 2-2 2 2 0 0 1 2 2v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 0 2 2 0 0 1 0 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 2 2 2 2 0 0 1-2 2h-.09a1.65 1.65 0 0 0-1.51 1z"></path>
+            </svg>
+          </button>
+          <button class="footer-btn" onclick="AuthManager.signOut()" title="Sign Out of Nexora" style="color: var(--color-error);">
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+              <path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"></path>
+              <polyline points="16 17 21 12 16 7"></polyline>
+              <line x1="21" y1="12" x2="9" y2="12"></line>
+            </svg>
+          </button>
+        </div>
+      </div>
+    </aside>
+
+    <!-- ===================================================================
+         Main Stage (Claude Style Chat)
+         =================================================================== -->
+    <main class="main-stage">
+      <!-- Top App Header -->
+      <header class="app-header">
+        <div class="header-left">
+          <button class="header-toggle-sidebar" id="headerToggleSidebar" title="Toggle Sidebar">
+            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+              <line x1="3" y1="12" x2="21" y2="12"></line>
+              <line x1="3" y1="6" x2="21" y2="6"></line>
+              <line x1="3" y1="18" x2="21" y2="18"></line>
+            </svg>
+          </button>
+
+          <!-- Model Selector Pill (Claude Style) -->
+          <div class="model-selector-pill" onclick="showToast('Active: Nexora 3.1 Hybrid (Grok 4.20 + BVC RAG + ADS Engine)', 'info')">
+            <span class="model-indicator-spark">
+              <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5">
+                <path d="M12 2L15.09 8.26L22 9.27L17 14.14L18.18 21.02L12 17.77L5.82 21.02L7 14.14L2 9.27L8.91 8.26L12 2Z" fill="currentColor"></path>
+              </svg>
+            </span>
+            <span>Nexora 3.1 • Grok + RAG</span>
+            <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+              <polyline points="6 9 12 15 18 9"></polyline>
+            </svg>
+          </div>
+        </div>
+
+        <div class="header-right">
+          <div id="workerStatusBadge" style="display: flex; align-items: center; gap: 6px; font-size: 0.78rem; font-weight: 500; color: var(--color-success); padding: 4px 8px; border-radius: var(--radius-pill); background: var(--bg-surface); border: 1px solid var(--border-medium);">
+            <span class="status-dot-mini"></span>
+            <span>Connecting...</span>
+          </div>
+
+          <!-- Authorized Student Badge -->
+          <div id="headerAuthBadge" style="display: flex; align-items: center; gap: 6px; font-size: 0.78rem; font-weight: 600; color: var(--color-success); padding: 4px 10px; border-radius: var(--radius-pill); background: var(--color-success-bg); border: 1px solid rgba(21, 128, 61, 0.25);">
+            <span>✓</span>
+            <span id="headerAuthRoll">25221A0568</span>
+          </div>
+
+          <button class="header-pill-btn primary" onclick="openModal('portalModal')">
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+              <path d="M22 10v6M2 10l10-5 10 5-10 5z"></path>
+              <path d="M6 12v5c3 3 9 3 12 0v-5"></path>
+            </svg>
+            <span>Sync Portal</span>
+          </button>
+
+          <button class="btn-signout-mini" onclick="AuthManager.signOut()" title="Sign Out of Nexora">
+            <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+              <path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"></path>
+              <polyline points="16 17 21 12 16 7"></polyline>
+              <line x1="21" y1="12" x2="9" y2="12"></line>
+            </svg>
+            <span>Sign Out</span>
+          </button>
+        </div>
+      </header>
+
+      <!-- Scrollable Chat Stream / Welcome Canvas -->
+      <section class="chat-scroll-area" id="chatScrollArea">
+        <!-- Rendered dynamically by app.js (Welcome Hero or Conversation turns) -->
+      </section>
+
+      <!-- Fixed Floating Prompt Dock (Claude Style) -->
+      <footer class="chat-input-dock">
+        <div class="input-box-wrapper">
+          <!-- Attachment Chip Preview (PDFs / TXT files) -->
+          <div class="attachment-preview-bar" id="attachmentPreviewBar"></div>
+
+          <!-- Prompt Textarea -->
+          <textarea
+            class="chat-textarea"
+            id="chatInput"
+            rows="1"
+            placeholder="Ask about BVC attendance, exam schedules, R20/R23 regulations, or attach a syllabus PDF..."
+          ></textarea>
+
+          <!-- Hidden File Upload Input -->
+          <input type="file" id="fileUploadInput" accept=".pdf,.txt,.md,.doc,.docx" style="display: none;" />
+
+          <!-- Prompt Bottom Controls -->
+          <div class="input-controls-bottom">
+            <!-- Left Capability Pills -->
+            <div class="input-features-left">
+              <button class="feature-pill-btn active" id="pillCampusSearch" title="Toggle Grounded Campus Search">
+                <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                  <circle cx="12" cy="12" r="10"></circle>
+                  <line x1="2" y1="12" x2="22" y2="12"></line>
+                  <path d="M12 2a15.3 15.3 0 0 1 4 10 15.3 15.3 0 0 1-4 10 15.3 15.3 0 0 1-4-10 15.3 15.3 0 0 1 4-10z"></path>
+                </svg>
+                <span>Campus Search</span>
+              </button>
+
+              <button class="feature-pill-btn active" id="pillMemory" title="Toggle Academic Memory Persistence">
+                <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                  <path d="M12 2a5 5 0 0 1 5 5v1a4 4 0 0 1 4 4v2a4 4 0 0 1-4 4h-1a5 5 0 0 1-5 5H9a5 5 0 0 1-5-5H3a4 4 0 0 1-4-4v-2a4 4 0 0 1 4-4V7a5 5 0 0 1 5-5z"></path>
+                </svg>
+                <span>Student Memory</span>
+              </button>
+            </div>
+
+            <!-- Right Actions (Attach, Voice, Send) -->
+            <div class="input-actions-right">
+              <button class="icon-trigger-btn" id="attachFileBtn" title="Attach PDF or Notes (Client-Side Extracted)">
+                <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                  <path d="M21.44 11.05l-9.19 9.19a6 6 0 0 1-8.49-8.49l9.19-9.19a4 4 0 0 1 5.66 5.66l-9.2 9.19a2 2 0 0 1-2.83-2.83l8.49-8.48"></path>
+                </svg>
+              </button>
+
+              <button class="icon-trigger-btn" id="voiceInputBtn" title="Speech to Text (Voice Input)">
+                <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                  <path d="M12 1a3 3 0 0 0-3 3v8a3 3 0 0 0 6 0V4a3 3 0 0 0-3-3z"></path>
+                  <path d="M19 10v2a7 7 0 0 1-14 0v-2"></path>
+                  <line x1="12" y1="19" x2="12" y2="23"></line>
+                  <line x1="8" y1="23" x2="16" y2="23"></line>
+                </svg>
+              </button>
+
+              <button class="btn-send-message" id="sendBtn" disabled title="Send Question (Enter)">
+                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5">
+                  <line x1="12" y1="19" x2="12" y2="5"></line>
+                  <polyline points="5 12 12 5 19 12"></polyline>
+                </svg>
+              </button>
+            </div>
+          </div>
+        </div>
+
+        <div class="input-disclaimer-text">
+          Nexora AI grounds answers in verified BVC autonomous portals and academic syllabus guidelines.
+        </div>
+      </footer>
+    </main>
+
+      </div> <!-- /.app-container -->
+    </div> <!-- /#screenChat -->
+  </div> <!-- /#screenContainer -->
+
+  <!-- ===================================================================
+       Modal 0: Forgot Password (BVC Institutional Reset)
+       =================================================================== -->
+  <div class="modal-backdrop" id="forgotPasswordModal">
+    <div class="modal-dialog" style="max-width: 440px;">
+      <div class="modal-header">
+        <div class="modal-title-group">
+          <span style="font-size: 1.3rem;">🔑</span>
+          <h2 class="modal-title">Reset BVC Password</h2>
+        </div>
+        <button class="modal-close-btn" onclick="closeModal('forgotPasswordModal')">✕</button>
+      </div>
+      <div class="modal-body">
+        <p style="color: var(--text-secondary); font-size: 0.85rem; margin-bottom: 16px;">
+          Enter your registered @bvcgroup.in college email address. We'll send an official password reset link directly to your inbox.
+        </p>
+        <div class="auth-form-group">
+          <label class="auth-form-label" for="forgotPasswordEmail">College Email</label>
+          <input
+            type="email"
+            id="forgotPasswordEmail"
+            class="auth-form-input"
+            placeholder="e.g. 25221a0568@bvcgroup.in"
+            required
+          />
+          <div class="auth-field-error" id="forgotPasswordError"></div>
+        </div>
+      </div>
+      <div class="modal-footer">
+        <button class="btn-secondary" onclick="closeModal('forgotPasswordModal')">Cancel</button>
+        <button class="btn-primary" id="btnSendPasswordReset" onclick="AuthManager.handleForgotPassword()">Send Reset Link</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- ===================================================================
+       Modal 1: BVC Student Portal
+       =================================================================== -->
+  <div class="modal-backdrop" id="portalModal">
+    <div class="modal-dialog">
+      <div class="modal-header">
+        <div class="modal-title-group">
+          <span style="font-size: 1.3rem;">🎓</span>
+          <h2 class="modal-title">BVC Student Portal Integration</h2>
+        </div>
+        <button class="modal-close-btn" onclick="closeModal('portalModal')">✕</button>
+      </div>
+      <div class="modal-body" id="portalModalBody">
+        <!-- Rendered dynamically by app.js -->
+      </div>
+    </div>
+  </div>
+
+  <!-- ===================================================================
+       Modal 2: Academic Knowledge Base
+       =================================================================== -->
+  <div class="modal-backdrop" id="knowledgeModal">
+    <div class="modal-dialog">
+      <div class="modal-header">
+        <div class="modal-title-group">
+          <span style="font-size: 1.3rem;">📚</span>
+          <h2 class="modal-title">BVC Academic Knowledge Base</h2>
+        </div>
+        <button class="modal-close-btn" onclick="closeModal('knowledgeModal')">✕</button>
+      </div>
+      <div class="modal-body">
+        <p style="color: var(--text-secondary); font-size: 0.85rem;">
+          Browse curated study notes, syllabus units, and autonomous examination guidelines stored in Cloudflare D1.
+        </p>
+        <div id="kbDocumentList" style="display: flex; flex-direction: column; gap: 8px;">
+          <!-- Loaded dynamically -->
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ===================================================================
+       Modal 3: Settings & API Configuration
+       =================================================================== -->
+  <div class="modal-backdrop" id="settingsModal">
+    <div class="modal-dialog">
+      <div class="modal-header">
+        <div class="modal-title-group">
+          <span style="font-size: 1.3rem;">⚙️</span>
+          <h2 class="modal-title">Settings & Cloudflare API</h2>
+        </div>
+        <button class="modal-close-btn" onclick="closeModal('settingsModal')">✕</button>
+      </div>
+      <div class="modal-body">
+        <div class="form-group">
+          <label class="form-label">Cloudflare Worker API Endpoint</label>
+          <input type="text" id="settingsApiUrl" class="form-input" />
+          <span style="font-size: 0.74rem; color: var(--text-muted);">
+            Default: <code>https://nexora-bvc-api-2026.vkola306.workers.dev</code>
+          </span>
+        </div>
+
+        <div style="padding: 12px; background: var(--bg-secondary); border-radius: var(--radius-md); font-size: 0.82rem; color: var(--text-secondary); line-height: 1.5;">
+          <strong>Nexora Engine Info:</strong><br/>
+          • Hybrid Semantic Ranker: BGE-Small-en (384 dimensions) + BM25<br/>
+          • LLM Backend: xAI Grok 4.20 + Workers AI candidate fallback<br/>
+          • Zero Broken Links: Dynamic domain validation & direct PDF blob downloader
+        </div>
+
+        <div style="border-top: 1px solid var(--border-light); padding-top: 14px;">
+          <button class="btn-secondary" onclick="clearAllConversations()" style="color: var(--color-error); border-color: rgba(239, 68, 68, 0.3); width: 100%;">
+            Clear All Conversation History
+          </button>
+        </div>
+      </div>
+      <div class="modal-footer">
+        <button class="btn-secondary" onclick="closeModal('settingsModal')">Cancel</button>
+        <button class="btn-primary" onclick="saveSettings()">Save Changes</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Toast Notifications Anchor -->
+  <div class="toast-container" id="toastContainer"></div>
+
+  <!-- Core Scripts -->
+  <script src="pdf-download-helper.js"></script>
+  <script src="app.js"></script>
+</body>
+</html>
