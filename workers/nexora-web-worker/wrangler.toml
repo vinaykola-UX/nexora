@@ -1,0 +1,9 @@
+name = "nexora"
+main = "src/index.ts"
+compatibility_date = "2024-09-23"
+compatibility_flags = ["nodejs_compat"]
+
+[vars]
+ENVIRONMENT = "production"
+PAGES_ORIGIN = "https://nexora-a8m.pages.dev"
+API_ORIGIN = "https://nexora-bvc-api-2026.vkola306.workers.dev"

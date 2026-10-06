@@ -1,0 +1,9 @@
+{
+  "name": "nexora",
+  "version": "1.0.0",
+  "description": "Nexora AI — Public Cloudflare Web Gateway",
+  "main": "src/index.ts",
+  "scripts": {
+    "deploy": "wrangler deploy"
+  }
+}
