@@ -1905,6 +1905,38 @@ function renderPortalModalContent() {
     return;
   }
 
+  // Faculty state: show verified faculty information & tools
+  if (AppState.studentUser.isFaculty) {
+    portalBody.innerHTML = `
+      <div style="padding: 16px; background: var(--bg-secondary); border-radius: var(--radius-md); margin-bottom: 14px;">
+        <div style="display: flex; align-items: center; gap: 12px; margin-bottom: 8px;">
+          <div style="width: 48px; height: 48px; border-radius: 50%; background: var(--brand-primary); color: #fff; display: flex; align-items: center; justify-content: center; font-weight: 700; font-size: 1.1rem;">VK</div>
+          <div>
+            <div style="font-weight: 700; font-size: 1.1rem; color: var(--text-primary);">${escapeHtml(AppState.studentUser.name || 'Vinay Kola')}</div>
+            <div style="color: #c2410c; font-weight: 600; font-size: 0.82rem;">Faculty / Lecturer • Department of CSE</div>
+          </div>
+        </div>
+        <div style="font-size: 0.82rem; color: var(--text-secondary); line-height: 1.6; border-top: 1px solid var(--border-light); padding-top: 8px; margin-top: 6px;">
+          🏛️ <strong>Institution:</strong> BVC Engineering College (Autonomous), Odalarevu<br/>
+          ✉️ <strong>Official Faculty Email:</strong> ${escapeHtml(AppState.studentUser.email)}<br/>
+          🛡️ <strong>Role Status:</strong> Verified Institutional Faculty
+        </div>
+      </div>
+
+      <div style="display: flex; flex-direction: column; gap: 10px;">
+        <button class="btn-primary" onclick="closeModal('portalModal'); openModal('facultyMaterialsModal');" style="display: flex; align-items: center; justify-content: center; gap: 8px; padding: 10px;">
+          <span>📖</span>
+          <span>Open Study Materials & Anti-Spam Upload</span>
+        </button>
+        <button class="btn-secondary" onclick="closeModal('portalModal'); viewMaterialStudentFlow('');" style="display: flex; align-items: center; justify-content: center; gap: 8px; padding: 10px;">
+          <span>📊</span>
+          <span>View Student Flow Analytics</span>
+        </button>
+      </div>
+    `;
+    return;
+  }
+
   // Connected state: show student overview and stats
   const att = AppState.portalData?.attendance || { overall_percentage: '84.2%' };
   const res = AppState.portalData?.results || { sgpa: '8.40', cgpa: '8.15', backlogs: 0 };
@@ -2200,13 +2232,13 @@ function updateUserProfileDisplay() {
     }
     const roll = student.rollNumber || student.roll || '';
     const branch = student.branchShort || student.branch || 'BVC';
+    const isFaculty = student.isFaculty || (student.email && AuthService.isFacultyEmail(student.email));
     if (rollStatusEl) {
-      rollStatusEl.textContent = roll ? `${roll} • ${branch}` : 'BVC Verified';
+      rollStatusEl.textContent = isFaculty ? 'Faculty / Staff • CSE' : (roll ? `${roll} • ${branch}` : 'BVC Verified');
     }
     if (headerAuthRoll) {
-      headerAuthRoll.textContent = roll || 'Verified Student';
+      headerAuthRoll.textContent = isFaculty ? 'BVC Faculty Member' : (roll || 'Verified Student');
     }
-    const isFaculty = student.isFaculty || (student.email && AuthService.isFacultyEmail(student.email));
     const facultyBtn = document.getElementById('facultyMaterialsNavBtn');
     if (facultyBtn) {
       facultyBtn.style.display = isFaculty ? 'flex' : 'none';

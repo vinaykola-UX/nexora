@@ -348,25 +348,29 @@ class StudentProfileRepository {
         return StudentProfile.fromFirestore(existingDoc);
       }
 
+      final displayName = fullName ?? (cleanEmail == 'vinaybvcec@bvcgroup.in' ? 'Vinay Kola' : username);
       final profile = StudentProfile(
         uid: uid,
         email: cleanEmail,
         rollNumber: username,
         batchCode: 'FACULTY',
         academicYear: 0,
-        academicYearLabel: 'Faculty / Staff',
-        studentClass: 'Faculty',
-        section: 'Staff',
+        academicYearLabel: 'Faculty Member',
+        studentClass: 'Computer Science & Engineering',
+        section: 'Faculty',
         role: 'teacher',
-        college: 'BVC Engineering College, Odalarevu',
+        college: 'BVC Engineering College (Autonomous), Odalarevu',
         profileSetupCompleted: true,
         createdAt: existingDoc.exists ? null : DateTime.now(),
         updatedAt: DateTime.now(),
       );
 
       final mapData = profile.toMap(forUpdate: existingDoc.exists);
-      mapData['fullName'] = fullName ?? username;
+      mapData['fullName'] = displayName;
       mapData['isFaculty'] = true;
+      mapData['role'] = 'teacher';
+      mapData['designation'] = 'Faculty / Lecturer';
+      mapData['department'] = 'Computer Science & Engineering';
       mapData['bvcPortalVerified'] = true;
       mapData['verifiedSource'] = 'bvcec.edu.in';
 

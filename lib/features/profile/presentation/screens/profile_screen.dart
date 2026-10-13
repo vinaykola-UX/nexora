@@ -436,7 +436,9 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
                         crossAxisAlignment: CrossAxisAlignment.start,
                         children: [
                           Text(
-                            rollNumber,
+                            isFaculty
+                                ? (studentProfile?.fullName ?? 'Vinay Kola (Faculty)')
+                                : rollNumber,
                             style: const TextStyle(
                               fontSize: 18,
                               fontWeight: FontWeight.bold,
@@ -466,9 +468,7 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
                                   borderRadius: BorderRadius.circular(6),
                                 ),
                                 child: Text(
-                                  (studentProfile?.role == 'teacher' || studentProfile?.batchCode == 'FACULTY')
-                                      ? 'Faculty'
-                                      : 'Student',
+                                  isFaculty ? 'Faculty Member' : 'Student',
                                   style: const TextStyle(
                                     fontSize: 11,
                                     fontWeight: FontWeight.w600,
@@ -488,7 +488,7 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
                                   border: Border.all(color: const Color(NexoraColors.border)),
                                 ),
                                 child: Text(
-                                  academicYearLabel,
+                                  isFaculty ? 'BVC Odalarevu' : academicYearLabel,
                                   style: const TextStyle(
                                     fontSize: 11,
                                     fontWeight: FontWeight.w600,
@@ -506,7 +506,7 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
               ),
               const SizedBox(height: NexoraSpacing.lg),
 
-              // Academic Details Card (Read-Only)
+              // Details Card (Read-Only)
               if (studentProfile != null) ...[
                 Container(
                   padding: const EdgeInsets.all(NexoraSpacing.lg),
@@ -521,26 +521,40 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
-                      const Text(
-                        'Academic Information',
-                        style: TextStyle(
+                      Text(
+                        isFaculty ? 'Faculty Staff Information' : 'Academic Information',
+                        style: const TextStyle(
                           fontSize: 15,
                           fontWeight: FontWeight.bold,
                           color: Color(NexoraColors.text),
                         ),
                       ),
                       const Divider(color: Color(NexoraColors.divider), height: 20),
-                      _buildDetailRow('Roll Number', studentProfile.rollNumber),
-                      const SizedBox(height: 8),
-                      _buildDetailRow('Batch', '${studentProfile.batchCode} Batch'),
-                      const SizedBox(height: 8),
-                      _buildDetailRow('Academic Year', studentProfile.academicYearLabel),
-                      const SizedBox(height: 8),
-                      _buildDetailRow('Class / Branch', studentClass ?? '—'),
-                      const SizedBox(height: 8),
-                      _buildDetailRow('Section', section ?? '—'),
-                      const SizedBox(height: 8),
-                      _buildDetailRow('College', studentProfile.college),
+                      if (isFaculty) ...[
+                        _buildDetailRow('Designation', 'Faculty / Lecturer'),
+                        const SizedBox(height: 8),
+                        _buildDetailRow('Department', 'Computer Science & Engineering'),
+                        const SizedBox(height: 8),
+                        _buildDetailRow('Faculty ID', 'FACULTY_VINAYBVCEC'),
+                        const SizedBox(height: 8),
+                        _buildDetailRow('Institution', studentProfile.college),
+                        const SizedBox(height: 8),
+                        _buildDetailRow('Official Email', displayEmail),
+                        const SizedBox(height: 8),
+                        _buildDetailRow('Teaching Role', 'Study Materials, CADS Notes & AI Guidance'),
+                      ] else ...[
+                        _buildDetailRow('Roll Number', studentProfile.rollNumber),
+                        const SizedBox(height: 8),
+                        _buildDetailRow('Batch', '${studentProfile.batchCode} Batch'),
+                        const SizedBox(height: 8),
+                        _buildDetailRow('Academic Year', studentProfile.academicYearLabel),
+                        const SizedBox(height: 8),
+                        _buildDetailRow('Class / Branch', studentClass ?? '—'),
+                        const SizedBox(height: 8),
+                        _buildDetailRow('Section', section ?? '—'),
+                        const SizedBox(height: 8),
+                        _buildDetailRow('College', studentProfile.college),
+                      ],
                     ],
                   ),
                 ),
