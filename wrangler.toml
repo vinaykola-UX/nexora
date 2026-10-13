@@ -1,0 +1,24 @@
+name = "nexora-bvc-api-2026"
+main = "workers/nexora-bvc-api-2026/src/index.ts"
+compatibility_date = "2024-09-23"
+compatibility_flags = ["nodejs_compat"]
+account_id = "cc7e9ee0fca126669777efec6a072232"
+
+[vars]
+ENVIRONMENT = "production"
+ADMIN_SECRET = "nexora-admin-secure-key-2026"
+EMBEDDING_MODEL = "@cf/baai/bge-small-en-v1.5"
+AI_MODEL = "@cf/meta/llama-3.2-3b-instruct"
+XAI_MODEL = "grok-4.20-0309-non-reasoning"
+
+[[d1_databases]]
+binding = "DB"
+database_name = "nexora-rag"
+database_id = "dd95f8eb-9668-41c8-b9c7-020d1bcc260e"
+
+[ai]
+binding = "AI"
+
+[[vectorize]]
+binding = "VECTORIZE"
+index_name = "nexora-vector-index"
