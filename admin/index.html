@@ -630,11 +630,20 @@
             </div>
           </div>
           <div class="card-body">
+            <!-- 1-Click Quick Action Presets -->
+            <div class="quick-presets" style="margin-bottom: 1.25rem;">
+              <span class="quick-presets-label" style="font-weight: 600; color: #a5b4fc;">⚡ 1-Click Presets:</span>
+              <button type="button" class="preset-chip" id="presetTomorrowHolidayBtn" style="border-color: #f97316; color: #fdba74;">🏖️ Tomorrow's Holiday</button>
+              <button type="button" class="preset-chip" id="presetSemResultsBtn" style="border-color: #10b981; color: #6ee7b7;">🎓 Sem Results Released</button>
+            </div>
+
             <div class="form-group">
               <label for="notifTypeSelect">Notification Category</label>
               <select id="notifTypeSelect" class="form-control">
-                <option value="EVENT">Event Alert</option>
+                <option value="HOLIDAY">Holiday Alert (Tomorrow / Upcoming)</option>
+                <option value="RESULT">Semester Results Announcement</option>
                 <option value="CIRCULAR" selected>Official Circular</option>
+                <option value="EVENT">Event Alert</option>
                 <option value="EXAM">Examination Notice</option>
                 <option value="ATTENDANCE">Attendance Warning</option>
                 <option value="GENERAL">General Broadcast</option>

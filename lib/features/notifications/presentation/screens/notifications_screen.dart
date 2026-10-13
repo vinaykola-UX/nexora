@@ -64,7 +64,37 @@ class _NotificationsScreenState extends ConsumerState<NotificationsScreen> {
             color: const Color(NexoraColors.surface),
             shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
             onSelected: (value) async {
-              if (value == 'test_local') {
+              if (value == 'test_holiday') {
+                await NativeNotificationService.instance.showLocalNotification(
+                  title: 'College Holiday Notice — Tomorrow',
+                  body: 'Tomorrow has been declared an official college holiday by administration.',
+                  payload: '{"route":"/notifications","type":"HOLIDAY"}',
+                  channelId: NativeNotificationService.channelAcademic,
+                );
+                if (mounted) {
+                  ScaffoldMessenger.of(context).showSnackBar(
+                    const SnackBar(
+                      content: Text('Tomorrow Holiday notification sent to device status tray!'),
+                      duration: Duration(seconds: 3),
+                    ),
+                  );
+                }
+              } else if (value == 'test_results') {
+                await NativeNotificationService.instance.showLocalNotification(
+                  title: 'Semester Results Announced',
+                  body: 'B.Tech Semester exam results are officially declared! Tap to view.',
+                  payload: '{"route":"/results","type":"RESULT"}',
+                  channelId: NativeNotificationService.channelAcademic,
+                );
+                if (mounted) {
+                  ScaffoldMessenger.of(context).showSnackBar(
+                    const SnackBar(
+                      content: Text('Semester Results notification sent to device status tray!'),
+                      duration: Duration(seconds: 3),
+                    ),
+                  );
+                }
+              } else if (value == 'test_local') {
                 await NativeNotificationService.instance.showLocalNotification(
                   title: 'Nexora Native Alert',
                   body: 'This is a genuine native notification in your device status tray!',
@@ -109,12 +139,32 @@ class _NotificationsScreenState extends ConsumerState<NotificationsScreen> {
             },
             itemBuilder: (context) => [
               const PopupMenuItem(
+                value: 'test_holiday',
+                child: Row(
+                  children: [
+                    Icon(Icons.beach_access_rounded, size: 18, color: Color(0xFFE65100)),
+                    SizedBox(width: 10),
+                    Text('Test Tomorrow Holiday Alert', style: TextStyle(fontSize: 13, color: Color(NexoraColors.text))),
+                  ],
+                ),
+              ),
+              const PopupMenuItem(
+                value: 'test_results',
+                child: Row(
+                  children: [
+                    Icon(Icons.school_rounded, size: 18, color: Color(0xFF2D8A56)),
+                    SizedBox(width: 10),
+                    Text('Test Sem Results Alert', style: TextStyle(fontSize: 13, color: Color(NexoraColors.text))),
+                  ],
+                ),
+              ),
+              const PopupMenuItem(
                 value: 'test_local',
                 child: Row(
                   children: [
                     Icon(Icons.notifications_active_outlined, size: 18, color: Color(NexoraColors.text)),
                     SizedBox(width: 10),
-                    Text('Test Native Notification', style: TextStyle(fontSize: 13, color: Color(NexoraColors.text))),
+                    Text('Test General Alert', style: TextStyle(fontSize: 13, color: Color(NexoraColors.text))),
                   ],
                 ),
               ),
@@ -247,6 +297,7 @@ class _NotificationsScreenState extends ConsumerState<NotificationsScreen> {
     final filters = [
       {'key': 'ALL', 'label': 'All'},
       {'key': 'RESULT', 'label': 'Results'},
+      {'key': 'HOLIDAY', 'label': 'Holidays'},
       {'key': 'EVENT', 'label': 'Events'},
       {'key': 'CIRCULAR', 'label': 'Circulars'},
     ];
@@ -314,6 +365,72 @@ class _NotificationsScreenState extends ConsumerState<NotificationsScreen> {
         if (mounted) {
           if (item.route == '/results' || item.type == 'RESULT') {
             context.push('/results');
+          } else if (item.type == 'HOLIDAY') {
+            showDialog(
+              context: context,
+              builder: (ctx) => AlertDialog(
+                backgroundColor: const Color(NexoraColors.surface),
+                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+                title: Row(
+                  children: [
+                    const Icon(Icons.beach_access_rounded, color: Color(0xFFE65100), size: 24),
+                    const SizedBox(width: 8),
+                    Expanded(
+                      child: Text(
+                        item.title,
+                        style: const TextStyle(
+                          color: Color(NexoraColors.text),
+                          fontSize: 18,
+                          fontWeight: FontWeight.w700,
+                        ),
+                      ),
+                    ),
+                  ],
+                ),
+                content: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      item.body,
+                      style: const TextStyle(
+                        color: Color(NexoraColors.textSecondary),
+                        fontSize: 14,
+                        height: 1.4,
+                      ),
+                    ),
+                    const SizedBox(height: 14),
+                    Container(
+                      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+                      decoration: BoxDecoration(
+                        color: const Color(0xFFE65100).withOpacity(0.1),
+                        borderRadius: BorderRadius.circular(8),
+                      ),
+                      child: const Row(
+                        children: [
+                          Icon(Icons.verified_outlined, size: 16, color: Color(0xFFE65100)),
+                          SizedBox(width: 6),
+                          Text(
+                            'Official College Administrative Notice',
+                            style: TextStyle(
+                              color: Color(0xFFE65100),
+                              fontSize: 12,
+                              fontWeight: FontWeight.w600,
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                  ],
+                ),
+                actions: [
+                  TextButton(
+                    onPressed: () => Navigator.of(ctx).pop(),
+                    child: const Text('Understood', style: TextStyle(color: Color(NexoraColors.text), fontWeight: FontWeight.w600)),
+                  ),
+                ],
+              ),
+            );
           }
         }
       },
@@ -435,6 +552,8 @@ class _NotificationsScreenState extends ConsumerState<NotificationsScreen> {
     switch (type) {
       case 'RESULT':
         return Icons.school_rounded;
+      case 'HOLIDAY':
+        return Icons.beach_access_rounded;
       case 'EVENT':
         return Icons.event_available_rounded;
       case 'ATTENDANCE':
@@ -454,6 +573,8 @@ class _NotificationsScreenState extends ConsumerState<NotificationsScreen> {
     switch (type) {
       case 'RESULT':
         return const Color(0xFF2D8A56); // Muted Green
+      case 'HOLIDAY':
+        return const Color(0xFFE65100); // Warm Amber / Orange
       case 'EVENT':
         return const Color(0xFF555555); // Dark Gray
       case 'ATTENDANCE':

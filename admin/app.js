@@ -1764,6 +1764,31 @@ document.addEventListener('DOMContentLoaded', () => {
     });
   }
 
+  // 1-Click Action Presets
+  const presetTomorrowHolidayBtn = document.getElementById('presetTomorrowHolidayBtn');
+  if (presetTomorrowHolidayBtn) {
+    presetTomorrowHolidayBtn.addEventListener('click', () => {
+      document.getElementById('notifTypeSelect').value = 'HOLIDAY';
+      document.getElementById('notifScopeSelect').value = 'ALL';
+      if (scopeFilterRow) scopeFilterRow.style.display = 'none';
+      document.getElementById('notifTitleInput').value = 'College Holiday Announced — Tomorrow';
+      document.getElementById('notifBodyInput').value =
+        'Tomorrow has been declared an official college holiday by administration. Regular academic sessions will resume on the next working day.';
+    });
+  }
+
+  const presetSemResultsBtn = document.getElementById('presetSemResultsBtn');
+  if (presetSemResultsBtn) {
+    presetSemResultsBtn.addEventListener('click', () => {
+      document.getElementById('notifTypeSelect').value = 'RESULT';
+      document.getElementById('notifScopeSelect').value = 'ALL';
+      if (scopeFilterRow) scopeFilterRow.style.display = 'none';
+      document.getElementById('notifTitleInput').value = 'Semester Results Officially Released';
+      document.getElementById('notifBodyInput').value =
+        'B.Tech Semester exam results are declared today! Check your subject grades, credits, and SGPA directly in the Nexora app.';
+    });
+  }
+
   // Handle Send Broadcast Button
   const sendBroadcastBtn = document.getElementById('sendBroadcastBtn');
   if (sendBroadcastBtn) {
@@ -1785,6 +1810,8 @@ document.addEventListener('DOMContentLoaded', () => {
       sendBroadcastBtn.textContent = 'Sending Broadcast...';
       statusDiv.innerHTML = '';
 
+      const targetRoute = (type === 'RESULT') ? '/results' : '/notifications';
+
       try {
         const res = await fetch(`${state.apiUrl}/admin/notifications/send`, {
           method: 'POST',
@@ -1797,6 +1824,7 @@ document.addEventListener('DOMContentLoaded', () => {
             title,
             message,
             type,
+            route: targetRoute,
             scope,
             branch: (scope === 'BRANCH' || scope === 'BRANCH_YEAR') ? branch : null,
             year: (scope === 'YEAR' || scope === 'BRANCH_YEAR') ? year : null,

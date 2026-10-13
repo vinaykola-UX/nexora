@@ -6,6 +6,7 @@
 
 export type NotificationType =
   | 'RESULT'
+  | 'HOLIDAY'
   | 'EVENT'
   | 'ATTENDANCE'
   | 'TIMETABLE'

@@ -125,8 +125,10 @@ export class FCMV1Service {
     const creds = this.getCredentials(env);
     const projectId = creds.projectId || 'nexorabvcai';
 
-    // Safe minimal data payload (pointers only)
+    // Safe minimal data payload with titles and deep-link pointers
     const dataPayload: Record<string, string> = {
+      title: notification.title,
+      body: notification.body,
       type: notification.type,
       route: notification.route || '/notifications',
       reference_id: notification.referenceId || '',

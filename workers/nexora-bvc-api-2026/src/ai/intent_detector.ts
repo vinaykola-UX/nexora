@@ -224,6 +224,7 @@ export class IntentDetector {
       /\b(bvcec|bvc|autonomous|hall ticket|attendance percentage|condonation|bus routes?)\b/i,
       /\b(principal|hod|faculty|holidays?|reopening date|college timings?)\b/i,
       /\b(mid exams?|semester exams?|supply exams?)\b/i,
+      /\b(results?|sem(ester)? results?|grades?|grade sheets?|sgpa|cgpa|scorecards?)\b/i,
     ];
 
     for (const pattern of collegeInfoPatterns) {

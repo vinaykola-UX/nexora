@@ -1479,6 +1479,9 @@ export default {
           }
 
           const notifType = type || 'CIRCULAR';
+          const defaultRoute = (notifType === 'RESULT' || notifType === 'RESULTS') ? '/results' : '/notifications';
+          const targetRoute = body?.route || defaultRoute;
+
           const target: NotificationTarget = {
             scope: scope || 'ALL',
             branch: branch || null,
@@ -1499,7 +1502,7 @@ export default {
               type: notifType,
               title,
               body: message,
-              data_json: JSON.stringify({ type: notifType, route: '/notifications' }),
+              data_json: JSON.stringify({ type: notifType, route: targetRoute }),
               reference_id: `${broadcastRef}:${uid}`,
             });
 
@@ -1516,7 +1519,7 @@ export default {
                 title,
                 body: message,
                 type: notifType,
-                route: '/notifications',
+                route: targetRoute,
               }));
               await FCMV1Service.batchSend(env, pushItems);
             }
@@ -1528,6 +1531,185 @@ export default {
             targets_resolved: targetUids.length,
             notifications_queued: queuedCount,
             duplicates_skipped: duplicateCount,
+          });
+        }
+
+        // POST /admin/notifications/holiday - Send College Holiday Announcement (e.g. Tomorrow's Holiday)
+        if (request.method === 'POST' && path === '/admin/notifications/holiday') {
+          if (!verifyAdminAuth(request, env)) {
+            return jsonResponse({ success: false, error: 'Unauthorized' }, 401);
+          }
+          if (!env.DB) {
+            return jsonResponse({ success: false, error: 'Database Unavailable' }, 503);
+          }
+
+          let body: any;
+          try { body = await request.json(); } catch {
+            return jsonResponse({ success: false, error: 'Bad Request' }, 400);
+          }
+
+          const {
+            title = 'College Holiday Announced — Tomorrow',
+            holidayDate = 'Tomorrow',
+            reason,
+            resumptionDate,
+            message,
+            scope,
+            branch,
+            year,
+            semester,
+            section,
+          } = body || {};
+
+          const holidayMessage = message || (
+            reason
+              ? `Tomorrow (${holidayDate}) has been declared an official college holiday on account of ${reason}.${resumptionDate ? ` Classes resume on ${resumptionDate}.` : ''}`
+              : `Tomorrow (${holidayDate}) is declared a college holiday by administration. Regular sessions resume on the next working day.`
+          );
+
+          const target: NotificationTarget = {
+            scope: scope || 'ALL',
+            branch: branch || null,
+            year: year ? parseInt(String(year), 10) : null,
+            semester: semester ? parseInt(String(semester), 10) : null,
+            section: section || null,
+          };
+
+          const targetUids = await TargetingEngine.resolveTargetUids(env.DB, target);
+          const holidayRef = `HOLIDAY:${holidayDate || Date.now()}`;
+          let queuedCount = 0;
+          let duplicateCount = 0;
+
+          const dataJson = JSON.stringify({
+            type: 'HOLIDAY',
+            holiday_date: holidayDate,
+            reason: reason || null,
+            resumption_date: resumptionDate || null,
+            route: '/notifications',
+          });
+
+          for (const uid of targetUids) {
+            const notifRes = await NotificationStorage.createNotificationIdempotent(env.DB, {
+              firebase_uid: uid,
+              type: 'HOLIDAY',
+              title,
+              body: holidayMessage,
+              data_json: dataJson,
+              reference_id: `${holidayRef}:${uid}`,
+            });
+
+            if (notifRes.created) queuedCount++;
+            else if (notifRes.duplicate) duplicateCount++;
+          }
+
+          if (targetUids.length > 0) {
+            const devices = await NotificationStorage.getActiveDeviceTokens(env.DB, targetUids);
+            if (devices.length > 0) {
+              const pushItems = devices.map((d) => ({
+                fcm_token: d.fcm_token,
+                title,
+                body: holidayMessage,
+                type: 'HOLIDAY',
+                route: '/notifications',
+              }));
+              await FCMV1Service.batchSend(env, pushItems);
+            }
+          }
+
+          return jsonResponse({
+            success: true,
+            type: 'HOLIDAY',
+            holiday_date: holidayDate,
+            targets_resolved: targetUids.length,
+            notifications_queued: queuedCount,
+            duplicates_skipped: duplicateCount,
+            message: `Holiday announcement successfully sent to ${targetUids.length} students.`,
+          });
+        }
+
+        // POST /admin/notifications/result-announcement - Send Semester Results Release Announcement
+        if (request.method === 'POST' && path === '/admin/notifications/result-announcement') {
+          if (!verifyAdminAuth(request, env)) {
+            return jsonResponse({ success: false, error: 'Unauthorized' }, 401);
+          }
+          if (!env.DB) {
+            return jsonResponse({ success: false, error: 'Database Unavailable' }, 503);
+          }
+
+          let body: any;
+          try { body = await request.json(); } catch {
+            return jsonResponse({ success: false, error: 'Bad Request' }, 400);
+          }
+
+          const {
+            semester = 2,
+            academicYear = '2025-2026',
+            title = `Semester ${semester} Results Officially Released`,
+            message,
+            scope,
+            branch,
+            year,
+            section,
+          } = body || {};
+
+          const resultMessage = message || `B.Tech Semester ${semester} results are officially announced! Check your subject grades, credits, and SGPA directly in Nexora.`;
+
+          const target: NotificationTarget = {
+            scope: scope || 'ALL',
+            branch: branch || null,
+            year: year ? parseInt(String(year), 10) : null,
+            semester: semester ? parseInt(String(semester), 10) : null,
+            section: section || null,
+          };
+
+          const targetUids = await TargetingEngine.resolveTargetUids(env.DB, target);
+          const resultRef = `RESULT_RELEASE:SEM${semester}:${Date.now()}`;
+          let queuedCount = 0;
+          let duplicateCount = 0;
+
+          const dataJson = JSON.stringify({
+            type: 'RESULT',
+            semester,
+            academic_year: academicYear,
+            route: '/results',
+          });
+
+          for (const uid of targetUids) {
+            const notifRes = await NotificationStorage.createNotificationIdempotent(env.DB, {
+              firebase_uid: uid,
+              type: 'RESULT',
+              title,
+              body: resultMessage,
+              data_json: dataJson,
+              reference_id: `${resultRef}:${uid}`,
+            });
+
+            if (notifRes.created) queuedCount++;
+            else if (notifRes.duplicate) duplicateCount++;
+          }
+
+          if (targetUids.length > 0) {
+            const devices = await NotificationStorage.getActiveDeviceTokens(env.DB, targetUids);
+            if (devices.length > 0) {
+              const pushItems = devices.map((d) => ({
+                fcm_token: d.fcm_token,
+                title,
+                body: resultMessage,
+                type: 'RESULT',
+                route: '/results',
+              }));
+              await FCMV1Service.batchSend(env, pushItems);
+            }
+          }
+
+          return jsonResponse({
+            success: true,
+            type: 'RESULT',
+            semester,
+            targets_resolved: targetUids.length,
+            notifications_queued: queuedCount,
+            duplicates_skipped: duplicateCount,
+            message: `Semester ${semester} results release notification dispatched to ${targetUids.length} students.`,
           });
         }
 
@@ -1847,6 +2029,21 @@ export default {
         if (request.method === 'GET' && path === '/student/notification-count') {
           const counts = await NotificationStorage.getUnreadCount(env.DB, studentUser.uid);
           return jsonResponse({ success: true, ...counts });
+        }
+
+        // GET /student/academic-alerts - Fetch Active Holiday Notices & Semester Result Announcements
+        if (request.method === 'GET' && path === '/student/academic-alerts') {
+          const alerts = await env.DB.prepare(`
+            SELECT id, type, title, body, data_json, reference_id, is_read, created_at
+            FROM notifications
+            WHERE firebase_uid = ? AND type IN ('HOLIDAY', 'RESULT', 'CIRCULAR', 'EXAM')
+            ORDER BY created_at DESC LIMIT 10
+          `).bind(studentUser.uid).all();
+
+          return jsonResponse({
+            success: true,
+            alerts: alerts.results || [],
+          });
         }
 
         // =====================================================================

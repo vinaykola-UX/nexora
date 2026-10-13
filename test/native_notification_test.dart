@@ -26,9 +26,14 @@ void main() {
       expect(data2['route'], RoutePaths.chat);
 
       // Results update -> /results
-      final payload3 = jsonEncode({'route': '/results', 'type': 'RESULTS'});
+      final payload3 = jsonEncode({'route': '/results', 'type': 'RESULT'});
       final Map<String, dynamic> data3 = jsonDecode(payload3);
       expect(data3['route'], RoutePaths.results);
+
+      // Holiday alert -> /notifications
+      final payloadHoliday = jsonEncode({'route': '/notifications', 'type': 'HOLIDAY'});
+      final Map<String, dynamic> dataHoliday = jsonDecode(payloadHoliday);
+      expect(dataHoliday['route'], RoutePaths.notifications);
 
       // Profile -> /profile
       final payload4 = jsonEncode({'route': '/profile', 'type': 'SECURITY'});

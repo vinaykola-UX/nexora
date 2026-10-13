@@ -4,7 +4,7 @@ import 'dart:convert';
 class NotificationModel {
   final int id;
   final String firebaseUid;
-  final String type; // RESULT, EVENT, ATTENDANCE, TIMETABLE, EXAM, FEE, CIRCULAR, GENERAL, SYSTEM
+  final String type; // RESULT, HOLIDAY, EVENT, ATTENDANCE, TIMETABLE, EXAM, FEE, CIRCULAR, GENERAL, SYSTEM
   final String title;
   final String body;
   final String? dataJson;
@@ -41,6 +41,7 @@ class NotificationModel {
       return d['route'] as String;
     }
     if (type == 'RESULT') return '/results';
+    if (type == 'HOLIDAY') return '/notifications';
     return '/notifications';
   }
 

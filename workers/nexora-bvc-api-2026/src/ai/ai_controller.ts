@@ -664,44 +664,106 @@ export class AIController {
       };
     }
 
-    // If a college info inquiry was made but no verified circulars/dates exist:
-    if (detectedIntent === 'COLLEGE_INFO' && !hasContext) {
-      const siteDisplayList = (trustedSites || [])
-        .map((s) => (typeof s === 'string' ? s : (s.label || s.url)))
-        .filter(Boolean)
-        .join(', ') || 'official college noticeboard (bvcec.edu.in)';
+    // If a college info inquiry was made:
+    if (detectedIntent === 'COLLEGE_INFO') {
+      const qLower = (message || '').toLowerCase();
+      const isHolidayQuery = qLower.includes('holiday') || qLower.includes('tomorrow') || qLower.includes('leave') || qLower.includes('closed') || qLower.includes('reopening');
+      const isResultQuery = qLower.includes('result') || qLower.includes('grade') || qLower.includes('sgpa') || qLower.includes('cgpa') || qLower.includes('scorecard') || qLower.includes('sem');
 
-      return {
-        answer:
-          `I don't have the verified schedule or official notification for that in the Nexora database or configured web portals yet. Please check the official college noticeboard or portals (${siteDisplayList}) for confirmed dates and circulars.`,
-        tool: selectedTool,
-        sources: [],
-        debug: debug
-          ? {
-              detectedIntent,
-              selectedTool,
-              allowedTools,
-              retrievedChunkCount: 0,
-              model: env.AI_MODEL || AI_LIMITS.DEFAULT_MODEL,
-              codeLineCount: 0,
-              generationStatus: 'unverified_college_info',
-              personality: {
-                tone: policy.tone,
-                humorLevel: policy.humorLevel,
-                teasingLevel: policy.teasingLevel,
-                academicPriority: policy.academicPriority,
-                supportive: policy.supportive,
-              },
-              timingsMs: {
-                intentDetection: Math.round((tIntentEnd - tIntentStart) * 100) / 100,
-                adsRetrieval: Math.round((tAdsEnd - tAdsStart) * 100) / 100,
-                aiGeneration: 0,
-                total: Math.round((performance.now() - tStart) * 100) / 100,
-              },
-              adsPipelineStatus: 'zero_matches',
-            }
-          : undefined,
-      };
+      if ((isHolidayQuery || isResultQuery) && env.DB) {
+        try {
+          const notifType = isHolidayQuery ? 'HOLIDAY' : 'RESULT';
+          const recentNotice: any = await env.DB.prepare(`
+            SELECT title, body, created_at, type FROM notifications 
+            WHERE type = ? 
+            ORDER BY created_at DESC LIMIT 1
+          `).bind(notifType).first();
+
+          if (recentNotice) {
+            const formattedDate = new Date(recentNotice.created_at).toLocaleDateString('en-IN', {
+              day: 'numeric',
+              month: 'short',
+              year: 'numeric',
+            });
+
+            const answer = isHolidayQuery
+              ? `📢 **Official Holiday Notification**\n\n**${recentNotice.title}**\n\n${recentNotice.body}\n\n*Confirmed from official college administration notice (${formattedDate}). Regular updates are published to your Nexora Notifications Center.*`
+              : `🎓 **Semester Results Announcement**\n\n**${recentNotice.title}**\n\n${recentNotice.body}\n\n*You can view your subject-wise grades, grade points, and SGPA directly in the **Academic Results** section in Nexora.*`;
+
+            return {
+              answer,
+              tool: selectedTool,
+              sources: [{ title: recentNotice.title, url: 'https://www.bvcecautonomous.com', source: 'Official College Notice' }],
+              debug: debug
+                ? {
+                    detectedIntent,
+                    selectedTool,
+                    allowedTools,
+                    retrievedChunkCount: 1,
+                    model: env.AI_MODEL || AI_LIMITS.DEFAULT_MODEL,
+                    codeLineCount: 0,
+                    generationStatus: 'verified_academic_notice',
+                    personality: {
+                      tone: policy.tone,
+                      humorLevel: policy.humorLevel,
+                      teasingLevel: policy.teasingLevel,
+                      academicPriority: policy.academicPriority,
+                      supportive: policy.supportive,
+                    },
+                    timingsMs: {
+                      intentDetection: Math.round((tIntentEnd - tIntentStart) * 100) / 100,
+                      adsRetrieval: 0,
+                      aiGeneration: 0,
+                      total: Math.round((performance.now() - tStart) * 100) / 100,
+                    },
+                    adsPipelineStatus: 'zero_matches',
+                  }
+                : undefined,
+            };
+          }
+        } catch (e) {
+          console.warn('[AIController] Error retrieving official notification for query:', e);
+        }
+      }
+
+      if (!hasContext) {
+        const siteDisplayList = (trustedSites || [])
+          .map((s) => (typeof s === 'string' ? s : (s.label || s.url)))
+          .filter(Boolean)
+          .join(', ') || 'official college noticeboard (bvcec.edu.in)';
+
+        return {
+          answer:
+            `I don't have the verified schedule or official notification for that in the Nexora database or configured web portals yet. Please check the official college noticeboard or portals (${siteDisplayList}) for confirmed dates and circulars.`,
+          tool: selectedTool,
+          sources: [],
+          debug: debug
+            ? {
+                detectedIntent,
+                selectedTool,
+                allowedTools,
+                retrievedChunkCount: 0,
+                model: env.AI_MODEL || AI_LIMITS.DEFAULT_MODEL,
+                codeLineCount: 0,
+                generationStatus: 'unverified_college_info',
+                personality: {
+                  tone: policy.tone,
+                  humorLevel: policy.humorLevel,
+                  teasingLevel: policy.teasingLevel,
+                  academicPriority: policy.academicPriority,
+                  supportive: policy.supportive,
+                },
+                timingsMs: {
+                  intentDetection: Math.round((tIntentEnd - tIntentStart) * 100) / 100,
+                  adsRetrieval: Math.round((tAdsEnd - tAdsStart) * 100) / 100,
+                  aiGeneration: 0,
+                  total: Math.round((performance.now() - tStart) * 100) / 100,
+                },
+                adsPipelineStatus: 'zero_matches',
+              }
+            : undefined,
+        };
+      }
     }
 
     // 5. Construct Invisible System Instruction

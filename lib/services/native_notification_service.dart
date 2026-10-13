@@ -309,6 +309,8 @@ class NativeNotificationService {
 
     if (route != null && route.isNotEmpty) {
       handlePayload(jsonEncode({'route': route, 'type': type}));
+    } else if (type == 'RESULT' || type == 'RESULTS') {
+      handlePayload(jsonEncode({'route': '/results', 'type': type}));
     } else {
       handlePayload(jsonEncode({'route': '/notifications', 'type': type}));
     }
@@ -393,7 +395,10 @@ class NativeNotificationService {
       case 'ACADEMIC_ALERT':
       case 'EXAM':
       case 'ATTENDANCE':
+      case 'RESULT':
       case 'RESULTS':
+      case 'HOLIDAY':
+      case 'CIRCULAR':
         return channelAcademic;
       case 'MATERIAL':
       case 'NOTES':

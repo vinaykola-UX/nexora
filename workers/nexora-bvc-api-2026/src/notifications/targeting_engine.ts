@@ -18,7 +18,13 @@ export class TargetingEngine {
     switch (scope) {
       case 'ALL': {
         const { results } = await db
-          .prepare(`SELECT firebase_uid FROM bvc_student_profiles WHERE connected = 1`)
+          .prepare(`
+            SELECT DISTINCT firebase_uid FROM (
+              SELECT firebase_uid FROM bvc_student_profiles WHERE connected = 1
+              UNION
+              SELECT firebase_uid FROM student_devices WHERE is_active = 1
+            )
+          `)
           .all<{ firebase_uid: string }>();
         return (results || []).map((r) => r.firebase_uid);
       }
@@ -26,7 +32,7 @@ export class TargetingEngine {
       case 'BRANCH': {
         if (!target.branch) return [];
         const { results } = await db
-          .prepare(`SELECT firebase_uid FROM bvc_student_profiles WHERE branch = ? AND connected = 1`)
+          .prepare(`SELECT firebase_uid FROM bvc_student_profiles WHERE UPPER(branch) = UPPER(?) AND connected = 1`)
           .bind(target.branch)
           .all<{ firebase_uid: string }>();
         return (results || []).map((r) => r.firebase_uid);
@@ -53,7 +59,7 @@ export class TargetingEngine {
       case 'SECTION': {
         if (!target.section) return [];
         const { results } = await db
-          .prepare(`SELECT firebase_uid FROM bvc_student_profiles WHERE section = ? AND connected = 1`)
+          .prepare(`SELECT firebase_uid FROM bvc_student_profiles WHERE UPPER(section) = UPPER(?) AND connected = 1`)
           .bind(target.section)
           .all<{ firebase_uid: string }>();
         return (results || []).map((r) => r.firebase_uid);
@@ -63,7 +69,7 @@ export class TargetingEngine {
         if (!target.branch || !target.year) return [];
         const { results } = await db
           .prepare(
-            `SELECT firebase_uid FROM bvc_student_profiles WHERE branch = ? AND year = ? AND connected = 1`
+            `SELECT firebase_uid FROM bvc_student_profiles WHERE UPPER(branch) = UPPER(?) AND year = ? AND connected = 1`
           )
           .bind(target.branch, target.year)
           .all<{ firebase_uid: string }>();
@@ -74,7 +80,7 @@ export class TargetingEngine {
         if (!target.branch || !target.semester) return [];
         const { results } = await db
           .prepare(
-            `SELECT firebase_uid FROM bvc_student_profiles WHERE branch = ? AND semester = ? AND connected = 1`
+            `SELECT firebase_uid FROM bvc_student_profiles WHERE UPPER(branch) = UPPER(?) AND semester = ? AND connected = 1`
           )
           .bind(target.branch, target.semester)
           .all<{ firebase_uid: string }>();
