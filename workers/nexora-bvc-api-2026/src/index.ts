@@ -8,14 +8,21 @@ import { NotificationTarget, RawResultInputRecord } from './notifications/notifi
  * Service: nexora-bvc-api-2026
  *
  * Endpoints:
- * - GET    /health                     : Health check
- * - GET    /api                        : Endpoint discovery
- * - GET    /documents                  : List all documents in D1 knowledge base
- * - GET    /search?q=QUERY             : Multi-document RAG search across D1 chunks
- * - POST   /admin/upload               : Admin upload & deterministic chunking into D1
- * - DELETE /admin/document/:id         : Admin delete document & associated chunks
- * - GET    /admin/document/:id         : Admin get document details & chunks
- * - POST   /ask                        : Grounded AI generation
+ * - GET    /health                                    : Health check
+ * - GET    /api                                       : Endpoint discovery
+ * - GET    /documents                                 : List all documents in D1 knowledge base
+ * - GET    /search?q=QUERY                            : Multi-document RAG search across D1 chunks
+ * - POST   /admin/upload                              : Admin upload & deterministic chunking into D1
+ * - DELETE /admin/document/:id                        : Admin delete document & associated chunks
+ * - GET    /admin/document/:id                        : Admin get document details & chunks
+ * - POST   /ask                                       : Grounded AI generation
+ * - POST   /faculty/materials/check-duplicate          : Pre-flight deduplication check
+ * - POST   /faculty/materials/upload                   : Faculty material upload with anti-spam dedup
+ * - GET    /faculty/materials                          : List faculty's linked materials
+ * - DELETE /faculty/materials/:id                      : Unlink/delete faculty material
+ * - GET    /faculty/analytics/materials/:id/students   : Student flow per material
+ * - GET    /faculty/analytics/subject/:code/insights   : Subject-level analytics & concept hotspots
+ * - POST   /student/materials/:id/track                : Student interaction telemetry
  */
 
 import { AIService, EnvAIConfig } from './ai/ai_service';
@@ -32,6 +39,7 @@ import { BVCNormalizer } from './bvc/bvc_normalizer';
 import { MemoryStorage } from './memory/memory_storage';
 import { MemoryManager } from './memory/memory_manager';
 import { ChatStorage } from './chat/chat_storage';
+import { handleFacultyMaterialRoutes } from './faculty/faculty_materials_handler';
 
 export interface Env extends EnvAIConfig {
   ENVIRONMENT?: string;
@@ -905,7 +913,17 @@ export default {
         });
       }
 
-      // 5.5. Admin Auth Verification (POST or GET /admin/auth/verify)
+      // 5.5. Faculty Material Management Routes (upload, dedup, analytics)
+      if (
+        path.startsWith('/faculty/materials') ||
+        path.startsWith('/faculty/analytics') ||
+        (path.startsWith('/student/materials/') && path.endsWith('/track'))
+      ) {
+        const materialResponse = await handleFacultyMaterialRoutes(request, url, path, env);
+        if (materialResponse) return materialResponse;
+      }
+
+      // 5.6. Admin Auth Verification (POST or GET /admin/auth/verify)
       if (path === '/admin/auth/verify') {
         if (!verifyAdminAuth(request, env)) {
           return jsonResponse(
@@ -2517,6 +2535,26 @@ export default {
               });
             } catch (chatStorageErr) {
               console.warn('[Nexora Worker] ChatStorage sync error (non-fatal):', chatStorageErr);
+            }
+
+            // 6. Cognitive feedback & concept hotspot tracking (subject_concept_insights)
+            try {
+              const matchedDoc = (chatResponse.document as any) || (chatResponse.documents && (chatResponse.documents as any[])[0]);
+              if (matchedDoc && typeof matchedDoc === 'object') {
+                const subjCode = (matchedDoc.subject || matchedDoc.subject_code || '').trim().toUpperCase();
+                const unitNum = parseInt(String(matchedDoc.unit || '1'), 10) || 1;
+                const topicStr = (matchedDoc.topic || MemoryManager.generateTitle(trimmedMessage) || trimmedMessage.slice(0, 50)).trim();
+                if (subjCode && topicStr) {
+                  await env.DB.prepare(
+                    `INSERT INTO subject_concept_insights (subject_code, unit, concept_topic, query_count, last_queried_at)
+                     VALUES (?, ?, ?, 1, CURRENT_TIMESTAMP)
+                     ON CONFLICT(subject_code, unit, concept_topic)
+                     DO UPDATE SET query_count = query_count + 1, last_queried_at = CURRENT_TIMESTAMP`
+                  ).bind(subjCode, unitNum, topicStr).run();
+                }
+              }
+            } catch (conceptErr) {
+              console.warn('[Nexora Worker] Concept hotspot tracking notice (non-fatal):', conceptErr);
             }
           } catch (postErr) {
             console.warn('[Nexora Worker] Post-generation persistence error (non-fatal):', postErr);

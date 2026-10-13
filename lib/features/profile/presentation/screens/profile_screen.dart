@@ -9,6 +9,7 @@ import '../../../../core/theme/spacing.dart';
 import '../../../authentication/data/auth_service.dart';
 import '../../../../services/notification_service.dart';
 import '../../../../services/rag_service.dart';
+import '../../../../core/constants/student_identity_helper.dart';
 import '../../data/student_profile_repository.dart';
 
 /// Profile screen displaying user details and settings
@@ -357,6 +358,9 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
     final academicYearLabel = studentProfile?.academicYearLabel ?? 'B.Tech Student';
     final studentClass = studentProfile?.studentClass;
     final section = studentProfile?.section;
+    final isFaculty = studentProfile?.role == 'teacher' ||
+        studentProfile?.batchCode == 'FACULTY' ||
+        StudentIdentityHelper.isFacultyEmail(displayEmail);
 
     return Scaffold(
       backgroundColor: const Color(NexoraColors.background),
@@ -600,6 +604,18 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
                   ),
                   onTap: () => context.push(RoutePaths.downloads),
                 ),
+                if (isFaculty)
+                  _buildMenuItem(
+                    title: 'Study Materials & Student Flow',
+                    icon: Icons.menu_book_outlined,
+                    subtitle: 'Upload, anti-spam dedup & access analytics',
+                    trailing: const Icon(
+                      Icons.chevron_right_rounded,
+                      color: Color(NexoraColors.textSecondary),
+                      size: 20,
+                    ),
+                    onTap: () => context.push(RoutePaths.facultyMaterials),
+                  ),
                 _buildMenuItem(
                   title: 'Theme',
                   icon: Icons.palette_outlined,

@@ -2082,6 +2082,7 @@ window.openModal = function(id) {
     if (id === 'portalModal') renderPortalModalContent();
     if (id === 'knowledgeModal') loadKnowledgeDocuments();
     if (id === 'settingsModal') initSettingsModal();
+    if (id === 'facultyMaterialsModal') loadFacultyMaterialsList();
   }
 };
 
@@ -2193,11 +2194,18 @@ function updateUserProfileDisplay() {
     if (headerAuthRoll) {
       headerAuthRoll.textContent = roll || 'Verified Student';
     }
+    const isFaculty = student.isFaculty || (student.email && AuthService.isFacultyEmail(student.email));
+    const facultyBtn = document.getElementById('facultyMaterialsNavBtn');
+    if (facultyBtn) {
+      facultyBtn.style.display = isFaculty ? 'flex' : 'none';
+    }
   } else {
     if (nameEl) nameEl.textContent = 'Guest Student';
     if (avatarEl) avatarEl.textContent = 'BVC';
     if (rollStatusEl) rollStatusEl.textContent = 'BVC Online';
     if (headerAuthRoll) headerAuthRoll.textContent = 'Not Signed In';
+    const facultyBtn = document.getElementById('facultyMaterialsNavBtn');
+    if (facultyBtn) facultyBtn.style.display = 'none';
   }
 }
 
@@ -2338,3 +2346,371 @@ document.addEventListener('DOMContentLoaded', () => {
   // Check Backend Worker Health in Background
   testWorkerHealth();
 });
+
+// ---------------------------------------------------------------------------
+// Faculty Study Materials & Anti-Spam Deduplication Engine
+// ---------------------------------------------------------------------------
+let facultyCurrentFile = null;
+let facultyCurrentFileSha256 = null;
+let facultyCurrentFileText = null;
+
+window.switchFacultyTab = function(tabName) {
+  ['upload', 'list', 'analytics'].forEach(tab => {
+    const tabEl = document.getElementById(`facultyTab${tab.charAt(0).toUpperCase() + tab.slice(1)}`);
+    const btnEl = document.getElementById(`tabBtnFaculty${tab.charAt(0).toUpperCase() + tab.slice(1)}`);
+    if (tabEl) tabEl.style.display = (tab === tabName) ? 'block' : 'none';
+    if (btnEl) btnEl.classList.toggle('active', tab === tabName);
+  });
+  if (tabName === 'list') loadFacultyMaterialsList();
+};
+
+window.handleFacultyFileSelected = async function(e) {
+  const file = e.target.files && e.target.files[0];
+  if (!file) return;
+  facultyCurrentFile = file;
+  facultyCurrentFileSha256 = null;
+  facultyCurrentFileText = null;
+  const banner = document.getElementById('facultyDedupBanner');
+  if (banner) banner.style.display = 'none';
+
+  // Compute SHA-256 using Web Crypto API
+  try {
+    const arrayBuffer = await file.arrayBuffer();
+    const hashBuffer = await crypto.subtle.digest('SHA-256', arrayBuffer);
+    const hashArray = Array.from(new Uint8Array(hashBuffer));
+    facultyCurrentFileSha256 = hashArray.map(b => b.toString(16).padStart(2, '0')).join('');
+  } catch (err) {
+    console.error('SHA-256 calculation failed:', err);
+  }
+
+  // Extract text if PDF or plain text
+  if (file.name.toLowerCase().endsWith('.pdf') && typeof pdfjsLib !== 'undefined') {
+    try {
+      pdfjsLib.GlobalWorkerOptions.workerSrc = 'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.worker.min.js';
+      const arrayBuffer = await file.arrayBuffer();
+      const pdf = await pdfjsLib.getDocument({ data: arrayBuffer }).promise;
+      let text = '';
+      for (let i = 1; i <= Math.min(pdf.numPages, 30); i++) {
+        const page = await pdf.getPage(i);
+        const tc = await page.getTextContent();
+        text += tc.items.map(it => it.str).join(' ') + '\n';
+      }
+      facultyCurrentFileText = text.trim();
+    } catch (_) {}
+  } else {
+    try {
+      facultyCurrentFileText = await file.text();
+    } catch (_) {}
+  }
+};
+
+window.runFacultyDedupPreflight = async function() {
+  const subjectCode = (document.getElementById('facultyMatSubjectCode')?.value || '').trim();
+  const banner = document.getElementById('facultyDedupBanner');
+  if (!facultyCurrentFile || !facultyCurrentFileSha256) {
+    showToast('Please select a document file first.', 'error');
+    return;
+  }
+  if (!subjectCode) {
+    showToast('Please enter the Subject Code (e.g. CADS).', 'error');
+    return;
+  }
+
+  if (banner) {
+    banner.style.display = 'block';
+    banner.style.background = 'var(--bg-secondary)';
+    banner.style.border = '1px solid var(--border-medium)';
+    banner.style.color = 'var(--text-primary)';
+    banner.innerHTML = '🔍 Computing cryptographic fingerprint & scanning college database for duplicates...';
+  }
+
+  try {
+    const headers = await AuthService.getAuthHeader();
+    headers['Content-Type'] = 'application/json';
+    const res = await fetch(`${AppState.apiUrl}/faculty/materials/check-duplicate`, {
+      method: 'POST',
+      headers,
+      body: JSON.stringify({
+        file_sha256: facultyCurrentFileSha256,
+        subject_code: subjectCode,
+        text_content: facultyCurrentFileText || ''
+      })
+    });
+    const data = await res.json();
+    if (!data.success) {
+      if (banner) {
+        banner.style.background = '#fef2f2';
+        banner.style.border = '1px solid #f87171';
+        banner.style.color = '#991b1b';
+        banner.innerHTML = `⚠️ <strong>Check Notice:</strong> ${data.message || data.error}`;
+      }
+      return;
+    }
+
+    const dedup = data.deduplication;
+    if (dedup.status === 'EXACT_MATCH') {
+      banner.style.background = '#f0fdf4';
+      banner.style.border = '1px solid #4ade80';
+      banner.style.color = '#166534';
+      banner.innerHTML = `✅ <strong>Duplicate Prevented (Exact Match)!</strong><br/>${dedup.message}<br/><small style="color: #15803d;">Physical Storage: 0 new bytes | Vectorize embeddings: 0 vectors. Clicking upload will link existing notes to your section instantly.</small>`;
+    } else if (dedup.status === 'NEAR_DUPLICATE') {
+      banner.style.background = '#fffbeb';
+      banner.style.border = '1px solid #facc15';
+      banner.style.color = '#854d0e';
+      banner.innerHTML = `⚠️ <strong>Near-Duplicate Detected (${dedup.similarity}% match)!</strong><br/>${dedup.message}<br/><small style="color: #a16207;">Existing notes: "${dedup.existingDocument?.title || 'Existing notes'}".</small>`;
+    } else {
+      banner.style.background = '#eff6ff';
+      banner.style.border = '1px solid #60a5fa';
+      banner.style.color = '#1e40af';
+      banner.innerHTML = `✨ <strong>Unique Material!</strong><br/>${dedup.message}`;
+    }
+  } catch (err) {
+    if (banner) {
+      banner.style.background = '#fef2f2';
+      banner.style.border = '1px solid #f87171';
+      banner.style.color = '#991b1b';
+      banner.innerHTML = `Connection notice: ${err.message}`;
+    }
+  }
+};
+
+window.handleFacultyMaterialSubmit = async function(e) {
+  e.preventDefault();
+  if (!facultyCurrentFile || !facultyCurrentFileSha256) {
+    showToast('Please select a file to upload.', 'error');
+    return;
+  }
+
+  const title = (document.getElementById('facultyMatTitle')?.value || '').trim();
+  const subjectCode = (document.getElementById('facultyMatSubjectCode')?.value || '').trim();
+  const subjectName = (document.getElementById('facultyMatSubjectName')?.value || subjectCode).trim();
+  const unit = parseInt(document.getElementById('facultyMatUnit')?.value || '1', 10);
+  const sections = (document.getElementById('facultyMatSections')?.value || 'ALL').trim();
+  const submitBtn = document.getElementById('btnFacultyUploadSubmit');
+
+  if (submitBtn) {
+    submitBtn.disabled = true;
+    submitBtn.textContent = 'Processing...';
+  }
+
+  let chunks = [];
+  if (facultyCurrentFileText && facultyCurrentFileText.length > 50) {
+    const rawLines = facultyCurrentFileText.split('\n\n');
+    let cur = '';
+    for (const line of rawLines) {
+      if ((cur + '\n\n' + line).length > 600) {
+        if (cur.trim()) chunks.push(cur.trim());
+        cur = line;
+      } else {
+        cur += (cur ? '\n\n' : '') + line;
+      }
+    }
+    if (cur.trim()) chunks.push(cur.trim());
+  }
+  if (chunks.length === 0) {
+    chunks = [`${title} - ${subjectName} (${subjectCode}) Unit ${unit}. Study notes uploaded for section ${sections}.`];
+  }
+
+  try {
+    const headers = await AuthService.getAuthHeader();
+    headers['Content-Type'] = 'application/json';
+    const user = AppState.studentUser || {};
+    const res = await fetch(`${AppState.apiUrl}/faculty/materials/upload`, {
+      method: 'POST',
+      headers,
+      body: JSON.stringify({
+        title,
+        subject_code: subjectCode,
+        subject_name: subjectName,
+        unit,
+        sections,
+        file_sha256: facultyCurrentFileSha256,
+        file_size_bytes: facultyCurrentFile.size,
+        file_type: facultyCurrentFile.type || 'application/pdf',
+        text_content: facultyCurrentFileText || '',
+        chunks,
+        faculty_name: user.name || user.displayName || 'Faculty Member',
+        department: user.branchShort || 'BVC Faculty',
+        force: false
+      })
+    });
+    const data = await res.json();
+    if (data.success) {
+      showToast(data.message || 'Material processed successfully!', 'success');
+      document.getElementById('facultyUploadForm')?.reset();
+      facultyCurrentFile = null;
+      facultyCurrentFileSha256 = null;
+      facultyCurrentFileText = null;
+      const banner = document.getElementById('facultyDedupBanner');
+      if (banner) banner.style.display = 'none';
+      switchFacultyTab('list');
+    } else if (data.status === 'NEAR_DUPLICATE_WARNING') {
+      const confirmForce = confirm(`${data.message}\n\nDo you want to publish this as an updated version (v2)?`);
+      if (confirmForce) {
+        const retryRes = await fetch(`${AppState.apiUrl}/faculty/materials/upload`, {
+          method: 'POST',
+          headers,
+          body: JSON.stringify({
+            title,
+            subject_code: subjectCode,
+            subject_name: subjectName,
+            unit,
+            sections,
+            file_sha256: facultyCurrentFileSha256,
+            file_size_bytes: facultyCurrentFile.size,
+            file_type: facultyCurrentFile.type || 'application/pdf',
+            text_content: facultyCurrentFileText || '',
+            chunks,
+            faculty_name: user.name || 'Faculty Member',
+            department: user.branchShort || 'BVC Faculty',
+            force: true
+          })
+        });
+        const retryData = await retryRes.json();
+        if (retryData.success) {
+          showToast('Uploaded as updated version!', 'success');
+          switchFacultyTab('list');
+        } else {
+          showToast(retryData.message || 'Upload failed', 'error');
+        }
+      }
+    } else {
+      showToast(data.message || data.error || 'Upload failed', 'error');
+    }
+  } catch (err) {
+    showToast(`Upload error: ${err.message}`, 'error');
+  } finally {
+    if (submitBtn) {
+      submitBtn.disabled = false;
+      submitBtn.textContent = 'Upload & Publish';
+    }
+  }
+};
+
+window.loadFacultyMaterialsList = async function() {
+  const container = document.getElementById('facultyMaterialsContainer');
+  const selectEl = document.getElementById('facultyAnalyticsMatSelect');
+  if (container) container.innerHTML = '<div style="text-align: center; padding: 20px; color: var(--text-muted);">Loading materials...</div>';
+
+  try {
+    const headers = await AuthService.getAuthHeader();
+    const res = await fetch(`${AppState.apiUrl}/faculty/materials`, { headers });
+    const data = await res.json();
+    if (!data.success || !data.materials || data.materials.length === 0) {
+      if (container) container.innerHTML = '<div style="text-align: center; padding: 24px; color: var(--text-muted); font-size: 0.85rem;">No study materials linked yet. Upload materials to begin tracking student flow.</div>';
+      if (selectEl) selectEl.innerHTML = '<option value="">-- No Materials Found --</option>';
+      return;
+    }
+
+    if (selectEl) {
+      selectEl.innerHTML = '<option value="">-- Choose Study Material --</option>' +
+        data.materials.map(m => `<option value="${m.canonical_doc_id}">${m.subject_code} - Unit ${m.unit}: ${m.title}</option>`).join('');
+    }
+
+    if (container) {
+      container.innerHTML = data.materials.map(m => `
+        <div style="border: 1px solid var(--border-light); border-radius: var(--radius-md); padding: 12px; background: var(--bg-surface); display: flex; justify-content: space-between; align-items: center; gap: 12px;">
+          <div style="flex: 1;">
+            <div style="display: flex; gap: 6px; align-items: center; margin-bottom: 4px;">
+              <span style="background: rgba(255,165,0,0.15); color: #c2410c; padding: 2px 6px; border-radius: 4px; font-size: 0.72rem; font-weight: 600;">${m.subject_code}</span>
+              <span style="font-size: 0.72rem; color: var(--text-muted);">Unit ${m.unit}</span>
+              <span style="background: ${m.is_primary_author ? '#dcfce7' : '#e0f2fe'}; color: ${m.is_primary_author ? '#166534' : '#0369a1'}; padding: 2px 6px; border-radius: 4px; font-size: 0.68rem; font-weight: 600;">
+                ${m.is_primary_author ? 'Primary Author' : 'Canonical Link'}
+              </span>
+              <span style="font-size: 0.72rem; color: var(--text-muted);">v${m.version || '1.0'}</span>
+            </div>
+            <div style="font-weight: 600; font-size: 0.9rem; color: var(--text-primary);">${m.title}</div>
+            <div style="font-size: 0.76rem; color: var(--text-muted); margin-top: 2px;">
+              👀 ${m.total_views || 0} views • 📥 ${m.total_downloads || 0} downloads • 👥 ${m.total_shares || 1} faculty using
+            </div>
+          </div>
+          <div style="display: flex; gap: 6px;">
+            <button class="btn-secondary" style="font-size: 0.75rem; padding: 4px 8px;" onclick="viewMaterialStudentFlow(${m.canonical_doc_id})">Student Flow</button>
+            <button class="btn-secondary" style="font-size: 0.75rem; padding: 4px 8px; color: var(--color-error);" onclick="unlinkFacultyMaterial(${m.share_id}, '${(m.title || '').replace(/'/g, "\\'")}')">Unlink</button>
+          </div>
+        </div>
+      `).join('');
+    }
+  } catch (err) {
+    if (container) container.innerHTML = `<div style="color: var(--color-error); text-align: center; padding: 12px;">Failed to load materials: ${err.message}</div>`;
+  }
+};
+
+window.viewMaterialStudentFlow = function(canonicalDocId) {
+  switchFacultyTab('analytics');
+  const selectEl = document.getElementById('facultyAnalyticsMatSelect');
+  if (selectEl) {
+    selectEl.value = canonicalDocId;
+    loadStudentFlowData(canonicalDocId);
+  }
+};
+
+window.onFacultyAnalyticsDocChange = function(e) {
+  const docId = e.target.value;
+  if (docId) loadStudentFlowData(docId);
+};
+
+window.loadStudentFlowData = async function(canonicalDocId) {
+  const tbody = document.getElementById('facultyStudentFlowTableBody');
+  const countEl = document.getElementById('analyticTotalStudents');
+  const viewsEl = document.getElementById('analyticTotalViews');
+  const dlEl = document.getElementById('analyticTotalDownloads');
+
+  if (tbody) tbody.innerHTML = '<tr><td colspan="6" style="text-align: center; padding: 16px; color: var(--text-muted);">Loading student interaction flow...</td></tr>';
+
+  try {
+    const headers = await AuthService.getAuthHeader();
+    const res = await fetch(`${AppState.apiUrl}/faculty/analytics/materials/${canonicalDocId}/students`, { headers });
+    const data = await res.json();
+    if (!data.success || !data.students || data.students.length === 0) {
+      if (countEl) countEl.textContent = '0';
+      if (viewsEl) viewsEl.textContent = '0';
+      if (dlEl) dlEl.textContent = '0';
+      if (tbody) tbody.innerHTML = '<tr><td colspan="6" style="text-align: center; padding: 20px; color: var(--text-muted);">No students have viewed or downloaded this document yet.</td></tr>';
+      return;
+    }
+
+    const students = data.students;
+    const totalViews = students.reduce((sum, s) => sum + (s.total_views || 0), 0);
+    const totalDls = students.reduce((sum, s) => sum + (s.total_downloads || 0), 0);
+
+    if (countEl) countEl.textContent = students.length;
+    if (viewsEl) viewsEl.textContent = totalViews;
+    if (dlEl) dlEl.textContent = totalDls;
+
+    if (tbody) {
+      tbody.innerHTML = students.map(s => `
+        <tr style="border-bottom: 1px solid var(--border-light);">
+          <td style="padding: 8px 12px; font-weight: 600; font-family: monospace;">${s.student_roll}</td>
+          <td style="padding: 8px 12px;">${s.student_name || 'BVC Student'}</td>
+          <td style="padding: 8px 12px; color: var(--text-muted);">${s.branch || ''} ${s.section || ''}</td>
+          <td style="padding: 8px 12px; text-align: center; font-weight: 600; color: #2563eb;">${s.total_views || 0}</td>
+          <td style="padding: 8px 12px; text-align: center; font-weight: 600; color: #16a34a;">${s.total_downloads || 0}</td>
+          <td style="padding: 8px 12px; font-size: 0.76rem; color: var(--text-muted);">${s.last_accessed ? new Date(s.last_accessed).toLocaleDateString() : '—'}</td>
+        </tr>
+      `).join('');
+    }
+  } catch (err) {
+    if (tbody) tbody.innerHTML = `<tr><td colspan="6" style="color: var(--color-error); padding: 12px; text-align: center;">Error loading student flow: ${err.message}</td></tr>`;
+  }
+};
+
+window.unlinkFacultyMaterial = async function(shareId, title) {
+  if (!confirm(`Unlink "${title}" from your materials list? If no other lecturers reference it, the canonical copy will be purged.`)) return;
+  try {
+    const headers = await AuthService.getAuthHeader();
+    const res = await fetch(`${AppState.apiUrl}/faculty/materials/${shareId}`, {
+      method: 'DELETE',
+      headers
+    });
+    const data = await res.json();
+    if (data.success) {
+      showToast(data.message || 'Material unlinked.', 'success');
+      loadFacultyMaterialsList();
+    } else {
+      showToast(data.message || 'Failed to unlink', 'error');
+    }
+  } catch (err) {
+    showToast(`Notice: ${err.message}`, 'error');
+  }
+};

@@ -13,6 +13,7 @@ import '../../features/chat/presentation/screens/start_chat_screen.dart';
 import '../../features/chat/presentation/screens/chat_screen.dart';
 import '../../features/profile/presentation/screens/profile_screen.dart';
 import '../../features/splash/presentation/screens/splash_screen.dart';
+import '../../features/faculty/presentation/screens/faculty_materials_screen.dart';
 
 /// Route paths
 class RoutePaths {
@@ -32,6 +33,7 @@ class RoutePaths {
   static const String notifications = '/notifications';
   static const String results = '/results';
   static const String downloads = '/downloads';
+  static const String facultyMaterials = '/faculty-materials';
 }
 
 /// Global router configuration
@@ -131,6 +133,12 @@ final GoRouter appRouter = GoRouter(
     GoRoute(
       path: RoutePaths.downloads,
       builder: (context, state) => const DownloadsScreen(),
+    ),
+
+    // Faculty Study Materials & Analytics
+    GoRoute(
+      path: RoutePaths.facultyMaterials,
+      builder: (context, state) => const FacultyMaterialsScreen(),
     ),
   ],
 

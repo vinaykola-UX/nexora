@@ -1,6 +1,8 @@
+import 'dart:typed_data';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:nexora/core/constants/student_identity_helper.dart';
 import 'package:nexora/models/student_profile_model.dart';
+import 'package:nexora/services/faculty_materials_service.dart';
 
 void main() {
   group('StudentIdentityHelper Tests', () {
@@ -221,6 +223,44 @@ void main() {
       final map = profile.toMap();
       expect(map['uid'], authUid);
       expect(map['rollNumber'], '25221A0568');
+      expect(map['profileSetupCompleted'], isTrue);
+    });
+
+    test('TEST 14: Faculty study materials SHA-256 pre-flight produces identical hash for identical CADS files', () {
+      final service = FacultyMaterialsService();
+
+      // Simulated CADS lecture notes byte buffer uploaded twice
+      final cadsFileBytesLecturerA = Uint8List.fromList('CADS Unit 1 2D Modeling and CAD Foundations'.codeUnits);
+      final cadsFileBytesLecturerB = Uint8List.fromList('CADS Unit 1 2D Modeling and CAD Foundations'.codeUnits);
+      final differentNotes = Uint8List.fromList('Data Structures Unit 1 Arrays and Linked Lists'.codeUnits);
+
+      final hashA = service.computeSHA256(cadsFileBytesLecturerA);
+      final hashB = service.computeSHA256(cadsFileBytesLecturerB);
+      final hashDiff = service.computeSHA256(differentNotes);
+
+      // Verify identical content produces identical cryptographic hash (O(1) match)
+      expect(hashA, equals(hashB));
+      expect(hashA.length, equals(64)); // SHA-256 hex length
+      expect(hashA, isNot(equals(hashDiff)));
+    });
+
+    test('TEST 15: Faculty identity retains department and non-student batch code', () {
+      final faculty = StudentProfile(
+        uid: 'fac_vinay',
+        email: 'vinaybvcec@bvcgroup.in',
+        rollNumber: 'FACULTY_VINAYBVCEC',
+        batchCode: 'FACULTY',
+        academicYear: 0,
+        academicYearLabel: 'Faculty Member',
+        studentClass: 'FACULTY',
+        section: 'ALL',
+        role: 'teacher',
+        profileSetupCompleted: true,
+      );
+
+      final map = faculty.toMap();
+      expect(map['role'], 'teacher');
+      expect(map['batchCode'], 'FACULTY');
       expect(map['profileSetupCompleted'], isTrue);
     });
   });

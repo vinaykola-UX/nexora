@@ -572,6 +572,10 @@
           <span class="nav-item-icon">🏛️</span>
           <span>Verified Exam Links</span>
         </button>
+        <button class="nav-item-btn" id="facultyMaterialsNavBtn" style="display: none;" onclick="openModal('facultyMaterialsModal')">
+          <span class="nav-item-icon">📖</span>
+          <span>Study Materials & Flow</span>
+        </button>
       </div>
 
       <!-- Chat History List Grouped by Timeline -->
@@ -826,6 +830,137 @@
         </p>
         <div id="kbDocumentList" style="display: flex; flex-direction: column; gap: 8px;">
           <!-- Loaded dynamically -->
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ===================================================================
+       Modal 2.5: Faculty Study Materials & Student Flow Analytics
+       =================================================================== -->
+  <div class="modal-backdrop" id="facultyMaterialsModal">
+    <div class="modal-dialog" style="max-width: 760px; max-height: 90vh;">
+      <div class="modal-header">
+        <div class="modal-title-group">
+          <span style="font-size: 1.3rem;">📖</span>
+          <div>
+            <h2 class="modal-title" style="margin: 0; line-height: 1.2;">Faculty Study Materials & Student Flow</h2>
+            <span style="font-size: 0.75rem; color: var(--text-muted);">Anti-Spam Multi-Tier Deduplication & Cognitive Feedback</span>
+          </div>
+        </div>
+        <button class="modal-close-btn" onclick="closeModal('facultyMaterialsModal')">✕</button>
+      </div>
+
+      <div class="modal-body" style="padding-top: 12px;">
+        <!-- Modal Tabs -->
+        <div class="modal-tabs" style="margin-bottom: 14px;">
+          <button class="modal-tab-btn active" id="tabBtnFacultyUpload" onclick="switchFacultyTab('upload')">Upload & Deduplication</button>
+          <button class="modal-tab-btn" id="tabBtnFacultyList" onclick="switchFacultyTab('list')">My Materials</button>
+          <button class="modal-tab-btn" id="tabBtnFacultyAnalytics" onclick="switchFacultyTab('analytics')">Student Flow Analytics</button>
+        </div>
+
+        <!-- TAB 1: UPLOAD & ANTI-SPAM DEDUPLICATION -->
+        <div id="facultyTabUpload">
+          <div style="background: var(--bg-secondary); border-radius: var(--radius-md); padding: 12px; margin-bottom: 14px; font-size: 0.82rem; color: var(--text-secondary); line-height: 1.4;">
+            <strong style="color: var(--brand-primary-dark);">Anti-Spam Storage Protection:</strong> When you or another faculty member upload study materials (e.g. CADS Unit 1), Nexora performs cryptographic SHA-256 byte hashing and SimHash text fingerprinting. Identical or near-identical files are mapped to a single canonical copy in Cloudflare storage without wasting college R2 or Vectorize quota.
+          </div>
+
+          <form id="facultyUploadForm" onsubmit="handleFacultyMaterialSubmit(event)">
+            <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 12px; margin-bottom: 12px;">
+              <div class="form-group" style="margin: 0;">
+                <label class="form-label" style="font-size: 0.8rem;">Subject Code *</label>
+                <input type="text" id="facultyMatSubjectCode" class="form-input" placeholder="e.g. CADS, CSM, AIML" required />
+              </div>
+              <div class="form-group" style="margin: 0;">
+                <label class="form-label" style="font-size: 0.8rem;">Subject Name</label>
+                <input type="text" id="facultyMatSubjectName" class="form-input" placeholder="e.g. Computer Aided Design & Drafting" />
+              </div>
+            </div>
+
+            <div style="display: grid; grid-template-columns: 2fr 1fr 1fr; gap: 12px; margin-bottom: 12px;">
+              <div class="form-group" style="margin: 0;">
+                <label class="form-label" style="font-size: 0.8rem;">Material Title *</label>
+                <input type="text" id="facultyMatTitle" class="form-input" placeholder="e.g. CADS Unit 1 Lecture Notes & 2D Modeling" required />
+              </div>
+              <div class="form-group" style="margin: 0;">
+                <label class="form-label" style="font-size: 0.8rem;">Unit (1-5)</label>
+                <input type="number" id="facultyMatUnit" class="form-input" min="1" max="5" value="1" />
+              </div>
+              <div class="form-group" style="margin: 0;">
+                <label class="form-label" style="font-size: 0.8rem;">Sections</label>
+                <input type="text" id="facultyMatSections" class="form-input" placeholder="e.g. CSE-A, CSE-B" value="ALL" />
+              </div>
+            </div>
+
+            <div class="form-group" style="margin-bottom: 14px;">
+              <label class="form-label" style="font-size: 0.8rem;">Select Document File (PDF, TXT, DOCX) *</label>
+              <input type="file" id="facultyMatFileInput" class="form-input" accept=".pdf,.txt,.md,.docx" onchange="handleFacultyFileSelected(event)" required />
+            </div>
+
+            <!-- Deduplication Preflight Status Banner -->
+            <div id="facultyDedupBanner" style="display: none; padding: 12px; border-radius: var(--radius-md); font-size: 0.84rem; margin-bottom: 14px;"></div>
+
+            <div style="display: flex; gap: 10px; justify-content: flex-end;">
+              <button type="button" class="btn-secondary" id="btnFacultyPreflightCheck" onclick="runFacultyDedupPreflight()" style="font-size: 0.85rem;">Check for Duplicates</button>
+              <button type="submit" class="btn-primary" id="btnFacultyUploadSubmit" style="font-size: 0.85rem;">Upload & Publish</button>
+            </div>
+          </form>
+        </div>
+
+        <!-- TAB 2: MY MATERIALS LIST -->
+        <div id="facultyTabList" style="display: none;">
+          <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 12px;">
+            <span style="font-size: 0.82rem; color: var(--text-secondary);">Your linked study materials across departments</span>
+            <button class="btn-secondary" onclick="loadFacultyMaterialsList()" style="font-size: 0.78rem; padding: 4px 10px;">↻ Refresh</button>
+          </div>
+          <div id="facultyMaterialsContainer" style="display: flex; flex-direction: column; gap: 10px; max-height: 400px; overflow-y: auto;">
+            <div style="text-align: center; padding: 24px; color: var(--text-muted); font-size: 0.85rem;">Loading materials...</div>
+          </div>
+        </div>
+
+        <!-- TAB 3: STUDENT FLOW ANALYTICS -->
+        <div id="facultyTabAnalytics" style="display: none;">
+          <div style="display: flex; gap: 12px; align-items: center; margin-bottom: 14px;">
+            <label class="form-label" style="margin: 0; font-size: 0.82rem; white-space: nowrap;">Select Material:</label>
+            <select id="facultyAnalyticsMatSelect" class="form-input" onchange="onFacultyAnalyticsDocChange(event)" style="font-size: 0.82rem; padding: 6px 10px;">
+              <option value="">-- Choose Study Material --</option>
+            </select>
+          </div>
+
+          <div id="facultyAnalyticsSummary" style="display: grid; grid-template-columns: repeat(3, 1fr); gap: 10px; margin-bottom: 14px;">
+            <div style="padding: 12px; background: var(--bg-secondary); border-radius: var(--radius-md); text-align: center;">
+              <div style="font-size: 1.3rem; font-weight: 700; color: var(--brand-primary);" id="analyticTotalStudents">0</div>
+              <div style="font-size: 0.75rem; color: var(--text-secondary);">Students Accessed</div>
+            </div>
+            <div style="padding: 12px; background: var(--bg-secondary); border-radius: var(--radius-md); text-align: center;">
+              <div style="font-size: 1.3rem; font-weight: 700; color: #2563eb;" id="analyticTotalViews">0</div>
+              <div style="font-size: 0.75rem; color: var(--text-secondary);">Total Views</div>
+            </div>
+            <div style="padding: 12px; background: var(--bg-secondary); border-radius: var(--radius-md); text-align: center;">
+              <div style="font-size: 1.3rem; font-weight: 700; color: #16a34a;" id="analyticTotalDownloads">0</div>
+              <div style="font-size: 0.75rem; color: var(--text-secondary);">Total Downloads</div>
+            </div>
+          </div>
+
+          <div style="border: 1px solid var(--border-light); border-radius: var(--radius-md); overflow: hidden;">
+            <table style="width: 100%; border-collapse: collapse; font-size: 0.82rem;">
+              <thead>
+                <tr style="background: var(--bg-secondary); text-align: left; border-bottom: 1px solid var(--border-light);">
+                  <th style="padding: 8px 12px;">Roll Number</th>
+                  <th style="padding: 8px 12px;">Student Name</th>
+                  <th style="padding: 8px 12px;">Branch/Sec</th>
+                  <th style="padding: 8px 12px; text-align: center;">Views</th>
+                  <th style="padding: 8px 12px; text-align: center;">Downloads</th>
+                  <th style="padding: 8px 12px;">Last Accessed</th>
+                </tr>
+              </thead>
+              <tbody id="facultyStudentFlowTableBody">
+                <tr>
+                  <td colspan="6" style="text-align: center; padding: 20px; color: var(--text-muted);">Select a study material to view student flow records.</td>
+                </tr>
+              </tbody>
+            </table>
+          </div>
         </div>
       </div>
     </div>
