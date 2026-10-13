@@ -868,7 +868,40 @@ export default {
           success: true,
           query: trimmedQuery,
           results: [],
-          message: 'No matching study chunks or portal notices were found for this query.',
+        });
+      }
+
+      // 5.4. Official Faculty Verification (GET or POST /faculty/verify)
+      if (path === '/faculty/verify') {
+        const urlEmail = url.searchParams.get('email');
+        let bodyEmail: string | undefined;
+        if (request.method === 'POST') {
+          try {
+            const b = await request.json() as any;
+            bodyEmail = b?.email;
+          } catch (_) {}
+        }
+        const email = (bodyEmail || urlEmail || '').trim().toLowerCase();
+        if (!email) {
+          return jsonResponse({ success: false, error: 'Email parameter is required.' }, 400);
+        }
+
+        const username = email.split('@')[0];
+        const activeTrustedSites = await getActiveTrustedSites(env);
+        // Search official BVC Odalarevu college website for the username or staff records
+        const searchResult = await searchOfficialSources(username, activeTrustedSites, env);
+
+        const isBvcDomain = email.endsWith('@bvcgroup.in') || email.endsWith('@bvcec.edu.in') || email.endsWith('@bvc.edu.in');
+        const isVerified = isBvcDomain;
+
+        return jsonResponse({
+          success: true,
+          verified: isVerified,
+          email,
+          username,
+          college: 'BVC Engineering College (Autonomous), Odalarevu',
+          officialPortalMatches: searchResult.results.length,
+          sources: searchResult.sources,
         });
       }
 

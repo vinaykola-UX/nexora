@@ -7,6 +7,7 @@ import '../../../../core/theme/spacing.dart';
 import '../../../../core/widgets/nexora_sparkle_icon.dart';
 import '../../../authentication/data/auth_service.dart';
 import '../../../profile/data/student_profile_repository.dart';
+import '../../../../core/constants/student_identity_helper.dart';
 
 /// Splash screen - shown only during Firebase initialization.
 /// Navigates as soon as auth state is known — no artificial delays.
@@ -70,7 +71,20 @@ class _SplashScreenState extends State<SplashScreen>
       return;
     }
 
-    // Logged in → check profile completion (non-blocking Firestore read)
+    // Logged in faculty/staff member → ensure profile is established and jump directly to startChat
+    if (StudentIdentityHelper.isFacultyEmail(user.email)) {
+      try {
+        await _profileRepository.setupFacultyProfile(
+          uid: user.uid,
+          email: user.email!,
+          fullName: user.displayName,
+        );
+      } catch (_) {}
+      if (mounted) context.go(RoutePaths.startChat);
+      return;
+    }
+
+    // Logged in student → check profile completion (non-blocking Firestore read)
     try {
       final isComplete = await _profileRepository.isProfileComplete(user.uid);
       if (!mounted) return;

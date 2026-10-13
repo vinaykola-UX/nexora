@@ -8,6 +8,7 @@ import '../../../../core/theme/colors.dart';
 import '../../../../core/theme/spacing.dart';
 import '../../../../core/widgets/nexora_button.dart';
 import '../../../../core/widgets/nexora_textfield.dart';
+import '../../../../core/constants/student_identity_helper.dart';
 import '../../data/student_profile_repository.dart';
 
 /// Connect BVC Student Portal Screen
@@ -39,8 +40,21 @@ class _ClassSetupScreenState extends State<ClassSetupScreen> {
   @override
   void initState() {
     super.initState();
-    // Pre-fill roll number from logged-in user email if available
     final currentUser = FirebaseAuth.instance.currentUser;
+    // If faculty/staff member lands here, automatically complete profile and forward to terms
+    if (currentUser != null && StudentIdentityHelper.isFacultyEmail(currentUser.email)) {
+      WidgetsBinding.instance.addPostFrameCallback((_) async {
+        await _repository.setupFacultyProfile(
+          uid: currentUser.uid,
+          email: currentUser.email!,
+          fullName: currentUser.displayName,
+        );
+        if (mounted) context.go(RoutePaths.terms);
+      });
+      return;
+    }
+
+    // Pre-fill roll number from logged-in user email if available
     if (currentUser != null && currentUser.email != null) {
       final emailPrefix = currentUser.email!.split('@').first.trim();
       final rollPattern = RegExp(r'^[0-9]{2}[0-9A-Za-z]{2}[0-9A-Za-z][0-9A-Za-z0-9]{4,5}$');

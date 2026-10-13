@@ -461,9 +461,11 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
                                   color: const Color(0xFFE8F5E9),
                                   borderRadius: BorderRadius.circular(6),
                                 ),
-                                child: const Text(
-                                  'Student',
-                                  style: TextStyle(
+                                child: Text(
+                                  (studentProfile?.role == 'teacher' || studentProfile?.batchCode == 'FACULTY')
+                                      ? 'Faculty'
+                                      : 'Student',
+                                  style: const TextStyle(
                                     fontSize: 11,
                                     fontWeight: FontWeight.w600,
                                     color: Color(0xFF2E7D32),

@@ -136,6 +136,29 @@ void main() {
       expect(StudentIdentityHelper.isValidStudentEmail(email), isFalse);
       expect(StudentIdentityHelper.extractFromEmail(email), isNull);
     });
+
+    test('TEST 10B: Faculty email vinaybvcec@bvcgroup.in is identified as faculty and not student', () {
+      const email = 'vinaybvcec@bvcgroup.in';
+      expect(StudentIdentityHelper.isValidStudentEmail(email), isFalse);
+      expect(StudentIdentityHelper.isFacultyEmail(email), isTrue);
+
+      final facultyIdentity = StudentIdentityHelper.extractFacultyFromEmail(email);
+      expect(facultyIdentity, isNotNull);
+      expect(facultyIdentity!.username, 'vinaybvcec');
+      expect(facultyIdentity.email, 'vinaybvcec@bvcgroup.in');
+    });
+
+    test('TEST 10C: Student email 25221a0568@bvcgroup.in is not identified as faculty', () {
+      const email = '25221a0568@bvcgroup.in';
+      expect(StudentIdentityHelper.isFacultyEmail(email), isFalse);
+      expect(StudentIdentityHelper.isValidStudentEmail(email), isTrue);
+    });
+
+    test('TEST 10D: Outside domain faculty@gmail.com is rejected as faculty', () {
+      const email = 'faculty@gmail.com';
+      expect(StudentIdentityHelper.isFacultyEmail(email), isFalse);
+      expect(StudentIdentityHelper.isValidStudentEmail(email), isFalse);
+    });
   });
 
   group('Built-in BVC Branches List', () {

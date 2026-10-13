@@ -91,6 +91,51 @@ class StudentIdentityHelper {
     return _batchMapping.containsKey(prefix);
   }
 
+  /// Check if the email belongs to BVC organization but is a faculty/staff member
+  /// (e.g. vinaybvcec@bvcgroup.in, hod.cse@bvcgroup.in, etc.)
+  static bool isFacultyEmail(String? email) {
+    if (email == null) return false;
+    final normalized = email.trim().toLowerCase();
+    final parts = normalized.split('@');
+    if (parts.length != 2) return false;
+
+    final localPart = parts[0];
+    final domain = parts[1];
+
+    if (domain != allowedDomain && domain != 'bvcec.edu.in' && domain != 'bvc.edu.in') {
+      return false;
+    }
+    if (localPart.isEmpty) return false;
+
+    // If it maps to a standard student batch (23, 24, 25, 26), it is a student
+    if (isValidStudentEmail(normalized)) {
+      return false;
+    }
+
+    // Check if local part matches standard 10-character BVC student roll regex
+    // (e.g., 25221A0568, 22225A0402 lateral entry)
+    final studentRollPattern = RegExp(r'^[0-9]{2}[0-9a-z]{2}[0-9a-z][0-9a-z0-9]{4,5}$');
+    if (studentRollPattern.hasMatch(localPart)) {
+      return false;
+    }
+
+    return true;
+  }
+
+  /// Extract the [FacultyIdentity] from a verified faculty/staff email.
+  static FacultyIdentity? extractFacultyFromEmail(String? email) {
+    if (!isFacultyEmail(email)) return null;
+    final normalized = email!.trim().toLowerCase();
+    final parts = normalized.split('@');
+    final username = parts[0];
+
+    return FacultyIdentity(
+      email: normalized,
+      username: username,
+      college: AppConstants.collegeName,
+    );
+  }
+
   /// Extract the [StudentIdentity] from a verified student email.
   /// Returns `null` if the email is invalid or has an unsupported prefix.
   static StudentIdentity? extractFromEmail(String? email) {
@@ -120,5 +165,23 @@ class StudentIdentityHelper {
       email: normalized,
       college: AppConstants.collegeName,
     );
+  }
+}
+
+/// Value object representing verified faculty identity
+class FacultyIdentity {
+  final String email;
+  final String username;
+  final String college;
+
+  const FacultyIdentity({
+    required this.email,
+    required this.username,
+    this.college = AppConstants.collegeName,
+  });
+
+  @override
+  String toString() {
+    return 'FacultyIdentity(username: $username, email: $email, college: $college)';
   }
 }

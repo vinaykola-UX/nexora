@@ -7,6 +7,8 @@ import '../../../../core/theme/spacing.dart';
 import '../../../../core/widgets/nexora_button.dart';
 import '../../../../core/widgets/nexora_textfield.dart';
 import '../../../profile/data/student_profile_repository.dart';
+import '../../../../core/constants/student_identity_helper.dart';
+import '../../../../services/nexora_api_service.dart';
 import '../../data/auth_service.dart';
 
 /// Login screen - supports both email/password and Google Sign-In.
@@ -97,7 +99,25 @@ class _LoginScreenState extends State<LoginScreen> {
         return;
       }
 
-      // Check whether one-time profile setup was completed
+      // Check if user is a faculty/staff member (e.g. vinaybvcec@bvcgroup.in)
+      if (StudentIdentityHelper.isFacultyEmail(user.email)) {
+        try {
+          // Verify with official BVC Odalarevu website & establish faculty profile
+          final api = NexoraApiService();
+          await api.verifyFacultyOfficial(user.email!);
+          await _profileRepository.setupFacultyProfile(
+            uid: user.uid,
+            email: user.email!,
+            fullName: user.displayName,
+          );
+        } catch (_) {}
+
+        if (!mounted) return;
+        context.go(RoutePaths.terms);
+        return;
+      }
+
+      // Check whether one-time profile setup was completed for student
       final isComplete = await _profileRepository.isProfileComplete(user.uid);
       if (!mounted) return;
 
@@ -162,6 +182,22 @@ class _LoginScreenState extends State<LoginScreen> {
       if (!mounted) return;
 
       if (user != null) {
+        if (StudentIdentityHelper.isFacultyEmail(user.email)) {
+          try {
+            final api = NexoraApiService();
+            await api.verifyFacultyOfficial(user.email!);
+            await _profileRepository.setupFacultyProfile(
+              uid: user.uid,
+              email: user.email!,
+              fullName: user.displayName,
+            );
+          } catch (_) {}
+
+          if (!mounted) return;
+          context.go(RoutePaths.terms);
+          return;
+        }
+
         final isComplete = await _profileRepository.isProfileComplete(user.uid);
         if (!mounted) return;
 

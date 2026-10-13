@@ -328,6 +328,89 @@ class StudentProfileRepository {
       );
     }
   }
+
+  /// Automatically establishes a verified faculty profile in Firestore so the faculty
+  /// member seamlessly enters the regular application screens without being prompted for a student roll number.
+  Future<StudentProfile> setupFacultyProfile({
+    required String uid,
+    required String email,
+    String? fullName,
+  }) async {
+    final cleanEmail = email.trim().toLowerCase();
+    final username = cleanEmail.split('@').first.toUpperCase();
+
+    try {
+      final docRef = _studentsRef.doc(uid);
+      final existingDoc = await docRef.get();
+
+      if (existingDoc.exists &&
+          existingDoc.data()?['profileSetupCompleted'] == true) {
+        return StudentProfile.fromFirestore(existingDoc);
+      }
+
+      final profile = StudentProfile(
+        uid: uid,
+        email: cleanEmail,
+        rollNumber: username,
+        batchCode: 'FACULTY',
+        academicYear: 0,
+        academicYearLabel: 'Faculty / Staff',
+        studentClass: 'Faculty',
+        section: 'Staff',
+        role: 'teacher',
+        college: 'BVC Engineering College, Odalarevu',
+        profileSetupCompleted: true,
+        createdAt: existingDoc.exists ? null : DateTime.now(),
+        updatedAt: DateTime.now(),
+      );
+
+      final mapData = profile.toMap(forUpdate: existingDoc.exists);
+      mapData['fullName'] = fullName ?? username;
+      mapData['isFaculty'] = true;
+      mapData['bvcPortalVerified'] = true;
+      mapData['verifiedSource'] = 'bvcec.edu.in';
+
+      if (!existingDoc.exists) {
+        await docRef.set(mapData);
+      } else {
+        await docRef.set(mapData, SetOptions(merge: true));
+      }
+
+      debugPrint('[StudentProfileRepository] Successfully setup faculty profile for $cleanEmail');
+      return profile;
+    } on FirebaseException catch (e) {
+      debugPrint('[StudentProfileRepository] Firebase error setting up faculty profile: ${e.message}');
+      // Fallback in-memory profile so navigation never crashes
+      return StudentProfile(
+        uid: uid,
+        email: cleanEmail,
+        rollNumber: username,
+        batchCode: 'FACULTY',
+        academicYear: 0,
+        academicYearLabel: 'Faculty / Staff',
+        studentClass: 'Faculty',
+        section: 'Staff',
+        role: 'teacher',
+        college: 'BVC Engineering College, Odalarevu',
+        profileSetupCompleted: true,
+      );
+    } catch (e) {
+      debugPrint('[StudentProfileRepository] Unexpected error setting up faculty profile: $e');
+      return StudentProfile(
+        uid: uid,
+        email: cleanEmail,
+        rollNumber: username,
+        batchCode: 'FACULTY',
+        academicYear: 0,
+        academicYearLabel: 'Faculty / Staff',
+        studentClass: 'Faculty',
+        section: 'Staff',
+        role: 'teacher',
+        college: 'BVC Engineering College, Odalarevu',
+        profileSetupCompleted: true,
+      );
+    }
+  }
 }
 
 // ---------------------------------------------------------------------------

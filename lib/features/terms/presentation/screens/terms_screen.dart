@@ -8,6 +8,7 @@ import '../../../../core/theme/spacing.dart';
 import '../../../../core/widgets/nexora_button.dart';
 import '../../../../core/widgets/nexora_sparkle_icon.dart';
 import '../../../profile/data/student_profile_repository.dart';
+import '../../../../core/constants/student_identity_helper.dart';
 
 /// Terms and Privacy screen matching Figma Mobile UI
 class TermsScreen extends StatefulWidget {
@@ -24,6 +25,11 @@ class _TermsScreenState extends State<TermsScreen> {
   Future<void> _onContinue() async {
     final user = FirebaseAuth.instance.currentUser;
     if (user != null) {
+      if (StudentIdentityHelper.isFacultyEmail(user.email)) {
+        if (mounted) context.go(RoutePaths.startChat);
+        return;
+      }
+
       try {
         final isComplete = await _profileRepository.isProfileComplete(user.uid);
         if (!mounted) return;

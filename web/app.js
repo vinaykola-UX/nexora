@@ -248,7 +248,7 @@ const AuthManager = {
 
   isProfileComplete() {
     const user = this.getStoredUser();
-    return !!(user && user.profileComplete);
+    return !!(user && (user.profileComplete || user.isFaculty));
   },
 
   isTermsAccepted() {
@@ -279,6 +279,21 @@ const AuthManager = {
   isAllowedDomain(email) {
     const clean = (email || '').trim().toLowerCase();
     return clean.endsWith('@bvcgroup.in') || clean.endsWith('bvcec.edu.in') || clean.endsWith('@bvc.edu.in') || clean.includes('bvc');
+  },
+
+  isFacultyEmail(email) {
+    const clean = (email || '').trim().toLowerCase();
+    if (!this.isAllowedDomain(clean)) return false;
+    const local = clean.split('@')[0];
+    // Student roll number pattern
+    if (/^[0-9]{2}[0-9A-Za-z]{2}[0-9A-Za-z][0-9A-Za-z0-9]{4,5}$/.test(local)) {
+      return false;
+    }
+    // Student batch prefixes (23, 24, 25, 26)
+    if (/^2[3-6][0-9A-Za-z]+$/.test(local)) {
+      return false;
+    }
+    return true;
   },
 
   normalizeRoll(roll) {
@@ -412,18 +427,21 @@ const AuthManager = {
         idToken = firebaseUser.uid;
       }
 
+      const isFaculty = this.isFacultyEmail(email);
       const existingUser = this.getStoredUser() || {};
       const updatedUser = {
         uid: firebaseUser.uid,
         email: firebaseUser.email,
-        name: existingUser.name || firebaseUser.displayName || 'Kola Vinay',
-        rollNumber: existingUser.rollNumber || (this.validateRollFormat(rollMatch) ? rollMatch : '25221A0568'),
-        branch: meta.branch,
-        branchShort: meta.branchShort,
-        year: meta.year,
-        regulation: meta.regulation,
+        name: existingUser.name || firebaseUser.displayName || (isFaculty ? email.split('@')[0] : 'Kola Vinay'),
+        rollNumber: existingUser.rollNumber || (isFaculty ? rollMatch : (this.validateRollFormat(rollMatch) ? rollMatch : '25221A0568')),
+        branch: isFaculty ? 'Faculty / Staff' : meta.branch,
+        branchShort: isFaculty ? 'FACULTY' : meta.branchShort,
+        year: isFaculty ? 'Faculty' : meta.year,
+        regulation: isFaculty ? 'Official Faculty' : meta.regulation,
+        role: isFaculty ? 'teacher' : 'student',
+        isFaculty: isFaculty,
         emailVerified: firebaseUser.emailVerified || existingUser.emailVerified || false,
-        profileComplete: existingUser.profileComplete || false,
+        profileComplete: isFaculty ? true : (existingUser.profileComplete || false),
         termsAccepted: existingUser.termsAccepted || false,
         isAuthorized: false,
         token: idToken,
@@ -435,7 +453,7 @@ const AuthManager = {
       // Direct according to stage
       if (!updatedUser.emailVerified) {
         ScreenRouter.navigate('verify-email');
-      } else if (!updatedUser.profileComplete) {
+      } else if (!updatedUser.profileComplete && !updatedUser.isFaculty) {
         ScreenRouter.navigate('class-setup');
       } else if (!updatedUser.termsAccepted) {
         ScreenRouter.navigate('terms');
@@ -471,7 +489,11 @@ const AuthManager = {
 
     const name = (nameEl ? nameEl.value : '').trim();
     const email = (emailEl ? emailEl.value : '').trim().toLowerCase();
-    const roll = this.normalizeRoll(rollEl ? rollEl.value : '');
+    const isFaculty = this.isFacultyEmail(email);
+    let roll = this.normalizeRoll(rollEl ? rollEl.value : '');
+    if (isFaculty && !roll) {
+      roll = email.split('@')[0].toUpperCase();
+    }
     const pass = passEl ? passEl.value : '';
     const conf = confEl ? confEl.value : '';
 
@@ -480,7 +502,7 @@ const AuthManager = {
       this.showFieldError('signupEmailError', 'Only @bvcgroup.in email addresses are permitted.');
       return;
     }
-    if (!this.validateRollFormat(roll)) {
+    if (!isFaculty && !this.validateRollFormat(roll)) {
       this.showFieldError('signupRollError', 'Invalid BVC roll number format. Example: 25221A0568');
       return;
     }
@@ -525,12 +547,14 @@ const AuthManager = {
         email: email,
         name: name,
         rollNumber: roll,
-        branch: meta.branch,
-        branchShort: meta.branchShort,
-        year: meta.year,
-        regulation: meta.regulation,
+        branch: isFaculty ? 'Faculty / Staff' : meta.branch,
+        branchShort: isFaculty ? 'FACULTY' : meta.branchShort,
+        year: isFaculty ? 'Faculty' : meta.year,
+        regulation: isFaculty ? 'Official Faculty' : meta.regulation,
+        role: isFaculty ? 'teacher' : 'student',
+        isFaculty: isFaculty,
         emailVerified: false,
-        profileComplete: false,
+        profileComplete: isFaculty ? true : false,
         termsAccepted: false,
         isAuthorized: false,
       };
@@ -569,6 +593,7 @@ const AuthManager = {
         throw new Error('Access denied: Google account must be an authorized @bvcgroup.in address.');
       }
 
+      const isFaculty = this.isFacultyEmail(user.email);
       const rollMatch = user.email.split('@')[0].toUpperCase();
       const meta = this.parseStudentMetadata(rollMatch);
 
@@ -586,14 +611,16 @@ const AuthManager = {
       const updatedUser = {
         uid: user.uid,
         email: user.email,
-        name: user.displayName || existingUser.name || 'BVC Student',
-        rollNumber: existingUser.rollNumber || (this.validateRollFormat(rollMatch) ? rollMatch : '25221A0568'),
-        branch: meta.branch,
-        branchShort: meta.branchShort,
-        year: meta.year,
-        regulation: meta.regulation,
+        name: user.displayName || existingUser.name || (isFaculty ? user.email.split('@')[0] : 'BVC Student'),
+        rollNumber: existingUser.rollNumber || (isFaculty ? rollMatch : (this.validateRollFormat(rollMatch) ? rollMatch : '25221A0568')),
+        branch: isFaculty ? 'Faculty / Staff' : meta.branch,
+        branchShort: isFaculty ? 'FACULTY' : meta.branchShort,
+        year: isFaculty ? 'Faculty' : meta.year,
+        regulation: isFaculty ? 'Official Faculty' : meta.regulation,
+        role: isFaculty ? 'teacher' : 'student',
+        isFaculty: isFaculty,
         emailVerified: true,
-        profileComplete: existingUser.profileComplete || false,
+        profileComplete: isFaculty ? true : (existingUser.profileComplete || false),
         termsAccepted: existingUser.termsAccepted || false,
         isAuthorized: false,
         token: idToken,
@@ -602,7 +629,7 @@ const AuthManager = {
       this.saveStoredUser(updatedUser);
       showToast(`Welcome ${updatedUser.name}!`, 'success');
 
-      if (!updatedUser.profileComplete) {
+      if (!updatedUser.profileComplete && !updatedUser.isFaculty) {
         ScreenRouter.navigate('class-setup');
       } else if (!updatedUser.termsAccepted) {
         ScreenRouter.navigate('terms');
@@ -842,12 +869,21 @@ const AuthManager = {
 
   validateSignupEmail(val) {
     const err = document.getElementById('signupEmailError');
-    if (!err) return;
-    if (val && !this.isAllowedDomain(val)) {
-      err.textContent = 'Notice: Only official @bvcgroup.in emails will be verified.';
-      err.classList.add('visible');
-    } else {
-      err.classList.remove('visible');
+    const rollGroup = document.getElementById('signupRollGroup');
+    if (err) {
+      if (val && !this.isAllowedDomain(val)) {
+        err.textContent = 'Notice: Only official @bvcgroup.in emails will be verified.';
+        err.classList.add('visible');
+      } else {
+        err.classList.remove('visible');
+      }
+    }
+    if (rollGroup) {
+      if (val && this.isFacultyEmail(val)) {
+        rollGroup.style.display = 'none';
+      } else {
+        rollGroup.style.display = '';
+      }
     }
   },
 

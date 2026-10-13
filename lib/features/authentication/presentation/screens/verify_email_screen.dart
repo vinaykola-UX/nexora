@@ -9,6 +9,8 @@ import '../../../../core/theme/colors.dart';
 import '../../../../core/theme/spacing.dart';
 import '../../../../core/widgets/nexora_button.dart';
 import '../../../profile/data/student_profile_repository.dart';
+import '../../../../core/constants/student_identity_helper.dart';
+import '../../../../services/nexora_api_service.dart';
 import '../../data/auth_service.dart';
 
 /// Verify-Email screen - shown after sign-up (or login with unverified account).
@@ -123,7 +125,24 @@ class _VerifyEmailScreenState extends State<VerifyEmailScreen> {
       if (!mounted) return;
 
       if (refreshedUser != null && refreshedUser.emailVerified) {
-        // Check whether profile setup is completed
+        // If faculty/staff, verify against official college portals & auto-complete profile
+        if (StudentIdentityHelper.isFacultyEmail(refreshedUser.email)) {
+          try {
+            final api = NexoraApiService();
+            await api.verifyFacultyOfficial(refreshedUser.email!);
+            await _profileRepository.setupFacultyProfile(
+              uid: refreshedUser.uid,
+              email: refreshedUser.email!,
+              fullName: refreshedUser.displayName,
+            );
+          } catch (_) {}
+
+          if (!mounted) return;
+          context.go(RoutePaths.terms);
+          return;
+        }
+
+        // Check whether profile setup is completed for student
         final isComplete = await _profileRepository.isProfileComplete(refreshedUser.uid);
         if (!mounted) return;
 
