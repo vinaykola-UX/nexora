@@ -380,16 +380,18 @@ const AuthManager = {
           firebaseUser = cred.user;
         } catch (fbErr) {
           console.warn('[Nexora Auth] Firebase sign-in message:', fbErr.code, fbErr.message);
-          // If demo student and account doesn't exist yet in Firebase, auto-create it in Firebase Auth
-          if ((fbErr.code === 'auth/user-not-found' || fbErr.code === 'auth/invalid-credential') && email === '25221a0568@bvcgroup.in' && pass === 'BvcNexora@2026') {
+          // If demo student or faculty account doesn't exist yet in Firebase, auto-create it in Firebase Auth
+          const isDemoFaculty = (email === 'vinaybvcec@bvcgroup.in' && pass === 'thala777');
+          const isDemoStudent = (email === '25221a0568@bvcgroup.in' && pass === 'BvcNexora@2026');
+          if ((fbErr.code === 'auth/user-not-found' || fbErr.code === 'auth/invalid-credential') && (isDemoStudent || isDemoFaculty)) {
             try {
               const newCred = await this.authInstance.createUserWithEmailAndPassword(email, pass);
               firebaseUser = newCred.user;
             } catch (createErr) {
               firebaseUser = {
-                uid: 'bvc_official_25221a0568',
+                uid: isDemoFaculty ? 'bvc_faculty_vinaybvcec' : 'bvc_official_25221a0568',
                 email: email,
-                displayName: 'Kola Vinay',
+                displayName: isDemoFaculty ? 'Vinay Kola (Faculty)' : 'Kola Vinay',
                 emailVerified: true,
               };
             }
@@ -405,10 +407,11 @@ const AuthManager = {
         }
       } else {
         // Fallback for offline/local environment
+        const isDemoFaculty = (email === 'vinaybvcec@bvcgroup.in');
         firebaseUser = {
-          uid: 'bvc_uid_' + Math.random().toString(36).substring(2, 9),
+          uid: isDemoFaculty ? 'bvc_faculty_vinaybvcec' : ('bvc_uid_' + Math.random().toString(36).substring(2, 9)),
           email: email,
-          displayName: email.split('@')[0].toUpperCase(),
+          displayName: isDemoFaculty ? 'Vinay Kola (Faculty)' : email.split('@')[0].toUpperCase(),
           emailVerified: true,
         };
       }
@@ -427,28 +430,29 @@ const AuthManager = {
         idToken = firebaseUser.uid;
       }
 
-      const isFaculty = this.isFacultyEmail(email);
+      const isDemoFaculty = (email === 'vinaybvcec@bvcgroup.in');
+      const isFaculty = this.isFacultyEmail(email) || isDemoFaculty;
       const existingUser = this.getStoredUser() || {};
       const updatedUser = {
-        uid: firebaseUser.uid,
-        email: firebaseUser.email,
-        name: existingUser.name || firebaseUser.displayName || (isFaculty ? email.split('@')[0] : 'Kola Vinay'),
-        rollNumber: existingUser.rollNumber || (isFaculty ? rollMatch : (this.validateRollFormat(rollMatch) ? rollMatch : '25221A0568')),
-        branch: isFaculty ? 'Faculty / Staff' : meta.branch,
-        branchShort: isFaculty ? 'FACULTY' : meta.branchShort,
+        uid: firebaseUser.uid || 'bvc_faculty_vinaybvcec',
+        email: firebaseUser.email || email,
+        name: existingUser.name || firebaseUser.displayName || (isFaculty ? 'Vinay Kola (Faculty)' : 'Kola Vinay'),
+        rollNumber: isFaculty ? 'FACULTY_VINAYBVCEC' : (existingUser.rollNumber || (this.validateRollFormat(rollMatch) ? rollMatch : '25221A0568')),
+        branch: isFaculty ? 'Computer Science & Engineering (Faculty)' : meta.branch,
+        branchShort: isFaculty ? 'CSE' : meta.branchShort,
         year: isFaculty ? 'Faculty' : meta.year,
         regulation: isFaculty ? 'Official Faculty' : meta.regulation,
         role: isFaculty ? 'teacher' : 'student',
         isFaculty: isFaculty,
-        emailVerified: firebaseUser.emailVerified || existingUser.emailVerified || false,
+        emailVerified: isDemoFaculty ? true : (firebaseUser.emailVerified || existingUser.emailVerified || false),
         profileComplete: isFaculty ? true : (existingUser.profileComplete || false),
-        termsAccepted: existingUser.termsAccepted || false,
+        termsAccepted: isDemoFaculty ? true : (existingUser.termsAccepted || false),
         isAuthorized: false,
-        token: idToken,
+        token: idToken || (isDemoFaculty ? 'bvc_faculty_vinaybvcec' : null),
       };
 
       this.saveStoredUser(updatedUser);
-      showToast('Signed in successfully', 'success');
+      showToast('Signed in successfully as ' + (isFaculty ? 'Faculty' : 'Student'), 'success');
 
       // Direct according to stage
       if (!updatedUser.emailVerified) {
@@ -865,6 +869,14 @@ const AuthManager = {
     if (emailInput) emailInput.value = `${roll.toLowerCase()}@bvcgroup.in`;
     if (passInput) passInput.value = 'BvcNexora@2026';
     showToast(`Pre-filled verified BVC credentials for ${roll}! Click 'Sign In'.`, 'info');
+  },
+
+  fillDemoFaculty() {
+    const emailInput = document.getElementById('loginEmail');
+    const passInput = document.getElementById('loginPassword');
+    if (emailInput) emailInput.value = 'vinaybvcec@bvcgroup.in';
+    if (passInput) passInput.value = 'thala777';
+    showToast("Pre-filled faculty credentials (vinaybvcec@bvcgroup.in)! Click 'Sign In'.", 'info');
   },
 
   validateSignupEmail(val) {

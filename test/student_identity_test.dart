@@ -263,5 +263,16 @@ void main() {
       expect(map['batchCode'], 'FACULTY');
       expect(map['profileSetupCompleted'], isTrue);
     });
+
+    test('TEST 16: Demo faculty credentials vinaybvcec@bvcgroup.in are verified as institutional faculty', () {
+      const email = 'vinaybvcec@bvcgroup.in';
+      expect(StudentIdentityHelper.isFacultyEmail(email), isTrue);
+      expect(StudentIdentityHelper.isValidStudentEmail(email), isFalse);
+
+      final identity = StudentIdentityHelper.extractFacultyFromEmail(email);
+      expect(identity, isNotNull);
+      expect(identity!.username, 'vinaybvcec');
+      expect(identity.email, 'vinaybvcec@bvcgroup.in');
+    });
   });
 }

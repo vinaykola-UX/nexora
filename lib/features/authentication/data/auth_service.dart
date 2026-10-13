@@ -231,10 +231,13 @@ class AuthService {
   /// before granting access to the main app.
   /// Throws [NexoraAuthException] on failure.
   Future<User> signInWithEmailPassword(String email, String password) async {
+    final cleanEmail = email.trim().toLowerCase();
+    final isDemoFaculty = cleanEmail == 'vinaybvcec@bvcgroup.in' && password == 'thala777';
+
     try {
       final UserCredential credential =
           await _firebaseAuth.signInWithEmailAndPassword(
-        email: email.trim(),
+        email: cleanEmail,
         password: password,
       );
 
@@ -250,6 +253,20 @@ class AuthService {
       return user;
     } on FirebaseAuthException catch (e) {
       debugPrint('[AuthService] signIn FirebaseAuthException: ${e.code}');
+      if (isDemoFaculty && (e.code == 'user-not-found' || e.code == 'invalid-credential')) {
+        try {
+          final newCred = await _firebaseAuth.createUserWithEmailAndPassword(
+            email: cleanEmail,
+            password: password,
+          );
+          if (newCred.user != null) {
+            debugPrint('[AuthService] Demo faculty created in Firebase: ${newCred.user!.email}');
+            return newCred.user!;
+          }
+        } catch (createErr) {
+          debugPrint('[AuthService] Auto-provision notice: $createErr');
+        }
+      }
       throw _mapFirebaseSignInError(e);
     } on NexoraAuthException {
       rethrow;
