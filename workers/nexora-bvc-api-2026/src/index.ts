@@ -2576,6 +2576,8 @@ export default {
             sources: chatResponse.sources,
             document: chatResponse.document,
             documents: chatResponse.documents,
+            ...(chatResponse.imagePrompt ? { imagePrompt: chatResponse.imagePrompt } : {}),
+            ...(chatResponse.visualMeta ? { visualMeta: chatResponse.visualMeta } : {}),
             ...(activeConvId ? { conversation_id: activeConvId } : {}),
             ...(chatResponse.debug ? { debug: chatResponse.debug } : {}),
           });

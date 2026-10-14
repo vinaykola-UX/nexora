@@ -338,6 +338,29 @@ export class PersonalityPolicyEngine {
             'Organized, clean, no humor. NEVER announce modes.',
         };
 
+      // ── VISUAL STUDY (Diagrams, Workflows, Image Prompts) ─────────────────────
+      case 'VISUAL_STUDY':
+        return {
+          intent,
+          tone: 'structured/academic',
+          humorLevel: 'none',
+          teasingLevel: 'none',
+          academicPriority: 'immediate',
+          responseDirectness: 'direct',
+          allowPlayfulOpener: false,
+          supportive: false,
+          requiresGrounding: true,
+          temperature: 0.15,
+          systemDirective:
+            'The student is requesting a visual diagram, syllabus workflow, flowchart, mind map, or image for study. ' +
+            'CRITICAL DIRECTIVES: ' +
+            '1. NEVER state "I cannot generate images" or refuse the visual request. ' +
+            '2. Provide a clear, structured syllabus breakdown of the requested unit/topic with ## headings and bulleted concepts. ' +
+            '3. Provide an in-chat Mermaid flowchart workflow (enclosed in ```mermaid ... ``` code block) mapping out the sequential concept flow. ' +
+            '4. Provide the EXACT, comprehensive AI Image Generation Prompt under a dedicated heading: "### 🎨 Exact AI Image Generation Prompt" (enclosed in a ```text ... ``` block) that the student can copy into Midjourney, DALL-E 3, or Stable Diffusion. Include visual layout, node hierarchy, color palette (#0a0f1d dark theme, glowing cyan/emerald nodes), and academic infographic styling. ' +
+            'NEVER announce internal modes.',
+        };
+
       // ── ACADEMIC ─────────────────────────────────────────────────────────────
       case 'ACADEMIC':
         return {

@@ -42,6 +42,7 @@ import { PersonalityPolicyEngine, PersonalityPolicy } from './personality_policy
 import { XAIProvider, XAIMessage, XAIUsageInfo, XAI_DEFAULTS } from './xai_provider';
 import { semanticSearch } from '../rag/semantic_search';
 import { mergeRetrievalSignals, calculateHybridScores } from '../rag/hybrid_ranker';
+import { generateVisualStudyPrompt, generateFallbackVisualPrompt, isVisualStudyRequest, VisualPromptResult } from './visual_prompt_engine';
 
 export const AI_LIMITS = {
   MAX_TOOL_CALLS: 3,
@@ -64,6 +65,7 @@ export type AIToolType =
   | 'summarizer'
   | 'quiz_generator'
   | 'study_notes'
+  | 'visual_prompt_generator'
   | 'web_search';
 
 export type UserIntent = ExtendedUserIntent | 'GENERAL_ACADEMIC' | 'EXPLAIN' | 'CODE_GENERATION' | 'CODE_EXPLANATION' | 'SUMMARIZE' | 'WEB_SEARCH';
@@ -84,6 +86,16 @@ export interface ChatResponse {
   sources: ChatSource[];
   document?: NexoraDocumentInfoPayload;
   documents?: NexoraDocumentInfoPayload[];
+  /** AI image-generation prompt for visual study requests (diagrams, flowcharts, mind maps) */
+  imagePrompt?: string;
+  /** Metadata for the generated visual study prompt */
+  visualMeta?: {
+    title: string;
+    style: string;
+    subject: string;
+    unit: number;
+    topics: string[];
+  };
   debug?: {
     detectedIntent: UserIntent;
     selectedTool: AIToolType;
@@ -155,6 +167,8 @@ export class AIController {
         return ['knowledge_search', 'summarizer'];
       case 'STUDY_NOTES':
         return ['knowledge_search', 'study_notes'];
+      case 'VISUAL_STUDY':
+        return ['knowledge_search', 'visual_prompt_generator', 'explain'];
       case 'COLLEGE_INFO':
         return webAccessEnabled ? ['knowledge_search', 'web_search'] : ['knowledge_search', 'explain'];
       case 'WEB_SEARCH':
@@ -194,6 +208,9 @@ export class AIController {
     }
     if (intent === 'STUDY_NOTES' && allowedTools.includes('study_notes')) {
       return 'study_notes';
+    }
+    if (intent === 'VISUAL_STUDY' && allowedTools.includes('visual_prompt_generator')) {
+      return 'visual_prompt_generator';
     }
     if ((intent === 'COLLEGE_INFO' || intent === 'WEB_SEARCH') && allowedTools.includes('web_search')) {
       return 'web_search';
@@ -269,6 +286,8 @@ export class AIController {
         return `Provide a concise, high-yield summary (3-5 bullet points) capturing the core concepts, definitions, and essential takeaways from the provided academic context.`;
       case 'study_notes':
         return `Format the answer as clean, structured revision notes with ## headings, key definitions, bullet points, important formulas/principles, and exam tips based on the retrieved context.`;
+      case 'visual_prompt_generator':
+        return `The student requested a visual diagram, syllabus workflow, flowchart, mind map, or image for study. Structure your response clearly:\n1. Provide a structured overview of the requested Unit syllabus topics with clear ## headings and bulleted concepts.\n2. Include an in-chat Mermaid flowchart diagram (using \`\`\`mermaid\ngraph TD\n...\n\`\`\`) that visualizes the sequential syllabus workflow.\n3. Include a dedicated section titled "### 🎨 Exact AI Image Generation Prompt" containing a complete, high-resolution text-to-image prompt in a \`\`\`text block ready to paste into Midjourney, DALL-E 3, or Stable Diffusion. Never state that you cannot generate images.`;
       case 'web_search':
         return `Summarize the official portal notice accurately, clearly advising students to check the original link for official updates.`;
       case 'explain':
@@ -520,6 +539,7 @@ export class AIController {
         detectedIntent === 'QUIZ' ||
         detectedIntent === 'SUMMARY' ||
         detectedIntent === 'STUDY_NOTES' ||
+        detectedIntent === 'VISUAL_STUDY' ||
         detectedIntent === 'COLLEGE_INFO' ||
         detectedIntent === 'DOCUMENT_SEARCH' ||
         detectedIntent === 'UNKNOWN'
@@ -930,7 +950,10 @@ export class AIController {
           .replace(/^TOPIC:\s*[^\n]+\n*/i, '')
           .trim();
 
-        if (selectedTool === 'code_generator') {
+        if (selectedTool === 'visual_prompt_generator' || detectedIntent === 'VISUAL_STUDY' || isVisualStudyRequest(message)) {
+          const vPrompt = generateVisualStudyPrompt(message, retrievedChunks, conversation);
+          generatedText = `### ${vPrompt.subject} Unit ${vPrompt.unit} — Syllabus Architecture & Workflow\n\n**Key Topics in this Unit:**\n${vPrompt.topics.map((t, i) => `${i + 1}. **${t}**`).join('\n')}\n\n${vPrompt.mermaidDiagram}\n\n### 🎨 Exact AI Image Generation Prompt\n> Copy the prompt below to generate an ultra-high-resolution workflow diagram in Midjourney, DALL-E 3, or Stable Diffusion:\n\n\`\`\`text\n${vPrompt.imagePrompt}\n\`\`\``;
+        } else if (selectedTool === 'code_generator') {
           generatedText = `Here is the verified syllabus implementation for ${primaryChunk.subject} (${primaryChunk.title}):\n\n\`\`\`java\n${cleanContent}\n\`\`\`\n\n**Complexity Analysis:**\n- Time Complexity: O(1) for member access\n- Space Complexity: O(1) auxiliary stack space`;
         } else if (selectedTool === 'quiz_generator') {
           generatedText = `Practice Quiz on ${primaryChunk.subject} (Unit ${primaryChunk.unit}):\n\n1. What concept is highlighted in this unit?\n   A) Single Inheritance\n   B) Binary Search\n   C) Operator Overloading\n   D) Dynamic Scoping\n   *Correct Answer: A*`;
@@ -941,6 +964,9 @@ export class AIController {
         } else {
           generatedText = `In ${primaryChunk.subject} (Unit ${primaryChunk.unit}):\n\n${cleanContent}`;
         }
+      } else if (selectedTool === 'visual_prompt_generator' || detectedIntent === 'VISUAL_STUDY' || isVisualStudyRequest(message)) {
+        const vPrompt = generateVisualStudyPrompt(message, retrievedChunks, conversation);
+        generatedText = `### ${vPrompt.subject} Unit ${vPrompt.unit} — Syllabus Architecture & Workflow\n\n**Key Topics in this Unit:**\n${vPrompt.topics.map((t, i) => `${i + 1}. **${t}**`).join('\n')}\n\n${vPrompt.mermaidDiagram}\n\n### 🎨 Exact AI Image Generation Prompt\n> Copy the prompt below to generate an ultra-high-resolution workflow diagram in Midjourney, DALL-E 3, or Stable Diffusion:\n\n\`\`\`text\n${vPrompt.imagePrompt}\n\`\`\``;
       } else {
         generatedText = "I'm here to help with your BVC Engineering studies. Ask me about your subjects, units, or code implementations.";
       }
@@ -984,12 +1010,34 @@ export class AIController {
       }
     }
 
+    // 9.5 Visual Study Prompt & Workflow Attachment
+    let imagePrompt: string | undefined;
+    let visualMeta: any | undefined;
+    if (detectedIntent === 'VISUAL_STUDY' || selectedTool === 'visual_prompt_generator' || isVisualStudyRequest(message)) {
+      const visualResult = generateVisualStudyPrompt(message, retrievedChunks, conversation);
+      imagePrompt = visualResult.imagePrompt;
+      visualMeta = {
+        title: visualResult.title,
+        style: visualResult.style,
+        subject: visualResult.subject,
+        unit: visualResult.unit,
+        topics: visualResult.topics,
+      };
+
+      // Guarantee the copyable prompt block is present in finalAnswer
+      if (!finalAnswer.includes('### 🎨 Exact AI Image Generation Prompt') && !finalAnswer.includes(imagePrompt.substring(0, 40))) {
+        finalAnswer += `\n\n### 🎨 Exact AI Image Generation Prompt\n> Copy the prompt below into Midjourney, DALL-E 3, or Stable Diffusion to generate this workflow diagram:\n\n\`\`\`text\n${imagePrompt}\n\`\`\``;
+      }
+    }
+
     return {
       answer: finalAnswer,
       tool: selectedTool,
       sources: finalSources,
       document: preRetrievedDocResult?.document,
       documents: preRetrievedDocResult?.documents,
+      imagePrompt,
+      visualMeta,
       debug: debug
         ? {
             detectedIntent,

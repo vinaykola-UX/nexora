@@ -11,6 +11,7 @@ class StudentProfile {
   final String academicYearLabel;
   final String studentClass;
   final String section;
+  final String? fullName;
   final String role;
   final String college;
   final bool profileSetupCompleted;
@@ -26,6 +27,7 @@ class StudentProfile {
     required this.academicYearLabel,
     required this.studentClass,
     required this.section,
+    this.fullName,
     this.role = 'student',
     this.college = AppConstants.collegeName,
     this.profileSetupCompleted = false,
@@ -62,6 +64,7 @@ class StudentProfile {
       academicYearLabel: currentYearVal,
       studentClass: branchVal,
       section: data['section'] as String? ?? '',
+      fullName: data['fullName'] as String?,
       role: data['role'] as String? ?? 'student',
       college: data['college'] as String? ?? AppConstants.collegeName,
       profileSetupCompleted: data['profileSetupCompleted'] as bool? ?? false,
@@ -77,11 +80,13 @@ class StudentProfile {
       'email': email.toLowerCase(),
       'rollNumber': rollNumber.toUpperCase(),
       'batch': batchCode,
+      'batchCode': batchCode,
       'currentYear': academicYearLabel,
       'academicYear': academicYear,
       'branch': studentClass,
       'class': studentClass,
       'section': section,
+      if (fullName != null) 'fullName': fullName,
       'role': role,
       'college': college,
       'profileSetupCompleted': profileSetupCompleted,
@@ -106,6 +111,7 @@ class StudentProfile {
     String? academicYearLabel,
     String? studentClass,
     String? section,
+    String? fullName,
     String? role,
     String? college,
     bool? profileSetupCompleted,
@@ -121,6 +127,7 @@ class StudentProfile {
       academicYearLabel: academicYearLabel ?? this.academicYearLabel,
       studentClass: studentClass ?? this.studentClass,
       section: section ?? this.section,
+      fullName: fullName ?? this.fullName,
       role: role ?? this.role,
       college: college ?? this.college,
       profileSetupCompleted: profileSetupCompleted ?? this.profileSetupCompleted,

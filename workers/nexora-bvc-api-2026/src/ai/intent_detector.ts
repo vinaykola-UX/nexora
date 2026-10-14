@@ -39,6 +39,7 @@ export type ExtendedUserIntent =
   | 'QUIZ'
   | 'SUMMARY'
   | 'STUDY_NOTES'
+  | 'VISUAL_STUDY'
   | 'STRESSED_STUDENT'
   | 'OUT_OF_SCOPE'
   | 'UNKNOWN';
@@ -124,6 +125,21 @@ export class IntentDetector {
       // Check if student ALSO wants an explanation (MODE C: Document + Explanation)
       const wantsExplanation =
         /\b(and explain|explain it|explain this|explain the|explain important|explain|tell me\b.*(topic|concept|important|about)|important topics|important questions|key topics|summarize|give summary|teach me|overview)\b/i.test(q);
+
+      // Check if visual request overlaps document search (e.g. "show me CADS unit 2 diagram", "generate 2nd unity syllubs workflow imag")
+      const isVisualOverlap =
+        /\b(diagram|diag|flowchart|flow\s*chart|mind\s*map|mindmap|infographic|visual|visualize|visualise|image|imag|img|picture|pic|chart|illustration|roadmap|workflow|timeline|concept\s*map|concept\s*diagram|block\s*diagram|architecture\s*diagram|blueprint|wireframe|prompt)\b/i.test(q) ||
+        /\b(syllabus|syllubs|unit\s*\d+|unity\s*\d+|\d+(?:st|nd|rd|th)?\s*(?:unit|unity))\b.*\b(workflow|flow|diagram|image|imag|img|visual|roadmap|prompt)\b/i.test(q);
+
+      if (isVisualOverlap) {
+        signals.push('visual_study_pattern');
+        return {
+          intent: 'VISUAL_STUDY',
+          confidence: 0.95,
+          signals,
+          wantsExplanation: true,
+        };
+      }
 
       return {
         intent: 'DOCUMENT_SEARCH',
@@ -213,6 +229,23 @@ export class IntentDetector {
     ) {
       signals.push('study_notes_keyword');
       return { intent: 'STUDY_NOTES', confidence: 0.9, signals };
+    }
+
+    // VISUAL STUDY DETECTION (Diagrams, Flowcharts, Mind Maps, Infographics, Workflows, Image Prompts)
+    const visualStudyPatterns = [
+      /\b(show|create|make|generate|draw|give|design|craft|produce|prompt)\b.*\b(diagram|diag|flowchart|flow\s*chart|mind\s*map|mindmap|infographic|visual|image|imag|img|picture|pic|chart|illustration|roadmap|workflow|timeline|concept\s*map|blueprint)\b/i,
+      /\b(diagram|diag|flowchart|flow\s*chart|mind\s*map|mindmap|infographic|visual|image|imag|img|picture|chart|blueprint)\b.*\b(of|for|about|on|based)\b/i,
+      /\b(syllabus|syllubs|unit\s*\d+|unity\s*\d+|\d+(?:st|nd|rd|th)?\s*(?:unit|unity)|topic)\b.*\b(workflow|flow|diagram|image|imag|img|visual|roadmap|prompt)\b/i,
+      /\b(workflow|flow|roadmap)\b.*\b(image|imag|img|diagram|chart|of\s*unit|of\s*unity|of\s*syllabus|of\s*syllubs|based)\b/i,
+      /\b(visualize|visualise|pictorial|graphic\s*representation|visual\s*representation|block\s*diagram|architecture\s*diagram|tree\s*diagram|concept\s*diagram)\b/i,
+      /\b(image\s*prompt|prompt\s*for\s*(image|diagram|workflow)|generate.*prompt)\b/i,
+    ];
+
+    for (const pattern of visualStudyPatterns) {
+      if (pattern.test(q)) {
+        signals.push('visual_study_pattern');
+        return { intent: 'VISUAL_STUDY', confidence: 0.95, signals };
+      }
     }
 
     // 5. COLLEGE / CAMPUS INFO

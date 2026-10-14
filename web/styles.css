@@ -2441,3 +2441,206 @@ a:hover {
   }
 }
 
+/* ==========================================================================
+   Visual Study Prompt & Workflow Generator Styling
+   ========================================================================== */
+.visual-study-prompt-card {
+  margin: 16px 0 12px 0;
+  background: linear-gradient(145deg, #0f172a 0%, #1e1b4b 100%);
+  border: 1px solid rgba(139, 92, 246, 0.35);
+  border-radius: 14px;
+  overflow: hidden;
+  box-shadow: 0 10px 25px -5px rgba(0, 0, 0, 0.35), 0 0 15px rgba(139, 92, 246, 0.15);
+  transition: all 0.25s ease;
+}
+
+.visual-study-prompt-card:hover {
+  border-color: rgba(168, 85, 247, 0.55);
+  box-shadow: 0 12px 30px -5px rgba(0, 0, 0, 0.4), 0 0 20px rgba(168, 85, 247, 0.25);
+}
+
+.visual-prompt-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 14px 18px;
+  background: rgba(15, 23, 42, 0.7);
+  border-bottom: 1px solid rgba(139, 92, 246, 0.2);
+  flex-wrap: wrap;
+}
+
+.visual-title-group {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.visual-sparkle-icon {
+  font-size: 1.4rem;
+  line-height: 1;
+  filter: drop-shadow(0 0 8px rgba(168, 85, 247, 0.5));
+}
+
+.visual-titles {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.visual-card-title {
+  font-size: 0.96rem;
+  font-weight: 700;
+  color: #f8fafc;
+  letter-spacing: -0.01em;
+}
+
+.visual-card-subtitle {
+  font-size: 0.75rem;
+  color: #94a3b8;
+}
+
+.visual-badges {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  flex-wrap: wrap;
+}
+
+.visual-badge-subject {
+  padding: 3px 9px;
+  font-size: 0.72rem;
+  font-weight: 700;
+  background: rgba(59, 130, 246, 0.2);
+  color: #60a5fa;
+  border: 1px solid rgba(59, 130, 246, 0.4);
+  border-radius: 9999px;
+  text-transform: uppercase;
+}
+
+.visual-badge-unit {
+  padding: 3px 9px;
+  font-size: 0.72rem;
+  font-weight: 700;
+  background: rgba(16, 185, 129, 0.2);
+  color: #34d399;
+  border: 1px solid rgba(16, 185, 129, 0.4);
+  border-radius: 9999px;
+}
+
+.visual-badge-style {
+  padding: 3px 9px;
+  font-size: 0.72rem;
+  font-weight: 600;
+  background: rgba(168, 85, 247, 0.2);
+  color: #c084fc;
+  border: 1px solid rgba(168, 85, 247, 0.4);
+  border-radius: 9999px;
+  text-transform: capitalize;
+}
+
+.visual-prompt-body {
+  padding: 16px 18px;
+}
+
+.visual-prompt-box {
+  background: #030712;
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  border-radius: 10px;
+  padding: 14px;
+  max-height: 220px;
+  overflow-y: auto;
+  font-family: 'JetBrains Mono', monospace;
+  font-size: 0.82rem;
+  line-height: 1.55;
+  color: #cbd5e1;
+  white-space: pre-wrap;
+  word-break: break-word;
+}
+
+.visual-prompt-box pre {
+  margin: 0;
+  font-family: inherit;
+  color: inherit;
+}
+
+.visual-prompt-actions {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  margin-top: 14px;
+  flex-wrap: wrap;
+}
+
+.btn-copy-visual-prompt {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  padding: 9px 18px;
+  background: linear-gradient(135deg, #7c3aed 0%, #4f46e5 100%);
+  color: #ffffff;
+  border: none;
+  border-radius: 8px;
+  font-size: 0.84rem;
+  font-weight: 600;
+  cursor: pointer;
+  box-shadow: 0 4px 12px rgba(124, 58, 237, 0.35);
+  transition: all 0.2s ease;
+}
+
+.btn-copy-visual-prompt:hover {
+  transform: translateY(-1px);
+  box-shadow: 0 6px 16px rgba(124, 58, 237, 0.5);
+  background: linear-gradient(135deg, #8b5cf6 0%, #6366f1 100%);
+}
+
+.btn-copy-visual-prompt:active {
+  transform: translateY(0);
+}
+
+.visual-hint-text {
+  font-size: 0.76rem;
+  color: #94a3b8;
+}
+
+/* Mermaid Interactive Workflow Box */
+.mermaid-diagram-card {
+  margin: 16px 0;
+  background: #090d16;
+  border: 1px solid rgba(56, 189, 248, 0.25);
+  border-radius: 12px;
+  overflow: hidden;
+  box-shadow: 0 6px 20px rgba(0, 0, 0, 0.3);
+}
+
+.mermaid-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 10px 14px;
+  background: rgba(15, 23, 42, 0.85);
+  border-bottom: 1px solid rgba(56, 189, 248, 0.2);
+}
+
+.mermaid-badge {
+  font-size: 0.78rem;
+  font-weight: 600;
+  color: #38bdf8;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.mermaid-render-box {
+  padding: 16px;
+  overflow-x: auto;
+  text-align: center;
+  color: #f1f5f9;
+}
+
+.mermaid-render-box svg {
+  max-width: 100%;
+  height: auto;
+}
+

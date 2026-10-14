@@ -937,11 +937,36 @@ class SimpleMarkdownParser {
 
     let html = text;
 
-    // Code blocks with syntax badge & copy button
+    // Code blocks with syntax badge & copy button (with specialized Mermaid support)
     html = html.replace(/```([a-zA-Z0-9_\-+]*)\n([\s\S]*?)```/g, (match, lang, code) => {
       const language = lang.trim() || 'code';
       const cleanCode = code.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
       const encodedForCopy = encodeURIComponent(code);
+
+      if (language.toLowerCase() === 'mermaid') {
+        const diagramCode = code.trim();
+        return `
+          <div class="mermaid-diagram-card">
+            <div class="mermaid-header">
+              <span class="mermaid-badge">
+                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5">
+                  <polygon points="13 2 3 14 12 14 11 22 21 10 12 10 13 2"></polygon>
+                </svg>
+                <span>Syllabus Workflow Flowchart</span>
+              </span>
+              <button class="btn-copy-code" onclick="copyCodeSnippet(decodeURIComponent('${encodedForCopy}'), this)" title="Copy Diagram Code">
+                <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                  <rect x="9" y="9" width="13" height="13" rx="2" ry="2"></rect>
+                  <path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"></path>
+                </svg>
+                <span>Copy</span>
+              </button>
+            </div>
+            <div class="mermaid-render-box mermaid">${diagramCode}</div>
+          </div>
+        `;
+      }
+
       return `
         <div class="code-block-container">
           <div class="code-block-header">
@@ -1420,6 +1445,46 @@ function renderActiveChat() {
         `;
       }
 
+      // Visual study prompt card if present
+      let visualCardHtml = '';
+      if (msg.imagePrompt) {
+        const meta = msg.visualMeta || {};
+        const encodedPrompt = encodeURIComponent(msg.imagePrompt);
+        visualCardHtml = `
+          <div class="visual-study-prompt-card">
+            <div class="visual-prompt-header">
+              <div class="visual-title-group">
+                <span class="visual-sparkle-icon">🎨</span>
+                <div class="visual-titles">
+                  <span class="visual-card-title">${escapeHtml(meta.title || 'AI Image & Workflow Generation Prompt')}</span>
+                  <span class="visual-card-subtitle">Exact prompt for Midjourney v6, DALL-E 3, and Stable Diffusion</span>
+                </div>
+              </div>
+              <div class="visual-badges">
+                ${meta.subject ? `<span class="visual-badge-subject">${escapeHtml(meta.subject)}</span>` : ''}
+                ${meta.unit ? `<span class="visual-badge-unit">Unit ${meta.unit}</span>` : ''}
+                <span class="visual-badge-style">${escapeHtml(meta.style || 'Workflow')}</span>
+              </div>
+            </div>
+            <div class="visual-prompt-body">
+              <div class="visual-prompt-box">
+                <pre><code>${escapeHtml(msg.imagePrompt)}</code></pre>
+              </div>
+              <div class="visual-prompt-actions">
+                <button class="btn-copy-visual-prompt" onclick="copyVisualPrompt(decodeURIComponent('${encodedPrompt}'), this)">
+                  <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                    <rect x="9" y="9" width="13" height="13" rx="2" ry="2"></rect>
+                    <path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"></path>
+                  </svg>
+                  <span>Copy Image Prompt</span>
+                </button>
+                <span class="visual-hint-text">💡 Copy & paste this prompt into any image AI generator to produce this diagram!</span>
+              </div>
+            </div>
+          </div>
+        `;
+      }
+
       html += `
         <div class="message-turn assistant">
           <div class="assistant-wrapper">
@@ -1431,6 +1496,7 @@ function renderActiveChat() {
             <div class="assistant-body">
               ${thoughtHtml}
               <div class="assistant-prose">${parsedProse}</div>
+              ${visualCardHtml}
               ${sourcesHtml}
               <div class="message-actions-toolbar">
                 <button class="action-icon-btn" onclick="copyMessageText(decodeURIComponent('${encodedFullContent}'), this)" title="Copy Response">
@@ -1458,6 +1524,15 @@ function renderActiveChat() {
   html += `</div>`;
   scrollArea.innerHTML = html;
   scrollArea.scrollTop = scrollArea.scrollHeight;
+
+  // Run mermaid diagram rendering if available
+  if (typeof mermaid !== 'undefined') {
+    try {
+      mermaid.run({ nodes: scrollArea.querySelectorAll('.mermaid') });
+    } catch (mErr) {
+      console.warn('[Nexora Web] Mermaid rendering notice:', mErr);
+    }
+  }
 }
 
 function renderWelcomeHero() {
@@ -1691,6 +1766,8 @@ function handleAssistantResponse(chat, data) {
     tool: data.tool || null,
     thought: data.thought || (data.debug ? JSON.stringify(data.debug) : null),
     sources: data.sources || [],
+    imagePrompt: data.imagePrompt || null,
+    visualMeta: data.visualMeta || null,
     timestamp: new Date().toISOString(),
   };
 
@@ -1699,6 +1776,45 @@ function handleAssistantResponse(chat, data) {
   saveConversations();
   renderActiveChat();
 }
+
+window.copyVisualPrompt = function(promptText, buttonElement) {
+  if (!navigator.clipboard) {
+    // Fallback using textarea
+    const ta = document.createElement('textarea');
+    ta.value = promptText;
+    document.body.appendChild(ta);
+    ta.select();
+    try {
+      document.execCommand('copy');
+      showToast('🎨 AI Image generation prompt copied to clipboard!', 'success');
+    } catch {
+      showToast('Failed to copy prompt.', 'error');
+    }
+    document.body.removeChild(ta);
+    return;
+  }
+
+  navigator.clipboard.writeText(promptText).then(() => {
+    showToast('🎨 AI Image generation prompt copied to clipboard!', 'success');
+    if (buttonElement) {
+      const origHtml = buttonElement.innerHTML;
+      buttonElement.innerHTML = `
+        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5">
+          <polyline points="20 6 9 17 4 12"></polyline>
+        </svg>
+        <span>Prompt Copied!</span>
+      `;
+      buttonElement.style.background = '#10b981';
+      setTimeout(() => {
+        buttonElement.innerHTML = origHtml;
+        buttonElement.style.background = '';
+      }, 2500);
+    }
+  }).catch((err) => {
+    console.error('Failed to copy visual prompt:', err);
+    showToast('Failed to copy prompt.', 'error');
+  });
+};
 
 window.sendQuickPrompt = function(promptText) {
   const input = document.getElementById('chatInput');
