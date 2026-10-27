@@ -60,7 +60,7 @@ export class MemoryManager {
 
     // Strip common conversational preamble
     let cleaned = firstUserMessage
-      .replace(/^(hello|hi|hey|nexora|please|can you|could you|tell me about|explain|what is|how does|give me|write|describe)\s+/gi, '')
+      .replace(/^(hello|hi|hey|nexora|memex|please|can you|could you|tell me about|explain|what is|how does|give me|write|describe)\s+/gi, '')
       .replace(/[?!.:;]+$/g, '')
       .trim();
 

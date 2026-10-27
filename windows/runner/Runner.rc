@@ -90,7 +90,7 @@ BEGIN
         BLOCK "040904e4"
         BEGIN
             VALUE "CompanyName", "BVC Engineering College" "\0"
-            VALUE "FileDescription", "Nexora AI - College Assistant" "\0"
+            VALUE "FileDescription", "Memex - College Assistant" "\0"
             VALUE "FileVersion", VERSION_AS_STRING "\0"
             VALUE "InternalName", "nexora" "\0"
             VALUE "LegalCopyright", "Copyright (C) 2026 BVC Engineering College. All rights reserved." "\0"

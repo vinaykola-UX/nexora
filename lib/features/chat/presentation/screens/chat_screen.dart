@@ -93,7 +93,7 @@ class _ChatScreenState extends State<ChatScreen> {
     _expandedSourceMessages.clear();
     _messages.add(
       _ChatMessage(
-        text: 'Hello! I am Nexora, your official BVC College & Study Assistant.\nAsk me about Data Structures (Linked Lists, Arrays), examinations, regulations (BR23), syllabus, circulars, fee dates, or college announcements.',
+        text: 'Hello! I am Memex, your official BVC College & Study Assistant.\nAsk me about Data Structures (Linked Lists, Arrays), examinations, regulations (BR23), syllabus, circulars, fee dates, or college announcements.',
         isUser: false,
         timestamp: DateTime.now(),
       ),
@@ -273,7 +273,7 @@ class _ChatScreenState extends State<ChatScreen> {
           parsedResponse = portalResponse;
         } else {
           // Task 4 requirement: show exact message when no relevant chunks found
-          aiText = "I couldn't find relevant material for that question in the current Nexora knowledge base.";
+          aiText = "I couldn't find relevant material for that question in the current Memex knowledge base.";
           parsedResponse = portalResponse.success ? portalResponse : null;
         }
 
@@ -657,7 +657,7 @@ class _ChatScreenState extends State<ChatScreen> {
           onPressed: () => _scaffoldKey.currentState?.openDrawer(),
         ),
         title: const Text(
-          'Nexora AI',
+          'Memex',
           style: TextStyle(
             color: Color(NexoraColors.text),
             fontSize: 18,
@@ -977,7 +977,7 @@ class _ChatScreenState extends State<ChatScreen> {
               ),
               const SizedBox(width: 8),
               const Text(
-                'Nexora',
+                'Memex',
                 style: TextStyle(
                   fontSize: 13.5,
                   fontWeight: FontWeight.w700,
@@ -1311,7 +1311,7 @@ class _ChatScreenState extends State<ChatScreen> {
                   ),
                   const SizedBox(height: 4),
                   const Text(
-                    'The document source is available in Nexora, but the original PDF is not currently available for direct download.',
+                    'The document source is available in Memex, but the original PDF is not currently available for direct download.',
                     style: TextStyle(
                       fontSize: 11,
                       fontStyle: FontStyle.italic,
@@ -1547,7 +1547,7 @@ class _ChatScreenState extends State<ChatScreen> {
               ),
               SizedBox(width: NexoraSpacing.sm),
               Text(
-                'Searching Nexora knowledge base...',
+                'Searching Memex knowledge base...',
                 style: TextStyle(
                   fontSize: 13,
                   color: Color(NexoraColors.textSecondary),

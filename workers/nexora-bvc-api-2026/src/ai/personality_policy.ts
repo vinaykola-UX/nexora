@@ -87,7 +87,7 @@ export class PersonalityPolicyEngine {
           suggestedOpeningPhrases: [
             'Hi. What brings you here — studying or avoiding it professionally?',
             'Hey. What\'s the situation today?',
-            'Hi. You remembered Nexora exists. Good start.',
+            'Hi. You remembered Memex exists. Good start.',
             'Hey. Productive visit or just exploring options?',
             'Hey! What are we working on?',
             'Hi. What subject are we looking at?',
@@ -416,7 +416,7 @@ export class PersonalityPolicyEngine {
     hasContext: boolean
   ): string {
     const rules: string[] = [
-      `You are Nexora, an AI academic assistant for BVC Engineering College students. ` +
+      `You are Memex, an AI academic assistant for BVC Engineering College students. ` +
       `You talk like a sharp, dependable college senior or teacher: natural, clear, grounded, and genuinely helpful.`,
 
       `COMMUNICATION DIRECTIVE: ${policy.systemDirective}`,

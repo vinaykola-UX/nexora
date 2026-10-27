@@ -273,7 +273,7 @@ class _ClassSetupScreenState extends State<ClassSetupScreen> {
                       SizedBox(width: NexoraSpacing.sm),
                       Expanded(
                         child: Text(
-                          'Nexora verifies directly with the official BVC Autonomous Student Portal (bvcecautonomous.com). '
+                          'Memex verifies directly with the official BVC Autonomous Student Portal (bvcecautonomous.com). '
                           'Your portal password is used only for authentication and is never permanently stored.',
                           style: TextStyle(
                             fontSize: 12.5,

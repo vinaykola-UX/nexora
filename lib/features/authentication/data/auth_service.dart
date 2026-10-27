@@ -86,7 +86,7 @@ class AuthService {
         debugPrint('[AuthService] Rejected non-BVC email: ${googleUser.email}');
         await _googleSignIn.signOut();
         throw const NexoraAuthException(
-          'Only BVC Group accounts (@bvcgroup.in) can access Nexora.',
+          'Only BVC Group accounts (@bvcgroup.in) can access Memex.',
           code: 'unauthorized-domain',
         );
       }
@@ -118,7 +118,7 @@ class AuthService {
         debugPrint('[AuthService] Firebase User domain rejection for: ${user.email}');
         await signOut();
         throw const NexoraAuthException(
-          'Only BVC Group accounts (@bvcgroup.in) can access Nexora.',
+          'Only BVC Group accounts (@bvcgroup.in) can access Memex.',
           code: 'unauthorized-domain',
         );
       }

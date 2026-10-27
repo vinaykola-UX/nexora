@@ -1,10 +1,10 @@
-# Nexora AI - Flutter Mobile Application
+# Memex - Flutter Mobile Application
 
 College-aware AI assistant for students, teachers/staff and administrators at BVC Engineering College.
 
 ## Project Overview
 
-**Nexora AI** is a production-quality Flutter application built for Android and iOS platforms. It provides an intelligent conversational interface powered by college-specific knowledge, helping students and staff access information about academics, placement, regulations, and study materials.
+**Memex** is a production-quality Flutter application built for Android and iOS platforms. It provides an intelligent conversational interface powered by college-specific knowledge, helping students and staff access information about academics, placement, regulations, and study materials.
 
 ### Key Information
 - **Organization**: BVC Engineering College

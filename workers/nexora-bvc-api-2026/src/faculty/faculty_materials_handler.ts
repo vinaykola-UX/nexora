@@ -398,7 +398,7 @@ export async function handleFacultyMaterialRoutes(
         version,
         chunks_created: chunkTexts.length,
         vectorize: { status: vectorizeStatus, vectorized: vectorizedCount },
-        message: `Successfully uploaded and indexed "${title}" with ${chunkTexts.length} chunks into Nexora knowledge base.`,
+        message: `Successfully uploaded and indexed "${title}" with ${chunkTexts.length} chunks into Memex knowledge base.`,
       });
     } catch (dbErr: any) {
       console.error('[Faculty Upload] Database error:', dbErr?.message || dbErr);

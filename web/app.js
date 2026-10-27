@@ -841,7 +841,7 @@ const AuthManager = {
     user.isAuthorized = true;
     this.saveStoredUser(user);
 
-    showToast(`Access granted: Welcome to Nexora AI, ${user.name}!`, 'success');
+    showToast(`Access granted: Welcome to Memex, ${user.name}!`, 'success');
     ScreenRouter.navigate('chat');
   },
 
@@ -859,7 +859,7 @@ const AuthManager = {
     AppState.isAuthorized = false;
 
     updateUserProfileDisplay();
-    showToast('Signed out of Nexora AI', 'info');
+    showToast('Signed out of Memex', 'info');
     ScreenRouter.navigate('login');
   },
 
@@ -1548,7 +1548,7 @@ function renderWelcomeHero() {
       </div>
       <h1 class="hero-greeting-title">${greeting}, Student.</h1>
       <p class="hero-greeting-sub">
-        Nexora AI is your grounded BVC academic companion. Ask about attendance, semester results, R20/R23 autonomous regulations, syllabus units, or official campus circulars.
+        Memex is your grounded BVC academic companion. Ask about attendance, semester results, R20/R23 autonomous regulations, syllabus units, or official campus circulars.
       </p>
 
       <div class="starter-prompts-grid">
@@ -1743,7 +1743,7 @@ async function sendMessage() {
 
     chat.messages.push({
       role: 'assistant',
-      content: `⚠️ **Connection Notice:** Unable to reach Nexora Cloudflare Worker at \`${AppState.apiUrl}\`.\n\n*Error details:* ${err.message}\n\nPlease check your internet connection or verify the backend API address in **Settings**.`,
+      content: `⚠️ **Connection Notice:** Unable to reach Memex Cloudflare Worker at \`${AppState.apiUrl}\`.\n\n*Error details:* ${err.message}\n\nPlease check your internet connection or verify the backend API address in **Settings**.`,
       timestamp: new Date().toISOString(),
     });
     saveConversations();
@@ -2000,7 +2000,7 @@ function renderPortalModalContent() {
         <div style="font-size: 2rem; margin-bottom: 8px;">🎓</div>
         <h3 style="font-size: 1.1rem; margin-bottom: 4px;">Connect Your BVC Student Portal</h3>
         <p style="color: var(--text-secondary); font-size: 0.85rem; max-width: 420px; margin: 0 auto 18px;">
-          Link your official BVC autonomous login to let Nexora seamlessly monitor attendance alerts, SGPA grade cards, and exam deadlines.
+          Link your official BVC autonomous login to let Memex seamlessly monitor attendance alerts, SGPA grade cards, and exam deadlines.
         </p>
       </div>
 
@@ -2151,7 +2151,7 @@ async function loadKnowledgeDocuments() {
           <div style="font-size: 0.76rem; color: var(--text-muted);">Subject: ${escapeHtml(d.subject || 'General')} • Unit ${d.unit || 1} • ${d.chunk_count || 1} chunks</div>
         </div>
         <button class="btn-secondary" onclick="sendQuickPrompt('Explain ${escapeHtml(d.title || d.subject)} Unit ${d.unit || 1} in detail.')" style="padding: 4px 10px; font-size: 0.78rem;">
-          Ask Nexora
+          Ask Memex
         </button>
       </div>
     `).join('');
