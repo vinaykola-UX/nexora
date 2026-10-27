@@ -96,7 +96,7 @@ class _NotificationsScreenState extends ConsumerState<NotificationsScreen> {
                 }
               } else if (value == 'test_local') {
                 await NativeNotificationService.instance.showLocalNotification(
-                  title: 'Nexora Native Alert',
+                  title: 'Memex Native Alert',
                   body: 'This is a genuine native notification in your device status tray!',
                   channelId: NativeNotificationService.channelAcademic,
                 );
@@ -111,7 +111,7 @@ class _NotificationsScreenState extends ConsumerState<NotificationsScreen> {
               } else if (value == 'test_fcm') {
                 final service = ref.read(notificationServiceProvider);
                 final res = await service.triggerTestFcmPush(
-                  title: 'Nexora Official Push',
+                  title: 'Memex Official Push',
                   body: 'Dispatched through Cloudflare Worker & Google FCM v1!',
                 );
                 if (mounted) {

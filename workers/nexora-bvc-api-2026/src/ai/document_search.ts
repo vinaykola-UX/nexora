@@ -335,7 +335,7 @@ export class DocumentSearchEngine {
 
 ${singleDocPayload.source}
 
-The document source is available in Nexora, but the original PDF is not currently available for direct download.`;
+The document source is available in Memex, but the original PDF is not currently available for direct download.`;
     } else {
       answerText = `I found the document record in the verified BVC knowledge base: **${singleDocPayload.title}** (${singleDocPayload.subject} — Unit ${singleDocPayload.unit}), but the original PDF file is not currently available for direct download.`;
     }

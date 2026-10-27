@@ -3,8 +3,8 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>Nexora Admin — Knowledge Base & RAG Content Manager</title>
-  <meta name="description" content="Admin content management dashboard for Nexora AI academic knowledge base and RAG retrieval system." />
+  <title>Memex Admin — Knowledge Base & RAG Content Manager</title>
+  <meta name="description" content="Admin content management dashboard for Memex academic knowledge base and RAG retrieval system." />
   <link rel="preconnect" href="https://fonts.googleapis.com" />
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
   <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&family=JetBrains+Mono:wght@400;500;600&display=swap" rel="stylesheet" />
@@ -29,7 +29,7 @@
           </svg>
         </div>
         <div class="brand-text">
-          <div class="brand-title">Nexora <span class="badge-role">Admin</span></div>
+          <div class="brand-title">Memex <span class="badge-role">Admin</span></div>
           <div class="brand-subtitle">Knowledge Base & RAG Retrieval Manager</div>
         </div>
       </div>
@@ -39,7 +39,7 @@
           <span class="status-dot"></span>
           <span class="status-text">Checking Worker...</span>
         </div>
-        <a href="downloads.html" class="btn btn-secondary btn-icon" title="Download Nexora for Windows & Android" style="text-decoration: none; color: inherit; display: inline-flex; align-items: center; gap: 8px;">
+        <a href="downloads.html" class="btn btn-secondary btn-icon" title="Download Memex for Windows & Android" style="text-decoration: none; color: inherit; display: inline-flex; align-items: center; gap: 8px;">
           <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
             <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path>
             <polyline points="7 10 12 15 17 10"></polyline>
@@ -85,7 +85,7 @@
       <div class="tab-content" id="knowledgeTabContent">
       <section class="overview-banner">
         <div class="overview-info">
-          <h1>Manage Nexora Knowledge Base</h1>
+          <h1>Manage Memex Knowledge Base</h1>
           <p>
             Upload study materials (Units, Notes, PPTs, Text) directly to the Cloudflare D1 database.
             The Flutter student app will instantly retrieve new knowledge via RAG without requiring an APK update.
@@ -256,7 +256,7 @@
               <button type="button" class="btn btn-ghost" id="clearFormBtn">Clear Form</button>
               <button type="submit" class="btn btn-primary" id="submitBtn">
                 <span class="btn-spinner" id="btnSpinner" style="display: none;"></span>
-                <span class="btn-text" id="btnText">Process & Add to Nexora</span>
+                <span class="btn-text" id="btnText">Process & Add to Memex</span>
               </button>
             </div>
           </form>
@@ -395,7 +395,7 @@
             <div class="toggle-row">
               <div class="toggle-info">
                 <span class="toggle-label">Enable Web Search</span>
-                <span class="toggle-desc">Allow Nexora to query official BVC college portals for notices, circulars, and announcements</span>
+                <span class="toggle-desc">Allow Memex to query official BVC college portals for notices, circulars, and announcements</span>
               </div>
               <label class="toggle-switch" for="webAccessToggle">
                 <input type="checkbox" id="webAccessToggle" />
@@ -447,7 +447,7 @@
 
           <div class="admin-control-body">
             <p class="portal-card-desc">
-              When Web Access is enabled, Nexora's AI automatically crawls and verifies announcements, circulars, and notifications across all configured domains below.
+              When Web Access is enabled, Memex's AI automatically crawls and verifies announcements, circulars, and notifications across all configured domains below.
             </p>
 
             <!-- Add Website Form -->
@@ -712,7 +712,7 @@
 
     <!-- Footer -->
     <footer class="app-footer">
-      <div>Nexora BVC AI &bull; Cloudflare D1 Knowledge Base System</div>
+      <div>Memex BVC AI &bull; Cloudflare D1 Knowledge Base System</div>
       <div class="footer-links">
         <a href="https://nexora-bvc-api-2026.vkola306.workers.dev/api" target="_blank">API Documentation</a> &bull;
         <a href="https://github.com/vinaykola-UX/nexora" target="_blank">GitHub Repository</a>
@@ -786,7 +786,7 @@
             <path d="M7 11V7a5 5 0 0 1 10 0v4"></path>
           </svg>
         </div>
-        <h2 style="font-size: 22px; font-weight: 800; color: var(--text-main); margin-bottom: 6px;">Nexora Admin Access</h2>
+        <h2 style="font-size: 22px; font-weight: 800; color: var(--text-main); margin-bottom: 6px;">Memex Admin Access</h2>
         <p style="font-size: 13px; color: var(--text-secondary); line-height: 1.5;">
           Restricted Portal for BVC Engineering College Administrators. Please authenticate with your Cloudflare Worker Admin Secret.
         </p>

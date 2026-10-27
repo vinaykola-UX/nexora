@@ -420,7 +420,7 @@ export class AIController {
 
     if (isPromptInjection) {
       return {
-        answer: "I am Nexora, your academic assistant for BVC Engineering College. I focus strictly on helping students with their engineering coursework, syllabus concepts, and exam preparation. What topic would you like to study?",
+        answer: "I am Memex, your academic assistant for BVC Engineering College. I focus strictly on helping students with their engineering coursework, syllabus concepts, and exam preparation. What topic would you like to study?",
         tool: selectedTool,
         sources: [],
         debug: debug ? {
@@ -707,8 +707,8 @@ export class AIController {
             });
 
             const answer = isHolidayQuery
-              ? `📢 **Official Holiday Notification**\n\n**${recentNotice.title}**\n\n${recentNotice.body}\n\n*Confirmed from official college administration notice (${formattedDate}). Regular updates are published to your Nexora Notifications Center.*`
-              : `🎓 **Semester Results Announcement**\n\n**${recentNotice.title}**\n\n${recentNotice.body}\n\n*You can view your subject-wise grades, grade points, and SGPA directly in the **Academic Results** section in Nexora.*`;
+              ? `📢 **Official Holiday Notification**\n\n**${recentNotice.title}**\n\n${recentNotice.body}\n\n*Confirmed from official college administration notice (${formattedDate}). Regular updates are published to your Memex Notifications Center.*`
+              : `🎓 **Semester Results Announcement**\n\n**${recentNotice.title}**\n\n${recentNotice.body}\n\n*You can view your subject-wise grades, grade points, and SGPA directly in the **Academic Results** section in Memex.*`;
 
             return {
               answer,
@@ -754,7 +754,7 @@ export class AIController {
 
         return {
           answer:
-            `I don't have the verified schedule or official notification for that in the Nexora database or configured web portals yet. Please check the official college noticeboard or portals (${siteDisplayList}) for confirmed dates and circulars.`,
+            `I don't have the verified schedule or official notification for that in the Memex database or configured web portals yet. Please check the official college noticeboard or portals (${siteDisplayList}) for confirmed dates and circulars.`,
           tool: selectedTool,
           sources: [],
           debug: debug
@@ -1096,7 +1096,7 @@ export class AIController {
 
     // Guardrail against persona hijacking (e.g. HackerBot)
     if (/^HackerBot/i.test(cleaned)) {
-      cleaned = "I am Nexora, your academic assistant for BVC Engineering College. What concept or problem can I help you with?";
+      cleaned = "I am Memex, your academic assistant for BVC Engineering College. What concept or problem can I help you with?";
     }
 
     // Guardrail against system prompt regurgitation
@@ -1104,9 +1104,9 @@ export class AIController {
       cleaned.includes('COMMUNICATION DIRECTIVE:') ||
       cleaned.includes('INVISIBLE PERSONALITY RULES') ||
       cleaned.includes('SECURITY & GROUNDING DIRECTIVES') ||
-      /You are Nexora, an AI academic assistant for BVC/i.test(cleaned)
+      /You are (Nexora|Memex), an AI academic assistant for BVC/i.test(cleaned)
     ) {
-      cleaned = "I am Nexora, your AI academic assistant for BVC Engineering College. I'm ready to help you with your coursework, syllabus topics, and exam revision. What would you like to cover?";
+      cleaned = "I am Memex, your AI academic assistant for BVC Engineering College. I'm ready to help you with your coursework, syllabus topics, and exam revision. What would you like to cover?";
     }
 
     return cleaned.trim();

@@ -98,7 +98,7 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
                   ),
                   const SizedBox(height: 4),
                   const Text(
-                    'Nexora can remember useful information from your conversations to provide more relevant responses.',
+                    'Memex can remember useful information from your conversations to provide more relevant responses.',
                     style: TextStyle(
                       fontSize: 13,
                       color: Color(NexoraColors.textSecondary),
@@ -176,7 +176,7 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
                               padding: const EdgeInsets.all(NexoraSpacing.lg),
                               child: Text(
                                 _memoryEnabled
-                                    ? 'No saved memories yet.\nAs you chat, Nexora will selectively remember your learning goals and preferences.'
+                                    ? 'No saved memories yet.\nAs you chat, Memex will selectively remember your learning goals and preferences.'
                                     : 'Memory is currently disabled.',
                                 textAlign: TextAlign.center,
                                 style: const TextStyle(
@@ -250,7 +250,7 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
           ),
         ),
         content: const Text(
-          'Are you sure you want to log out of Nexora AI?',
+          'Are you sure you want to log out of Memex?',
           style: TextStyle(
             fontSize: 14,
             color: Color(NexoraColors.textSecondary),
@@ -637,7 +637,7 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
                   onTap: () {
                     _showInfoDialog(
                       'Theme',
-                      'Nexora is currently using the Nexora Warm Light design system.',
+                      'Memex is currently using the Memex Warm Light design system.',
                     );
                   },
                 ),
@@ -647,7 +647,7 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
                   subtitle: 'v1.0.0+1',
                   onTap: () {
                     _showInfoDialog(
-                      'About Nexora AI',
+                      'About Memex',
                       'Nexora AI v1.0.0\nBVC Engineering College Odalarevu\nContact: bvccollageai@gmail.com',
                     );
                   },

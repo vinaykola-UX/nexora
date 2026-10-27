@@ -91,7 +91,7 @@ class _DownloadsScreenState extends ConsumerState<DownloadsScreen> {
           ),
         ),
         content: Text(
-          'Are you sure you want to remove "${item.fileName}" from offline storage? You can re-download it from Nexora AI at any time.',
+          'Are you sure you want to remove "${item.fileName}" from offline storage? You can re-download it from Memex at any time.',
           style: const TextStyle(
             fontSize: 14,
             color: Color(NexoraColors.textSecondary),

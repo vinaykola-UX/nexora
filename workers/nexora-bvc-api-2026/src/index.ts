@@ -1111,7 +1111,7 @@ export default {
               chunksCreated: chunkTexts.length,
               chunkCount: chunkTexts.length,
               vectorize: { status: vectorizeStatus, vectorized: vectorizedCount },
-              message: `Successfully processed and indexed ${chunkTexts.length} chunks into Nexora knowledge base.`,
+              message: `Successfully processed and indexed ${chunkTexts.length} chunks into Memex knowledge base.`,
             });
           } catch (dbErr: any) {
             console.error('[Nexora Worker] D1 Upload Error:', dbErr?.message || dbErr);
@@ -1670,7 +1670,7 @@ export default {
             section,
           } = body || {};
 
-          const resultMessage = message || `B.Tech Semester ${semester} results are officially announced! Check your subject grades, credits, and SGPA directly in Nexora.`;
+          const resultMessage = message || `B.Tech Semester ${semester} results are officially announced! Check your subject grades, credits, and SGPA directly in Memex.`;
 
           const target: NotificationTarget = {
             scope: scope || 'ALL',

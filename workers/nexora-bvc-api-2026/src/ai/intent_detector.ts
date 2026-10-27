@@ -270,6 +270,7 @@ export class IntentDetector {
     // 6. GREETINGS (Short, polite, opening phrases)
     const greetingMatches = [
       'hi', 'hello', 'hey', 'hey there', 'hi nexora', 'hello nexora', 'hey nexora',
+      'hi memex', 'hello memex', 'hey memex',
       'good morning', 'good afternoon', 'good evening', 'yo', 'sup', 'howdy', 'namaste',
     ];
     // Exact or punctuated match ("hi!", "hello...", "hey bro")
@@ -281,7 +282,7 @@ export class IntentDetector {
     // 7. SMALL TALK & EMOJI REACTIONS
     // Pure emoji or short reactions like 😂, lol, haha, thanks, thanks bro, ok, cool
     const isEmojiOnly = raw.length > 0 && !/\w/.test(raw) && /[^\x00-\x7F]/.test(raw);
-    const smallTalkPattern = /^(thanks|thank you|thx|cool|nice|ok|okay|lol|haha|lmao|great|awesome|got it|understood)(\s+(bro|nexora|sir|man|boss|dear))?[.!]?$/i;
+    const smallTalkPattern = /^(thanks|thank you|thx|cool|nice|ok|okay|lol|haha|lmao|great|awesome|got it|understood)(\s+(bro|nexora|memex|sir|man|boss|dear))?[.!]?$/i;
     const smallTalkWords = ['😂', '🤣', 'lol', 'haha', 'lmao', 'nice', 'cool', 'thanks', 'thank you', 'ok', 'okay', 'cool bro', 'ok bro', 'k', 'great', 'awesome', 'good job', 'thanks bro', 'thx bro'];
     if (isEmojiOnly || smallTalkWords.includes(cleanWord) || smallTalkPattern.test(cleanWord)) {
       signals.push('small_talk_match');

@@ -94,7 +94,7 @@ class NotificationService {
 
   /// Triggers a real FCM push test notification dispatched from the Cloudflare Worker
   Future<Map<String, dynamic>> triggerTestFcmPush({
-    String title = 'Nexora FCM Test',
+    String title = 'Memex FCM Test',
     String body = 'Real push notification sent from Cloudflare Worker via FCM v1!',
     String route = '/notifications',
     String type = 'TEST_FCM',

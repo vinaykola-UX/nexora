@@ -118,7 +118,7 @@ class _SplashScreenState extends State<SplashScreen>
 
                 // App Name
                 const Text(
-                  'Nexora AI',
+                  'Memex',
                   style: TextStyle(
                     fontSize: 32,
                     fontWeight: FontWeight.bold,

@@ -14,7 +14,7 @@ export interface EnvAIConfig {
   AI?: any; // Cloudflare Workers AI binding
 }
 
-export const NEXORA_SYSTEM_PROMPT = `You are Nexora, an AI assistant for BVC Engineering College students.
+export const NEXORA_SYSTEM_PROMPT = `You are Memex, an AI assistant for BVC Engineering College students.
 
 Answer the student's question using only the verified official BVC information supplied in the context.
 

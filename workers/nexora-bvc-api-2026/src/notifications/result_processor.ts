@@ -164,7 +164,7 @@ export class ResultProcessor {
           firebase_uid: profile.firebase_uid,
           type: 'RESULT',
           title: 'Semester Results Published',
-          body: `Your Semester ${targetSemester} results are now available in Nexora.`,
+          body: `Your Semester ${targetSemester} results are now available in Memex.`,
           data_json: JSON.stringify({
             type: 'RESULT',
             semester: targetSemester,
@@ -179,7 +179,7 @@ export class ResultProcessor {
           notificationsToPush.push({
             firebase_uid: profile.firebase_uid,
             title: 'Semester Results Published',
-            body: `Your Semester ${targetSemester} results are now available in Nexora.`,
+            body: `Your Semester ${targetSemester} results are now available in Memex.`,
             type: 'RESULT',
             route: '/results',
             referenceId: referenceId,

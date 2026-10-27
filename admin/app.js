@@ -686,7 +686,7 @@ function setUploadLoading(isLoading) {
   state.isUploading = isLoading;
   elements.submitBtn.disabled = isLoading;
   elements.btnSpinner.style.display = isLoading ? 'inline-block' : 'none';
-  elements.btnText.textContent = isLoading ? 'Chunking & Indexing D1...' : 'Process & Add to Nexora';
+  elements.btnText.textContent = isLoading ? 'Chunking & Indexing D1...' : 'Process & Add to Memex';
 }
 
 function clearUploadForm() {
@@ -786,7 +786,7 @@ async function runRetrievalTest(query) {
     if (results.length === 0) {
       elements.testResultsList.innerHTML = `
         <div class="table-empty">
-          No relevant chunks found in the current Nexora knowledge base for "${escapeHtml(q)}".
+          No relevant chunks found in the current Memex knowledge base for "${escapeHtml(q)}".
         </div>
       `;
       return;
@@ -1785,7 +1785,7 @@ document.addEventListener('DOMContentLoaded', () => {
       if (scopeFilterRow) scopeFilterRow.style.display = 'none';
       document.getElementById('notifTitleInput').value = 'Semester Results Officially Released';
       document.getElementById('notifBodyInput').value =
-        'B.Tech Semester exam results are declared today! Check your subject grades, credits, and SGPA directly in the Nexora app.';
+        'B.Tech Semester exam results are declared today! Check your subject grades, credits, and SGPA directly in the Memex app.';
     });
   }
 

@@ -68,7 +68,7 @@ class OnboardingScreen extends StatelessWidget {
 
                   // Title
                   const Text(
-                    'Nexora AI',
+                    'Memex',
                     textAlign: TextAlign.center,
                     style: TextStyle(
                       fontSize: 30,
@@ -83,7 +83,7 @@ class OnboardingScreen extends StatelessWidget {
                   Padding(
                     padding: const EdgeInsets.symmetric(horizontal: NexoraSpacing.md),
                     child: const Text(
-                      'Welcome to Nexora college-aware app,\nyour all in one college AI assistant',
+                      'Welcome to Memex college-aware app,\nyour all in one college AI assistant',
                       textAlign: TextAlign.center,
                       style: TextStyle(
                         fontSize: 15,

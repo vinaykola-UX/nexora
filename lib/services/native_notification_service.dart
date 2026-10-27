@@ -283,7 +283,7 @@ class NativeNotificationService {
   /// Handles incoming Foreground FCM messages by converting them into native heads-up alerts.
   void _handleForegroundMessage(RemoteMessage message) {
     final notification = message.notification;
-    final title = notification?.title ?? message.data['title'] ?? 'Nexora Notice';
+    final title = notification?.title ?? message.data['title'] ?? 'Memex Notice';
     final body = notification?.body ?? message.data['body'] ?? 'New notification received';
     final channelId = _selectChannel(message.data['type']);
 

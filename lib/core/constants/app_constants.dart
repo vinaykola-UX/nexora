@@ -18,7 +18,7 @@ class AppConstants {
   static const String collegeEmail = 'bvccollageai@gmail.com';
 
   // Application Info
-  static const String appName = 'Nexora AI';
+  static const String appName = 'Memex';
   static const String appVersion = '1.0.0';
 
   // Pagination
