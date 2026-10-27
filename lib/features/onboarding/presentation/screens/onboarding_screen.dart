@@ -67,7 +67,7 @@ class OnboardingScreen extends StatelessWidget {
                           'assets/images/nexora_logo.png',
                           width: 170,
                           height: 170,
-                          fit: BoxFit.cover,
+                          fit: BoxFit.contain,
                         ),
                       ),
                     ),

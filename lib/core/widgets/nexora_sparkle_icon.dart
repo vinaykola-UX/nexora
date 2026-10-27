@@ -33,7 +33,7 @@ class NexoraSparkleIcon extends StatelessWidget {
           'assets/images/nexora_logo.png',
           width: size,
           height: size,
-          fit: BoxFit.cover,
+          fit: BoxFit.contain,
           errorBuilder: (context, error, stackTrace) {
             return Container(
               width: size,
