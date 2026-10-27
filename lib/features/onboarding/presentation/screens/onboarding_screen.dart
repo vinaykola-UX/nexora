@@ -60,8 +60,16 @@ class OnboardingScreen extends StatelessWidget {
                         ),
                       ],
                     ),
-                    child: const Center(
-                      child: BvcEmblem(size: 170),
+                    child: Center(
+                      child: ClipRRect(
+                        borderRadius: BorderRadius.circular(20),
+                        child: Image.asset(
+                          'assets/images/nexora_logo.png',
+                          width: 170,
+                          height: 170,
+                          fit: BoxFit.cover,
+                        ),
+                      ),
                     ),
                   ),
                   const SizedBox(height: NexoraSpacing.xxl),
