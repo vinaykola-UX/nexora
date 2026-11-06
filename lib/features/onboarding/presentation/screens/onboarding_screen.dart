@@ -60,23 +60,15 @@ class OnboardingScreen extends StatelessWidget {
                         ),
                       ],
                     ),
-                    child: Center(
-                      child: ClipRRect(
-                        borderRadius: BorderRadius.circular(20),
-                        child: Image.asset(
-                          'assets/images/nexora_logo.png',
-                          width: 170,
-                          height: 170,
-                          fit: BoxFit.contain,
-                        ),
-                      ),
+                    child: const Center(
+                      child: BvcEmblem(size: 170),
                     ),
                   ),
                   const SizedBox(height: NexoraSpacing.xxl),
 
                   // Title
                   const Text(
-                    'Memex',
+                    'Nexora AI',
                     textAlign: TextAlign.center,
                     style: TextStyle(
                       fontSize: 30,
@@ -91,7 +83,7 @@ class OnboardingScreen extends StatelessWidget {
                   Padding(
                     padding: const EdgeInsets.symmetric(horizontal: NexoraSpacing.md),
                     child: const Text(
-                      'Welcome to Memex college-aware app,\nyour all in one college AI assistant',
+                      'Welcome to Nexora college-aware app,\nyour all in one college AI assistant',
                       textAlign: TextAlign.center,
                       style: TextStyle(
                         fontSize: 15,

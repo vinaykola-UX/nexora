@@ -84,7 +84,7 @@ class _StartChatScreenState extends ConsumerState<StartChatScreen> {
         ),
         centerTitle: false,
         title: const Text(
-          'Memex',
+          'Nexora AI',
           style: TextStyle(
             color: Color(NexoraColors.text),
             fontSize: 20,
