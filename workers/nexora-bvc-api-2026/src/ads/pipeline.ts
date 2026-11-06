@@ -120,7 +120,10 @@ export class ADSSearchPipeline {
    * Re-uses existing indexes if the knowledge fingerprint has not changed.
    */
   public buildIndex(chunks: ChunkItem[], forceRebuild = false): void {
-    const fingerprint = `${chunks.length}:${chunks.map((c) => c.title).join('|')}`;
+    if (!chunks || chunks.length === 0) return;
+    const firstTitle = chunks[0]?.title || '';
+    const lastTitle = chunks[chunks.length - 1]?.title || '';
+    const fingerprint = `${chunks.length}:${chunks[0]?.id || 0}:${firstTitle.slice(0, 30)}:${lastTitle.slice(0, 30)}`;
     if (!forceRebuild && this.lastIndexFingerprint === fingerprint && this.indexedChunks.length > 0) {
       return; // Cache valid
     }

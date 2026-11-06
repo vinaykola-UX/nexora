@@ -1,19 +1,26 @@
 /**
  * ============================================================================
- * BVC Nexora Phase 4 — Hybrid Ranker
+ * BVC Nexora Phase 4 & Phase 5 — Hybrid Ranker & Reciprocal Rank Fusion (RRF)
  * ============================================================================
  *
- * Combines three retrieval signal sources into a single hybrid relevance score:
+ * Combines three retrieval signal sources into a single relevance score:
  *
  *   ADS Score    (40%) — Hash Table + AVL + Graph keyword/structural matching
  *   Vector Score (35%) — Cosine similarity from Vectorize semantic search
  *   Graph Score  (25%) — Knowledge Graph concept relationship boost
  *
- * RULES:
- * - All scores are normalized to [0, 1] before weighting.
- * - If Vectorize is unavailable, ADS weight increases to 60%, Graph to 40%.
- * - If Graph is unavailable, ADS weight increases to 55%, Vector to 45%.
- * - Never returns negative scores.
+ * STRATEGIES SUPPORTED:
+ * 1. 'weighted' (default):
+ *    - All scores are normalized to [0, 1] before weighting.
+ *    - If Vectorize is unavailable, ADS weight increases to 60%, Graph to 40%.
+ *    - If Graph is unavailable, ADS weight increases to 55%, Vector to 45%.
+ *    - Never returns negative scores.
+ *
+ * 2. 'rrf' (Reciprocal Rank Fusion):
+ *    - RRF Score = Σ 1 / (k + rank_i)
+ *    - Default k = 60 (RRF_CONFIG.DEFAULT_K)
+ *    - Standard competition ranking for tied scores.
+ *    - Preserves deterministic tie-breaking using chunkId ascending.
  * ============================================================================
  */
 
@@ -37,6 +44,13 @@ export const FALLBACK_WEIGHTS_NO_GRAPH = {
   GRAPH: 0.0,
 } as const;
 
+/** Default constant k for Reciprocal Rank Fusion */
+export const RRF_CONFIG = {
+  DEFAULT_K: 60,
+} as const;
+
+export type RankingStrategy = 'weighted' | 'rrf';
+
 export interface HybridScoreInput {
   chunkId: number;
   adsScore: number;         // Raw ADS pipeline score (unnormalized)
@@ -44,13 +58,28 @@ export interface HybridScoreInput {
   graphScore: number;       // Graph proximity boost (unnormalized)
 }
 
+export interface HybridRankingOptions {
+  vectorAvailable?: boolean;
+  graphAvailable?: boolean;
+  strategy?: RankingStrategy;
+  rrfK?: number;
+}
+
 export interface HybridScoreOutput {
   chunkId: number;
-  hybridScore: number;      // Final weighted score [0, 1]
+  hybridScore: number;      // Final weighted or normalized RRF score [0, 1]
   normalizedAds: number;
   normalizedVector: number;
   normalizedGraph: number;
-  weightsUsed: { ads: number; vector: number; graph: number };
+  weightsUsed: {
+    ads: number;
+    vector: number;
+    graph: number;
+    strategy?: RankingStrategy;
+    rrfK?: number;
+  };
+  strategy?: RankingStrategy;
+  rrfScore?: number;
 }
 
 /**
@@ -63,17 +92,139 @@ function normalize(score: number, maxVal: number): number {
 }
 
 /**
- * Calculates hybrid scores for a batch of candidates.
- * Automatically selects weight configuration based on signal availability.
+ * Assigns competition ranks (1, 2, 2, 4...) to candidates based on score.
+ * Tied scores receive the exact same rank.
  */
-export function calculateHybridScores(
+function assignRanks<T extends { chunkId: number }>(
+  items: T[],
+  getScore: (item: T) => number
+): Map<number, number> {
+  const rankMap = new Map<number, number>();
+  if (items.length === 0) return rankMap;
+
+  // Sort descending by score, deterministic secondary sort by chunkId
+  const sorted = [...items].sort((a, b) => getScore(b) - getScore(a) || a.chunkId - b.chunkId);
+
+  let currentRank = 1;
+  for (let i = 0; i < sorted.length; i++) {
+    if (i > 0 && getScore(sorted[i]) < getScore(sorted[i - 1])) {
+      currentRank = i + 1;
+    }
+    rankMap.set(sorted[i].chunkId, currentRank);
+  }
+
+  return rankMap;
+}
+
+/**
+ * Calculates Reciprocal Rank Fusion (RRF) scores across retrieval channels.
+ * Formula: RRF Score = Σ 1 / (k + rank)
+ */
+export function calculateRRFScores(
   candidates: HybridScoreInput[],
   options?: {
     vectorAvailable?: boolean;
     graphAvailable?: boolean;
+    rrfK?: number;
   }
 ): HybridScoreOutput[] {
   if (candidates.length === 0) return [];
+
+  const k = options?.rrfK ?? RRF_CONFIG.DEFAULT_K;
+  const vectorAvailable = options?.vectorAvailable ?? true;
+  const graphAvailable = options?.graphAvailable ?? true;
+
+  // Compute ranks per signal with tie-handling
+  const adsCandidates = candidates.filter((c) => c.adsScore > 0);
+  const adsRankMap = assignRanks(adsCandidates, (c) => c.adsScore);
+
+  let vecRankMap = new Map<number, number>();
+  if (vectorAvailable) {
+    const vecCandidates = candidates.filter((c) => c.vectorScore > 0);
+    vecRankMap = assignRanks(vecCandidates, (c) => c.vectorScore);
+  }
+
+  let graphRankMap = new Map<number, number>();
+  if (graphAvailable) {
+    const graphCandidates = candidates.filter((c) => c.graphScore > 0);
+    graphRankMap = assignRanks(graphCandidates, (c) => c.graphScore);
+  }
+
+  // Find max values for individual normalization (so normalized fields remain informative)
+  let maxAds = 0;
+  let maxGraph = 0;
+  for (const c of candidates) {
+    if (c.adsScore > maxAds) maxAds = c.adsScore;
+    if (c.graphScore > maxGraph) maxGraph = c.graphScore;
+  }
+
+  // Count active signals
+  let activeSignalCount = 1; // ADS always active
+  if (vectorAvailable) activeSignalCount++;
+  if (graphAvailable) activeSignalCount++;
+
+  // Max theoretical RRF score = activeSignalCount / (k + 1)
+  const maxPossibleRrf = activeSignalCount * (1.0 / (k + 1));
+
+  return candidates.map((c) => {
+    let rrf = 0;
+    const rAds = adsRankMap.get(c.chunkId);
+    if (rAds !== undefined) {
+      rrf += 1.0 / (k + rAds);
+    }
+
+    if (vectorAvailable) {
+      const rVec = vecRankMap.get(c.chunkId);
+      if (rVec !== undefined) {
+        rrf += 1.0 / (k + rVec);
+      }
+    }
+
+    if (graphAvailable) {
+      const rGraph = graphRankMap.get(c.chunkId);
+      if (rGraph !== undefined) {
+        rrf += 1.0 / (k + rGraph);
+      }
+    }
+
+    // Normalized to [0, 1] relative to theoretical maximum
+    const normalizedRrf = Math.min(1.0, rrf / maxPossibleRrf);
+
+    return {
+      chunkId: c.chunkId,
+      hybridScore: Math.round(normalizedRrf * 10000) / 10000,
+      normalizedAds: Math.round(normalize(c.adsScore, maxAds) * 10000) / 10000,
+      normalizedVector: Math.round(Math.max(0, Math.min(1, c.vectorScore)) * 10000) / 10000,
+      normalizedGraph: Math.round(normalize(c.graphScore, maxGraph) * 10000) / 10000,
+      weightsUsed: {
+        ads: 0,
+        vector: 0,
+        graph: 0,
+        strategy: 'rrf',
+        rrfK: k,
+      },
+      strategy: 'rrf',
+      rrfScore: Math.round(rrf * 100000) / 100000,
+    };
+  });
+}
+
+/**
+ * Calculates hybrid scores for a batch of candidates.
+ * Supports both standard 'weighted' ranking and 'rrf' (Reciprocal Rank Fusion).
+ * Automatically selects weight configuration based on signal availability.
+ */
+export function calculateHybridScores(
+  candidates: HybridScoreInput[],
+  options?: HybridRankingOptions
+): HybridScoreOutput[] {
+  if (candidates.length === 0) return [];
+
+  const strategy = options?.strategy ?? 'weighted';
+
+  if (strategy === 'rrf') {
+    return calculateRRFScores(candidates, options);
+  }
 
   const vectorAvailable = options?.vectorAvailable ?? true;
   const graphAvailable = options?.graphAvailable ?? true;
@@ -96,8 +247,6 @@ export function calculateHybridScores(
     if (c.graphScore > maxGraph) maxGraph = c.graphScore;
   }
 
-  // Vector scores are already in [0, 1] (cosine similarity), no normalization needed
-
   return candidates.map((c) => {
     const normalizedAds = normalize(c.adsScore, maxAds);
     const normalizedVector = Math.max(0, Math.min(1, c.vectorScore));
@@ -118,7 +267,9 @@ export function calculateHybridScores(
         ads: weights.ADS,
         vector: weights.VECTOR,
         graph: weights.GRAPH,
+        strategy: 'weighted',
       },
+      strategy: 'weighted',
     };
   });
 }

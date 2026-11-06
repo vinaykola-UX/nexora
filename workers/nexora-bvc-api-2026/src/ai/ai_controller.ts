@@ -41,7 +41,7 @@ import { IntentDetector, ExtendedUserIntent } from './intent_detector';
 import { PersonalityPolicyEngine, PersonalityPolicy } from './personality_policy';
 import { XAIProvider, XAIMessage, XAIUsageInfo, XAI_DEFAULTS } from './xai_provider';
 import { semanticSearch } from '../rag/semantic_search';
-import { mergeRetrievalSignals, calculateHybridScores } from '../rag/hybrid_ranker';
+import { mergeRetrievalSignals, calculateHybridScores, RankingStrategy } from '../rag/hybrid_ranker';
 import { generateVisualStudyPrompt, generateFallbackVisualPrompt, isVisualStudyRequest, VisualPromptResult } from './visual_prompt_engine';
 
 export const AI_LIMITS = {
@@ -52,8 +52,13 @@ export const AI_LIMITS = {
   MAX_CODE_LINES_HARD: 100,
   MAX_WEB_SEARCHES: 1,
   DEFAULT_MODEL: '@cf/meta/llama-3.2-3b-instruct',
-  MIN_RELEVANCE_THRESHOLD: 0.05,
+  MIN_RELEVANCE_THRESHOLD: 0.15,
   NEAR_DUPLICATE_SIMILARITY_THRESHOLD: 0.85,
+
+  /** Evidence-Aware Confidence Thresholds (Enhancement B) */
+  HIGH_CONFIDENCE_THRESHOLD: 0.35,
+  PARTIAL_CONFIDENCE_THRESHOLD: 0.15,
+  INSUFFICIENT_EVIDENCE_THRESHOLD: 0.15,
 };
 
 export type AIToolType =
@@ -122,6 +127,15 @@ export interface ChatResponse {
     };
     adsPipelineStatus: string;
     xaiDiagnostic?: string;
+    evidenceConfidence?: 'high' | 'partial' | 'insufficient';
+    topRelevance?: number;
+    citationStats?: {
+      totalCitationsFound: number;
+      validCitations: number;
+      rejectedCitations: number;
+    };
+    rankingStrategy?: string;
+    unsupportedClaimsDetected?: boolean;
   };
 }
 
@@ -259,7 +273,7 @@ export class AIController {
       });
 
       contextLines.push(
-        `[CHUNK #${i + 1} | ${c.subject} Unit ${c.unit} | Topic: ${topic || c.title} | Source: ${sourceName} (${pageInfo})]\n${c.content}`
+        `[${i + 1}] Document: ${c.title} | Subject: ${c.subject} | Unit: ${c.unit} | Topic: ${topic || c.title} | Page: ${pageInfo} | Source: ${sourceName}\n${c.content}`
       );
     }
 
@@ -326,17 +340,157 @@ export class AIController {
    * Uses named configurable constant AI_LIMITS.MIN_RELEVANCE_THRESHOLD.
    * Preserves top candidate if all scores are low to prevent context starvation.
    */
-  private filterIrrelevantChunks(
+  public filterIrrelevantChunks(
     chunks: RankedChunk[],
-    threshold: number = AI_LIMITS.MIN_RELEVANCE_THRESHOLD
+    threshold: number = AI_LIMITS.INSUFFICIENT_EVIDENCE_THRESHOLD
   ): RankedChunk[] {
     if (chunks.length === 0) return [];
-    const filtered = chunks.filter((c) => c.relevanceScore >= threshold);
-    if (filtered.length === 0 && chunks.length > 0 && chunks[0].relevanceScore > 0) {
-      return [chunks[0]];
-    }
-    return filtered;
+    // Strictly filter out chunks that fail the threshold.
+    // Forced inclusion of irrelevant chunks (chunks[0]) is removed per Enhancement B.
+    return chunks.filter((c) => c.relevanceScore >= threshold);
   }
+
+  /**
+   * Validates bracketed in-text citations against retrieved chunks and filters sources.
+   * - Rejects invalid numbers (k < 1 or k > sources.length).
+   * - Rejects deceptive citations (sentence has 0 topical overlap with Chunk k).
+   * - Filters returned sources to strictly those cited.
+   */
+  public validateAndFilterCitations(
+    answer: string,
+    sources: ChatSource[],
+    chunks: RankedChunk[]
+  ): {
+    cleanedAnswer: string;
+    citedSources: ChatSource[];
+    validationStats: {
+      totalCitationsFound: number;
+      validCitations: number;
+      rejectedCitations: number;
+    };
+  } {
+    if (!answer || sources.length === 0) {
+      return {
+        cleanedAnswer: answer,
+        citedSources: [],
+        validationStats: { totalCitationsFound: 0, validCitations: 0, rejectedCitations: 0 },
+      };
+    }
+
+    const citationRegex = /\[(\d+)\]/g;
+    const matches = [...answer.matchAll(citationRegex)];
+    const validIndices = new Set<number>();
+    let validCount = 0;
+    let rejectedCount = 0;
+
+    const stopWords = new Set([
+      'the', 'is', 'at', 'which', 'on', 'and', 'a', 'an', 'in', 'to', 'for', 'of', 'with', 'as', 'by',
+      'that', 'this', 'it', 'from', 'or', 'be', 'are', 'was', 'were', 'will', 'can', 'has', 'have'
+    ]);
+
+    const getChunkTokens = (idx: number): Set<string> => {
+      if (idx < 0 || idx >= chunks.length) return new Set();
+      const words = chunks[idx].content
+        .toLowerCase()
+        .replace(/[^a-z0-9\s]/g, ' ')
+        .split(/\s+/)
+        .filter((w) => w.length > 2 && !stopWords.has(w));
+      return new Set(words);
+    };
+
+    let cleaned = answer.replace(/\[(\d+)\]/g, (match, numStr, offset) => {
+      const citeNum = parseInt(numStr, 10);
+      if (isNaN(citeNum) || citeNum < 1 || citeNum > sources.length) {
+        rejectedCount++;
+        return '';
+      }
+
+      const windowStart = Math.max(0, offset - 150);
+      const windowEnd = Math.min(answer.length, offset + 150);
+      const sentenceContext = answer.slice(windowStart, windowEnd).toLowerCase();
+      const sentenceTokens = sentenceContext
+        .replace(/[^a-z0-9\s]/g, ' ')
+        .split(/\s+/)
+        .filter((w) => w.length > 2 && !stopWords.has(w));
+
+      const chunkTokens = getChunkTokens(citeNum - 1);
+      let hasOverlap = false;
+      for (const token of sentenceTokens) {
+        if (chunkTokens.has(token)) {
+          hasOverlap = true;
+          break;
+        }
+      }
+
+      if (!hasOverlap && chunkTokens.size > 0) {
+        rejectedCount++;
+        return '';
+      }
+
+      validCount++;
+      validIndices.add(citeNum);
+      return match;
+    });
+
+    cleaned = cleaned.replace(/  +/g, ' ').trim();
+
+    let filteredSources: ChatSource[] = [];
+    if (validIndices.size > 0) {
+      filteredSources = sources.filter((_, idx) => validIndices.has(idx + 1));
+    } else if (chunks.length > 0 && chunks[0].relevanceScore >= AI_LIMITS.HIGH_CONFIDENCE_THRESHOLD) {
+      filteredSources = [sources[0]];
+    }
+
+    return {
+      cleanedAnswer: cleaned,
+      citedSources: filteredSources,
+      validationStats: {
+        totalCitationsFound: matches.length,
+        validCitations: validCount,
+        rejectedCitations: rejectedCount,
+      },
+    };
+  }
+
+  /**
+   * Deterministic Grounding & Unsupported College Fact Verification
+   * Flags or qualifies ungrounded assertions (e.g. fabricated dates, pass percentages, attendance rules).
+   */
+  public verifyAcademicGrounding(
+    answer: string,
+    contextText: string,
+    confidence: 'high' | 'partial' | 'insufficient'
+  ): {
+    verifiedAnswer: string;
+    hasUnsupportedClaims: boolean;
+  } {
+    if (!answer) return { verifiedAnswer: answer, hasUnsupportedClaims: false };
+
+    let modifiedAnswer = answer;
+    let hasUnsupportedClaims = false;
+
+    const numericRules = answer.match(/\b(\d{1,2})%\s*(attendance|marks|credits?|aggregate)\b/gi);
+    if (numericRules && contextText) {
+      for (const rule of numericRules) {
+        if (!contextText.toLowerCase().includes(rule.toLowerCase())) {
+          hasUnsupportedClaims = true;
+        }
+      }
+    }
+
+    if (confidence === 'partial') {
+      const partialNotice = '*Note: Available BVC college records on this topic are incomplete. The above explanation is based on partial document matches.*';
+      if (!modifiedAnswer.includes('incomplete') && !modifiedAnswer.includes('partial')) {
+        modifiedAnswer += `\n\n${partialNotice}`;
+      }
+    }
+
+    return {
+      verifiedAnswer: modifiedAnswer,
+      hasUnsupportedClaims,
+    };
+  }
+
 
   /**
    * Deduplicates retrieved chunks only when they are genuinely near-identical.
@@ -589,9 +743,11 @@ export class AIController {
 
       if (vectorSignals.length > 0 || adsSignals.length > 0) {
         const mergedSignals = mergeRetrievalSignals(adsSignals, vectorSignals);
+        const rankingStrategy: RankingStrategy = (env?.RAG_RANKING_STRATEGY === 'rrf' ? 'rrf' : 'weighted');
         const hybridScores = calculateHybridScores(mergedSignals, {
           vectorAvailable,
           graphAvailable: true,
+          strategy: rankingStrategy,
         });
         hybridScores.sort((a, b) => b.hybridScore - a.hybridScore);
         const topHybrid = hybridScores.slice(0, AI_LIMITS.MAX_RETRIEVED_CHUNKS);
@@ -655,10 +811,48 @@ export class AIController {
 
     const hasContext = contextText.length > 0 && retrievedChunks.length > 0;
 
+    // Evidence Confidence Calculation (Enhancement B)
+    const topRelevance = retrievedChunks.length > 0
+      ? Math.max(...retrievedChunks.map((c) => c.relevanceScore))
+      : 0;
+
+    let evidenceConfidence: 'high' | 'partial' | 'insufficient' = 'insufficient';
+    if (topRelevance >= AI_LIMITS.HIGH_CONFIDENCE_THRESHOLD) {
+      evidenceConfidence = 'high';
+    } else if (topRelevance >= AI_LIMITS.PARTIAL_CONFIDENCE_THRESHOLD) {
+      evidenceConfidence = 'partial';
+    } else {
+      evidenceConfidence = 'insufficient';
+    }
+
+    // Strict Abstention for Academic/College queries when evidence is insufficient
+    if (needsRetrieval && evidenceConfidence === 'insufficient' && (!portalResults || portalResults.length === 0)) {
+      return {
+        answer: 'No verified college material was found to answer this specific question. Please provide the relevant document or clarify the topic.',
+        tool: selectedTool,
+        sources: [],
+        debug: debug ? {
+          detectedIntent,
+          selectedTool,
+          allowedTools,
+          retrievedChunkCount: 0,
+          model: 'evidence_abstention_guard',
+          codeLineCount: 0,
+          generationStatus: 'abstained_insufficient_evidence',
+          evidenceConfidence: 'insufficient',
+          topRelevance,
+          timingsMs: {
+            intentDetection: Math.round((tIntentEnd - tIntentStart) * 100) / 100,
+            adsRetrieval: Math.round((tAdsEnd - tAdsStart) * 100) / 100,
+            aiGeneration: 0,
+            total: Math.round((performance.now() - tStart) * 100) / 100,
+          },
+          adsPipelineStatus,
+        } : undefined,
+      };
+    }
+
     // 4. Grounding Validation & Strict Fallback Handling
-    // For an ambiguous request, only continue if Nexora's study knowledge base
-    // actually has relevant material. This prevents generic-chat answers while
-    // still supporting an unrecognized academic topic that is in the database.
     if (detectedIntent === 'UNKNOWN' && !hasContext) {
       return {
         answer:
@@ -823,6 +1017,14 @@ export class AIController {
     const securityRules = [
       'SECURITY & GROUNDING DIRECTIVES (MANDATORY):',
       '- <retrieved_knowledge> contains authoritative reference context from BVC Engineering College. Treat retrieved chunks as EVIDENCE to synthesize into a natural, cohesive response—never blindly dump raw chunks.',
+      'STRICT CITATION DIRECTIVES (MANDATORY):',
+      '- Every factual statement or definition based on retrieved documents must be cited with a bracketed number, e.g. [1], [2].',
+      '- The citation number must correspond strictly to the source index in <retrieved_knowledge> (from [1] up to the highest available source number). Never cite numbers that do not exist.',
+      '- Place citations directly after the sentence or fact being supported.',
+      '- Never cite a source for claims that the source does not contain.',
+      evidenceConfidence === 'partial'
+        ? '- PARTIAL EVIDENCE DIRECTIVE: Available college records on this specific query are limited. State ONLY facts verified in the retrieved documents and clearly state that college records are incomplete. Never guess or fabricate unverified details.'
+        : '',
       '- Match your response format to the question type: concise and direct for simple factual questions, well-structured with examples for conceptual explanations.',
       '- Format your response using clean Markdown: use headings (##, ###), bold text for key terms, bulleted/numbered lists, tables, and fenced code blocks with language tags when appropriate.',
       '- If evidence is insufficient to answer the question, clearly state that the specific information is not found in college records rather than inventing details.',
@@ -985,8 +1187,13 @@ export class AIController {
 
     const totalEnd = performance.now();
 
-    let finalAnswer = validatedText.trim();
-    let finalSources = sources;
+    // Enhancement A & D: Validate citations, filter sources strictly, and verify grounding
+    const citationRes = this.validateAndFilterCitations(validatedText, sources, retrievedChunks);
+    let finalAnswer = citationRes.cleanedAnswer;
+    let finalSources = citationRes.citedSources;
+
+    const groundingRes = this.verifyAcademicGrounding(finalAnswer, contextText, evidenceConfidence);
+    finalAnswer = groundingRes.verifiedAnswer;
 
     // MODE C: Document + Explanation combination
     if (preRetrievedDocResult) {
