@@ -631,6 +631,17 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
                     onTap: () => context.push(RoutePaths.facultyMaterials),
                   ),
                 _buildMenuItem(
+                  title: 'HOD Department Portal',
+                  icon: Icons.admin_panel_settings_outlined,
+                  subtitle: 'Monitor department faculty & college analytics',
+                  trailing: const Icon(
+                    Icons.chevron_right_rounded,
+                    color: Color(NexoraColors.textSecondary),
+                    size: 20,
+                  ),
+                  onTap: () => context.push(RoutePaths.hod),
+                ),
+                _buildMenuItem(
                   title: 'Theme',
                   icon: Icons.palette_outlined,
                   subtitle: 'Warm Light',

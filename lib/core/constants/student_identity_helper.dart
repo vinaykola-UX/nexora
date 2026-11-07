@@ -122,6 +122,15 @@ class StudentIdentityHelper {
     return true;
   }
 
+  /// Check if the email belongs to an HOD or administrative faculty lead
+  static bool isHodEmail(String? email) {
+    if (email == null) return false;
+    final normalized = email.trim().toLowerCase();
+    if (!isFacultyEmail(normalized)) return false;
+    final localPart = normalized.split('@')[0];
+    return localPart.startsWith('hod') || localPart.contains('hod') || localPart.contains('head');
+  }
+
   /// Extract the [FacultyIdentity] from a verified faculty/staff email.
   static FacultyIdentity? extractFacultyFromEmail(String? email) {
     if (!isFacultyEmail(email)) return null;

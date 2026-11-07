@@ -1,5 +1,7 @@
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
+import 'package:go_router/go_router.dart';
+import '../../../../app/router/app_router.dart';
 import '../../../../core/theme/colors.dart';
 import '../../../../core/theme/spacing.dart';
 import '../../../../core/widgets/nexora_button.dart';
@@ -460,6 +462,57 @@ class _HistoryDrawerState extends State<HistoryDrawer> {
                 ),
               ),
             ),
+
+            // HOD Department Portal shortcut
+            Padding(
+              padding: const EdgeInsets.symmetric(
+                horizontal: NexoraSpacing.lg,
+                vertical: NexoraSpacing.xs,
+              ),
+              child: InkWell(
+                borderRadius: BorderRadius.circular(12),
+                onTap: () {
+                  Navigator.pop(context);
+                  context.push(RoutePaths.hod);
+                },
+                child: Container(
+                  padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+                  decoration: BoxDecoration(
+                    color: const Color(NexoraColors.surface),
+                    borderRadius: BorderRadius.circular(12),
+                    border: Border.all(
+                      color: const Color(NexoraColors.primary).withOpacity(0.5),
+                    ),
+                  ),
+                  child: Row(
+                    children: const [
+                      Icon(
+                        Icons.admin_panel_settings_outlined,
+                        size: 20,
+                        color: Color(NexoraColors.primaryDark),
+                      ),
+                      SizedBox(width: 10),
+                      Expanded(
+                        child: Text(
+                          'HOD Department Portal',
+                          style: TextStyle(
+                            fontSize: 13,
+                            fontWeight: FontWeight.bold,
+                            color: Color(NexoraColors.text),
+                          ),
+                        ),
+                      ),
+                      Icon(
+                        Icons.chevron_right_rounded,
+                        size: 18,
+                        color: Color(NexoraColors.textSecondary),
+                      ),
+                    ],
+                  ),
+                ),
+              ),
+            ),
+            const SizedBox(height: NexoraSpacing.xs),
 
             // Bottom Docked "+ New Chat" Button
             Container(

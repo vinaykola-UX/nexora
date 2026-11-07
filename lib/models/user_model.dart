@@ -3,6 +3,7 @@ enum UserRole {
   student,
   teacher,
   staff,
+  hod,
   admin,
   unknown;
 
@@ -14,6 +15,8 @@ enum UserRole {
         return 'Teacher';
       case UserRole.staff:
         return 'Staff';
+      case UserRole.hod:
+        return 'Head of Department (HOD)';
       case UserRole.admin:
         return 'Administrator';
       case UserRole.unknown:

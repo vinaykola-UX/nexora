@@ -14,6 +14,7 @@ import '../../features/chat/presentation/screens/chat_screen.dart';
 import '../../features/profile/presentation/screens/profile_screen.dart';
 import '../../features/splash/presentation/screens/splash_screen.dart';
 import '../../features/faculty/presentation/screens/faculty_materials_screen.dart';
+import '../../features/hod/presentation/screens/hod_dashboard_screen.dart';
 
 /// Route paths
 class RoutePaths {
@@ -34,6 +35,7 @@ class RoutePaths {
   static const String results = '/results';
   static const String downloads = '/downloads';
   static const String facultyMaterials = '/faculty-materials';
+  static const String hod = '/hod';
 }
 
 /// Global router configuration
@@ -139,6 +141,12 @@ final GoRouter appRouter = GoRouter(
     GoRoute(
       path: RoutePaths.facultyMaterials,
       builder: (context, state) => const FacultyMaterialsScreen(),
+    ),
+
+    // HOD Department Portal & Faculty Monitor
+    GoRoute(
+      path: RoutePaths.hod,
+      builder: (context, state) => const HodDashboardScreen(),
     ),
   ],
 

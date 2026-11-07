@@ -15,4 +15,7 @@ class RoutePaths {
   static const String profile = '/profile';
   static const String notifications = '/notifications';
   static const String results = '/results';
+  static const String downloads = '/downloads';
+  static const String facultyMaterials = '/faculty-materials';
+  static const String hod = '/hod';
 }
