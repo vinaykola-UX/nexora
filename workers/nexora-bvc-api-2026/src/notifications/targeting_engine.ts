@@ -90,12 +90,18 @@ export class TargetingEngine {
       case 'CUSTOM_STUDENTS': {
         const uids = new Set<string>(target.custom_firebase_uids || []);
         if (target.custom_roll_numbers && target.custom_roll_numbers.length > 0) {
-          const placeholders = target.custom_roll_numbers.map(() => '?').join(',');
+          const rollPlaceholders = target.custom_roll_numbers.map(() => '?').join(',');
+          const emailPlaceholders = target.custom_roll_numbers.map(() => '?').join(',');
+          const emails = target.custom_roll_numbers.map((r) => `${r.trim().toLowerCase()}@bvcgroup.in`);
+          const upperRolls = target.custom_roll_numbers.map((r) => r.trim().toUpperCase());
+
           const { results } = await db
             .prepare(
-              `SELECT firebase_uid FROM bvc_student_profiles WHERE roll_number IN (${placeholders}) AND connected = 1`
+              `SELECT firebase_uid FROM bvc_student_profiles
+               WHERE (UPPER(roll_number) IN (${rollPlaceholders}) OR LOWER(college_email) IN (${emailPlaceholders}))
+                 AND connected = 1`
             )
-            .bind(...target.custom_roll_numbers)
+            .bind(...upperRolls, ...emails)
             .all<{ firebase_uid: string }>();
 
           for (const r of results || []) {

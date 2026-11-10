@@ -68,6 +68,9 @@ export interface BVCResultRecord {
   result_status: string | null; // 'PASS', 'FAIL', etc.
   sgpa?: number | null;
   cgpa?: number | null;
+  roll_number?: string | null;
+  status?: string | null;
+  exam_month_year?: string | null;
 }
 
 export interface BVCTimetablePeriod {

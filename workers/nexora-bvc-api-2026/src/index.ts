@@ -2317,7 +2317,25 @@ export default {
 
         // GET /student/profile - Retrieve personal profile
         if (request.method === 'GET' && path === '/student/profile') {
-          const profile = await BVCStorage.getStudentProfile(env.DB, studentUser.uid);
+          let profile = await BVCStorage.getStudentProfile(env.DB, studentUser.uid);
+          if (!profile && studentUser.email) {
+            const emailPrefix = studentUser.email.split('@')[0].trim().toUpperCase();
+            const rollNumber = BVCNormalizer.normalizeRollNumber(emailPrefix) || emailPrefix;
+            if (rollNumber) {
+              try {
+                await env.DB.prepare(`
+                  INSERT INTO bvc_student_profiles (firebase_uid, roll_number, college_email, connected, updated_at)
+                  VALUES (?, ?, ?, 1, CURRENT_TIMESTAMP)
+                  ON CONFLICT(firebase_uid) DO UPDATE SET
+                    roll_number = excluded.roll_number,
+                    college_email = excluded.college_email,
+                    connected = 1,
+                    updated_at = CURRENT_TIMESTAMP
+                `).bind(studentUser.uid, rollNumber, studentUser.email.toLowerCase()).run();
+                profile = await BVCStorage.getStudentProfile(env.DB, studentUser.uid);
+              } catch (_) {}
+            }
+          }
           if (!profile) {
             return jsonResponse({ success: false, connected: false, message: 'No BVC profile linked.' });
           }
@@ -2332,8 +2350,40 @@ export default {
 
         // GET /student/results - Retrieve semester marks & results
         if (request.method === 'GET' && path === '/student/results') {
-          const results = await BVCStorage.getStudentResults(env.DB, studentUser.uid);
-          return jsonResponse({ success: true, results });
+          // Deterministically extract roll number from student's verified college email
+          let rollNumber: string | null = null;
+          if (studentUser.email) {
+            const emailPrefix = studentUser.email.split('@')[0].trim().toUpperCase();
+            if (BVCNormalizer.isValidRollNumber(emailPrefix)) {
+              rollNumber = BVCNormalizer.normalizeRollNumber(emailPrefix);
+            } else {
+              rollNumber = emailPrefix;
+            }
+          }
+
+          // Ensure student profile in bvc_student_profiles is automatically linked
+          if (rollNumber) {
+            try {
+              await env.DB.prepare(`
+                INSERT INTO bvc_student_profiles (firebase_uid, roll_number, college_email, connected, updated_at)
+                VALUES (?, ?, ?, 1, CURRENT_TIMESTAMP)
+                ON CONFLICT(firebase_uid) DO UPDATE SET
+                  roll_number = COALESCE(bvc_student_profiles.roll_number, excluded.roll_number),
+                  college_email = COALESCE(bvc_student_profiles.college_email, excluded.college_email),
+                  connected = 1,
+                  updated_at = CURRENT_TIMESTAMP
+              `).bind(studentUser.uid, rollNumber, studentUser.email?.toLowerCase()).run();
+            } catch (_) {}
+          }
+
+          // Fetch verified student results and auto-claim any pending unmatched records
+          const results = await BVCStorage.getStudentResults(env.DB, studentUser.uid, rollNumber);
+          return jsonResponse({
+            success: true,
+            roll_number: rollNumber,
+            total_subjects: results.length,
+            results,
+          });
         }
 
         // GET /student/subjects - Retrieve enrolled subjects
