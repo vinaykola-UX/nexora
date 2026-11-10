@@ -187,6 +187,11 @@ class DepartmentSummary {
   final String name;
   final String hodName;
   final String hodEmail;
+  final String designation;
+  final String phone;
+  final String cabin;
+  final String qualification;
+  final String specialization;
   final int totalFaculty;
   final int activeFacultyToday;
   final int totalStudents;
@@ -203,6 +208,11 @@ class DepartmentSummary {
     required this.name,
     required this.hodName,
     required this.hodEmail,
+    this.designation = 'Head of Department & Professor',
+    this.phone = '+91 98480 23145',
+    this.cabin = 'Department HOD Office',
+    this.qualification = 'Ph.D., M.Tech',
+    this.specialization = 'Advanced Engineering & Research',
     required this.totalFaculty,
     required this.activeFacultyToday,
     required this.totalStudents,

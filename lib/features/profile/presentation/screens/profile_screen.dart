@@ -630,17 +630,30 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
                     ),
                     onTap: () => context.push(RoutePaths.facultyMaterials),
                   ),
-                _buildMenuItem(
-                  title: 'HOD Department Portal',
-                  icon: Icons.admin_panel_settings_outlined,
-                  subtitle: 'Monitor department faculty & college analytics',
-                  trailing: const Icon(
-                    Icons.chevron_right_rounded,
-                    color: Color(NexoraColors.textSecondary),
-                    size: 20,
+                if (isFaculty && (studentProfile?.isAdmin == true || StudentIdentityHelper.isAdminEmail(displayEmail)))
+                  _buildMenuItem(
+                    title: 'Admin Console (HOD & Faculty)',
+                    icon: Icons.shield_outlined,
+                    subtitle: 'Manage department HOD & Faculty accounts',
+                    trailing: const Icon(
+                      Icons.chevron_right_rounded,
+                      color: Color(NexoraColors.textSecondary),
+                      size: 20,
+                    ),
+                    onTap: () => context.push(RoutePaths.admin),
                   ),
-                  onTap: () => context.push(RoutePaths.hod),
-                ),
+                if (studentProfile?.isHod == true || studentProfile?.isAdmin == true || StudentIdentityHelper.isHodEmail(displayEmail) || StudentIdentityHelper.isAdminEmail(displayEmail))
+                  _buildMenuItem(
+                    title: 'HOD Department Portal',
+                    icon: Icons.admin_panel_settings_outlined,
+                    subtitle: 'Department-wise HOD directory & telemetry',
+                    trailing: const Icon(
+                      Icons.chevron_right_rounded,
+                      color: Color(NexoraColors.textSecondary),
+                      size: 20,
+                    ),
+                    onTap: () => context.push(RoutePaths.hod),
+                  ),
                 _buildMenuItem(
                   title: 'Theme',
                   icon: Icons.palette_outlined,

@@ -1,3 +1,4 @@
+import '../../features/admin/presentation/screens/admin_dashboard_screen.dart';
 import '../../features/notifications/presentation/screens/notifications_screen.dart';
 import '../../features/results/presentation/screens/results_screen.dart';
 import '../../features/downloads/presentation/screens/downloads_screen.dart';
@@ -143,10 +144,16 @@ final GoRouter appRouter = GoRouter(
       builder: (context, state) => const FacultyMaterialsScreen(),
     ),
 
-    // HOD Department Portal & Faculty Monitor
+    // HOD Department Portal
     GoRoute(
       path: RoutePaths.hod,
       builder: (context, state) => const HodDashboardScreen(),
+    ),
+
+    // Administrator Dashboard - HOD & Faculty Account Management
+    GoRoute(
+      path: RoutePaths.admin,
+      builder: (context, state) => const AdminDashboardScreen(),
     ),
   ],
 

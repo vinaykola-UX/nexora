@@ -348,17 +348,24 @@ class StudentProfileRepository {
         return StudentProfile.fromFirestore(existingDoc);
       }
 
-      final displayName = fullName ?? (cleanEmail == 'vinaybvcec@bvcgroup.in' ? 'Vinay Kola' : username);
+      final isAdmin = StudentIdentityHelper.isAdminEmail(cleanEmail);
+      final isHod = StudentIdentityHelper.isHodEmail(cleanEmail);
+      final resolvedRole = isAdmin ? 'admin' : (isHod ? 'hod' : 'teacher');
+      final resolvedBatch = isAdmin ? 'ADMIN' : (isHod ? 'HOD' : 'FACULTY');
+      final resolvedLabel = isAdmin ? 'System Administrator' : (isHod ? 'Head of Department' : 'Faculty Member');
+      final resolvedDesignation = isAdmin ? 'Administrator' : (isHod ? 'HOD & Professor' : 'Faculty / Lecturer');
+
+      final displayName = fullName ?? (cleanEmail == 'vinaybvcec@bvcgroup.in' ? 'Vinay Kola' : (isAdmin ? 'College Administrator' : username));
       final profile = StudentProfile(
         uid: uid,
         email: cleanEmail,
         rollNumber: username,
-        batchCode: 'FACULTY',
+        batchCode: resolvedBatch,
         academicYear: 0,
-        academicYearLabel: 'Faculty Member',
-        studentClass: 'Computer Science & Engineering',
-        section: 'Faculty',
-        role: 'teacher',
+        academicYearLabel: resolvedLabel,
+        studentClass: isAdmin ? 'Administration' : 'Computer Science & Engineering',
+        section: resolvedRole.toUpperCase(),
+        role: resolvedRole,
         college: 'BVC Engineering College (Autonomous), Odalarevu',
         profileSetupCompleted: true,
         createdAt: existingDoc.exists ? null : DateTime.now(),
@@ -367,10 +374,12 @@ class StudentProfileRepository {
 
       final mapData = profile.toMap(forUpdate: existingDoc.exists);
       mapData['fullName'] = displayName;
-      mapData['isFaculty'] = true;
-      mapData['role'] = 'teacher';
-      mapData['designation'] = 'Faculty / Lecturer';
-      mapData['department'] = 'Computer Science & Engineering';
+      mapData['isFaculty'] = !isAdmin;
+      mapData['isAdmin'] = isAdmin;
+      mapData['isHod'] = isHod;
+      mapData['role'] = resolvedRole;
+      mapData['designation'] = resolvedDesignation;
+      mapData['department'] = isAdmin ? 'Administration' : 'Computer Science & Engineering';
       mapData['bvcPortalVerified'] = true;
       mapData['verifiedSource'] = 'bvcec.edu.in';
 
