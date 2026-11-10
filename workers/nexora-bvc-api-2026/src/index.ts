@@ -2477,6 +2477,55 @@ export default {
           return jsonResponse({ success: true, ...counts });
         }
 
+        // POST /student/notifications/test-push - Trigger a real FCM push test notification
+        if (request.method === 'POST' && path === '/student/notifications/test-push') {
+          let bBody: any = {};
+          try { bBody = await request.json(); } catch (_) {}
+
+          const title = bBody?.title || 'Nexora FCM Test';
+          const body = bBody?.body || 'Real push notification sent from Cloudflare Worker via FCM v1!';
+          const route = bBody?.route || '/notifications';
+          const type = bBody?.type || 'TEST_FCM';
+
+          // Create in-app notification record
+          await NotificationStorage.createNotificationIdempotent(env.DB, {
+            firebase_uid: studentUser.uid,
+            type: type,
+            title: title,
+            body: body,
+            data_json: JSON.stringify({ type, route }),
+            reference_id: `TEST:${Date.now()}:${studentUser.uid}`,
+          });
+
+          // Get active device tokens for this student
+          const devices = await NotificationStorage.getActiveDeviceTokens(env.DB, [studentUser.uid]);
+          if (devices.length === 0) {
+            return jsonResponse({
+              success: false,
+              message: 'No active device tokens found. Please ensure FCM token is synced from the app.',
+              devices_found: 0,
+            });
+          }
+
+          // Dispatch real FCM push
+          const pushItems = devices.map((d) => ({
+            fcm_token: d.fcm_token,
+            title,
+            body,
+            type,
+            route,
+          }));
+
+          const pushResult = await FCMV1Service.batchSend(env, pushItems);
+
+          return jsonResponse({
+            success: true,
+            message: `FCM push dispatched to ${devices.length} device(s). Sent: ${pushResult.sent}, Failed: ${pushResult.failed}`,
+            devices_found: devices.length,
+            push_result: pushResult,
+          });
+        }
+
         // GET /student/academic-alerts - Fetch Active Holiday Notices & Semester Result Announcements
         if (request.method === 'GET' && path === '/student/academic-alerts') {
           const alerts = await env.DB.prepare(`
