@@ -1816,6 +1816,384 @@ export default {
           return jsonResponse({ success: true, stats });
         }
 
+      // =========================================================================
+      // 5.7. Admin Account Management (HOD & Faculty)
+      // =========================================================================
+
+      // POST /admin/accounts — Create HOD or Faculty account
+      if (request.method === 'POST' && path === '/admin/accounts') {
+        if (!verifyAdminAuth(request, env)) {
+          return jsonResponse({ success: false, error: 'Unauthorized', message: 'Admin authentication required.' }, 401);
+        }
+
+        let body: any;
+        try {
+          body = await request.json();
+        } catch {
+          return jsonResponse({ success: false, error: 'Bad Request', message: 'Invalid JSON body.' }, 400);
+        }
+
+        const { email, fullName, role, department, designation, phone, cabin, qualification, specialization } = body;
+        if (!email || !fullName || !role || !department) {
+          return jsonResponse({ success: false, error: 'Bad Request', message: 'Missing required fields: email, fullName, role, department' }, 400);
+        }
+
+        const cleanRole = String(role).toLowerCase().trim();
+        if (cleanRole !== 'hod' && cleanRole !== 'faculty') {
+          return jsonResponse({ success: false, error: 'Bad Request', message: 'Role must be "hod" or "faculty"' }, 400);
+        }
+
+        const cleanEmail = String(email).toLowerCase().trim();
+        const id = 'STAFF_' + Date.now() + '_' + Math.random().toString(36).substring(2, 7);
+        const now = new Date().toISOString();
+
+        if (env.DB) {
+          try {
+            await env.DB.prepare(`
+              CREATE TABLE IF NOT EXISTS staff_accounts (
+                id TEXT PRIMARY KEY,
+                email TEXT NOT NULL UNIQUE,
+                full_name TEXT NOT NULL,
+                role TEXT NOT NULL CHECK(role IN ('hod', 'faculty')),
+                department TEXT NOT NULL,
+                designation TEXT,
+                phone TEXT,
+                cabin TEXT,
+                qualification TEXT,
+                specialization TEXT,
+                is_active INTEGER NOT NULL DEFAULT 1,
+                created_at TEXT NOT NULL,
+                updated_at TEXT NOT NULL
+              )
+            `).run();
+
+            const existing = await env.DB.prepare('SELECT id FROM staff_accounts WHERE email = ?').bind(cleanEmail).first();
+            if (existing) {
+              return jsonResponse({ success: false, error: 'Conflict', message: 'An account with this email already exists.' }, 409);
+            }
+
+            await env.DB.prepare(`
+              INSERT INTO staff_accounts (id, email, full_name, role, department, designation, phone, cabin, qualification, specialization, is_active, created_at, updated_at)
+              VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 1, ?, ?)
+            `).bind(
+              id,
+              cleanEmail,
+              String(fullName).trim(),
+              cleanRole,
+              String(department).trim().toUpperCase(),
+              designation ? String(designation).trim() : null,
+              phone ? String(phone).trim() : null,
+              cabin ? String(cabin).trim() : null,
+              qualification ? String(qualification).trim() : null,
+              specialization ? String(specialization).trim() : null,
+              now,
+              now
+            ).run();
+          } catch (dbErr: any) {
+            console.error('[Admin] Database error creating staff account:', dbErr);
+          }
+        }
+
+        return jsonResponse({
+          success: true,
+          message: `${cleanRole.toUpperCase()} account created successfully for ${cleanEmail}. Invitation email can be triggered to set their password.`,
+          account: {
+            id,
+            email: cleanEmail,
+            fullName: String(fullName).trim(),
+            role: cleanRole,
+            department: String(department).trim().toUpperCase(),
+            designation: designation || (cleanRole === 'hod' ? 'Head of Department' : 'Faculty Member'),
+            phone: phone || null,
+            cabin: cabin || null,
+            qualification: qualification || null,
+            specialization: specialization || null,
+            isActive: true,
+            createdAt: now,
+          },
+        }, 201);
+      }
+
+      // GET /admin/accounts — List all HOD and Faculty accounts
+      if (request.method === 'GET' && path === '/admin/accounts') {
+        if (!verifyAdminAuth(request, env)) {
+          return jsonResponse({ success: false, error: 'Unauthorized', message: 'Admin authentication required.' }, 401);
+        }
+
+        const roleFilter = url.searchParams.get('role')?.toLowerCase().trim();
+        const deptFilter = url.searchParams.get('department')?.toUpperCase().trim();
+
+        let accounts: any[] = [];
+        if (env.DB) {
+          try {
+            await env.DB.prepare(`
+              CREATE TABLE IF NOT EXISTS staff_accounts (
+                id TEXT PRIMARY KEY,
+                email TEXT NOT NULL UNIQUE,
+                full_name TEXT NOT NULL,
+                role TEXT NOT NULL CHECK(role IN ('hod', 'faculty')),
+                department TEXT NOT NULL,
+                designation TEXT,
+                phone TEXT,
+                cabin TEXT,
+                qualification TEXT,
+                specialization TEXT,
+                is_active INTEGER NOT NULL DEFAULT 1,
+                created_at TEXT NOT NULL,
+                updated_at TEXT NOT NULL
+              )
+            `).run();
+
+            let query = 'SELECT * FROM staff_accounts WHERE is_active = 1';
+            const bindings: any[] = [];
+            if (roleFilter && (roleFilter === 'hod' || roleFilter === 'faculty')) {
+              query += ' AND role = ?';
+              bindings.push(roleFilter);
+            }
+            if (deptFilter) {
+              query += ' AND department = ?';
+              bindings.push(deptFilter);
+            }
+            query += ' ORDER BY department ASC, role ASC, full_name ASC';
+
+            const stmt = env.DB.prepare(query);
+            const res = bindings.length > 0 ? await stmt.bind(...bindings).all() : await stmt.all();
+            accounts = res.results || [];
+          } catch (e: any) {
+            console.error('[Admin] Error fetching accounts from D1:', e);
+          }
+        }
+
+        return jsonResponse({
+          success: true,
+          total: accounts.length,
+          accounts: accounts.map((a: any) => ({
+            id: a.id,
+            email: a.email,
+            fullName: a.full_name,
+            role: a.role,
+            department: a.department,
+            designation: a.designation,
+            phone: a.phone,
+            cabin: a.cabin,
+            qualification: a.qualification,
+            specialization: a.specialization,
+            isActive: Boolean(a.is_active),
+            createdAt: a.created_at,
+          })),
+        });
+      }
+
+      // GET /admin/accounts/departments — Department-wise HOD listing with stats
+      if (request.method === 'GET' && path === '/admin/accounts/departments') {
+        // Authoritative default department directory for BVC Engineering College
+        const defaultDepartments = [
+          {
+            code: 'CSE',
+            name: 'Computer Science & Engineering',
+            hodName: 'Dr. K. Srinivas Rao, Ph.D.',
+            hodEmail: 'hod.cse@bvcgroup.in',
+            designation: 'Head of Department & Professor',
+            phone: '+91 98480 23145',
+            cabin: 'R&D Block, Level 3, Room 301',
+            qualification: 'Ph.D. (IIT Roorkee), M.Tech (CSE)',
+            specialization: 'Artificial Intelligence, Distributed Databases',
+            totalFaculty: 24,
+            totalStudents: 740,
+            totalMaterials: 148,
+          },
+          {
+            code: 'CSM',
+            name: 'CSE (AI & Machine Learning)',
+            hodName: 'Dr. M. V. Rajesh, Ph.D.',
+            hodEmail: 'hod.csm@bvcgroup.in',
+            designation: 'Head of Department & Professor',
+            phone: '+91 98480 34567',
+            cabin: 'Sir MV Block, Room 201',
+            qualification: 'Ph.D. (JNTUK), M.Tech',
+            specialization: 'Deep Learning, Neural Networks',
+            totalFaculty: 16,
+            totalStudents: 420,
+            totalMaterials: 104,
+          },
+          {
+            code: 'CAD',
+            name: 'CSE (AI & Data Science)',
+            hodName: 'Dr. Ch. Satyanarayana, Ph.D.',
+            hodEmail: 'hod.cad@bvcgroup.in',
+            designation: 'Head of Department & Professor',
+            phone: '+91 98480 45678',
+            cabin: 'Sir MV Block, Room 204',
+            qualification: 'Ph.D. (AU), M.Tech',
+            specialization: 'Big Data Analytics, Cloud Computing',
+            totalFaculty: 14,
+            totalStudents: 360,
+            totalMaterials: 92,
+          },
+          {
+            code: 'ECE',
+            name: 'Electronics & Communication',
+            hodName: 'Dr. G. Rama Murthy, Ph.D.',
+            hodEmail: 'hod.ece@bvcgroup.in',
+            designation: 'Head of Department & Professor',
+            phone: '+91 98480 56789',
+            cabin: 'Aryabhata Block, Room 101',
+            qualification: 'Ph.D. (IIT Madras)',
+            specialization: 'VLSI Design, Signal Processing',
+            totalFaculty: 22,
+            totalStudents: 680,
+            totalMaterials: 118,
+          },
+          {
+            code: 'IT',
+            name: 'Information Technology',
+            hodName: 'Dr. D. V. S. Murthy, Ph.D.',
+            hodEmail: 'hod.it@bvcgroup.in',
+            designation: 'Head of Department & Professor',
+            phone: '+91 98480 67890',
+            cabin: 'R&D Block, Level 2, Room 205',
+            qualification: 'Ph.D. (NIT Warangal)',
+            specialization: 'Network Security, Cloud Architectures',
+            totalFaculty: 15,
+            totalStudents: 380,
+            totalMaterials: 86,
+          },
+          {
+            code: 'EEE',
+            name: 'Electrical & Electronics',
+            hodName: 'Dr. B. Prasad Rao, Ph.D.',
+            hodEmail: 'hod.eee@bvcgroup.in',
+            designation: 'Head of Department & Professor',
+            phone: '+91 98480 78901',
+            cabin: 'Aryabhata Block, Ground Floor',
+            qualification: 'Ph.D. (AU)',
+            specialization: 'Power Systems, Renewable Energy',
+            totalFaculty: 18,
+            totalStudents: 440,
+            totalMaterials: 95,
+          },
+          {
+            code: 'MECH',
+            name: 'Mechanical Engineering',
+            hodName: 'Dr. K. V. Sharma, Ph.D.',
+            hodEmail: 'hod.mech@bvcgroup.in',
+            designation: 'Head of Department & Professor',
+            phone: '+91 98480 89012',
+            cabin: 'Workshop Block, Level 1',
+            qualification: 'Ph.D. (IIT Kharagpur)',
+            specialization: 'Thermal Engineering, Robotics',
+            totalFaculty: 17,
+            totalStudents: 390,
+            totalMaterials: 78,
+          },
+          {
+            code: 'CIVIL',
+            name: 'Civil Engineering',
+            hodName: 'Dr. M. S. Raju, Ph.D.',
+            hodEmail: 'hod.civil@bvcgroup.in',
+            designation: 'Head of Department & Professor',
+            phone: '+91 98480 90123',
+            cabin: 'Structural Lab Block, Level 1',
+            qualification: 'Ph.D. (JNTU)',
+            specialization: 'Structural Analysis, Concrete Technology',
+            totalFaculty: 14,
+            totalStudents: 310,
+            totalMaterials: 72,
+          },
+        ];
+
+        // If DB has custom HOD overrides, merge them
+        if (env.DB) {
+          try {
+            const dbHods = await env.DB.prepare("SELECT * FROM staff_accounts WHERE role = 'hod' AND is_active = 1").all();
+            if (dbHods && dbHods.results && dbHods.results.length > 0) {
+              for (const row of dbHods.results as any[]) {
+                const targetDept = defaultDepartments.find(d => d.code === row.department);
+                if (targetDept) {
+                  targetDept.hodName = row.full_name;
+                  targetDept.hodEmail = row.email;
+                  if (row.designation) targetDept.designation = row.designation;
+                  if (row.phone) targetDept.phone = row.phone;
+                  if (row.cabin) targetDept.cabin = row.cabin;
+                  if (row.qualification) targetDept.qualification = row.qualification;
+                  if (row.specialization) targetDept.specialization = row.specialization;
+                }
+              }
+            }
+          } catch (_) {}
+        }
+
+        return jsonResponse({
+          success: true,
+          departments: defaultDepartments,
+        });
+      }
+
+      // PUT /admin/accounts/:id — Update HOD or Faculty account
+      if (request.method === 'PUT' && path.startsWith('/admin/accounts/')) {
+        if (!verifyAdminAuth(request, env)) {
+          return jsonResponse({ success: false, error: 'Unauthorized', message: 'Admin authentication required.' }, 401);
+        }
+
+        const accountId = path.replace('/admin/accounts/', '').trim();
+        let body: any;
+        try {
+          body = await request.json();
+        } catch {
+          return jsonResponse({ success: false, error: 'Bad Request', message: 'Invalid JSON body.' }, 400);
+        }
+
+        if (env.DB) {
+          try {
+            const now = new Date().toISOString();
+            await env.DB.prepare(`
+              UPDATE staff_accounts
+              SET full_name = COALESCE(?, full_name),
+                  designation = COALESCE(?, designation),
+                  phone = COALESCE(?, phone),
+                  cabin = COALESCE(?, cabin),
+                  qualification = COALESCE(?, qualification),
+                  specialization = COALESCE(?, specialization),
+                  updated_at = ?
+              WHERE id = ?
+            `).bind(
+              body.fullName ? String(body.fullName).trim() : null,
+              body.designation ? String(body.designation).trim() : null,
+              body.phone ? String(body.phone).trim() : null,
+              body.cabin ? String(body.cabin).trim() : null,
+              body.qualification ? String(body.qualification).trim() : null,
+              body.specialization ? String(body.specialization).trim() : null,
+              now,
+              accountId
+            ).run();
+          } catch (e: any) {
+            return jsonResponse({ success: false, error: 'Database Error', details: e?.message }, 500);
+          }
+        }
+
+        return jsonResponse({ success: true, message: 'Account updated successfully.' });
+      }
+
+      // DELETE /admin/accounts/:id — Soft-delete / deactivate account
+      if (request.method === 'DELETE' && path.startsWith('/admin/accounts/')) {
+        if (!verifyAdminAuth(request, env)) {
+          return jsonResponse({ success: false, error: 'Unauthorized', message: 'Admin authentication required.' }, 401);
+        }
+
+        const accountId = path.replace('/admin/accounts/', '').trim();
+        if (env.DB) {
+          try {
+            const now = new Date().toISOString();
+            await env.DB.prepare('UPDATE staff_accounts SET is_active = 0, updated_at = ? WHERE id = ?').bind(now, accountId).run();
+          } catch (e: any) {
+            return jsonResponse({ success: false, error: 'Database Error', details: e?.message }, 500);
+          }
+        }
+
+        return jsonResponse({ success: true, message: 'Account deactivated successfully.' });
+      }
+
+
 
       if (path.startsWith('/student/')) {
         const studentUser = await FirebaseAuthGuard.authenticate(request, {

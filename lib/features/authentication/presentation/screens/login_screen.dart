@@ -100,6 +100,21 @@ class _LoginScreenState extends State<LoginScreen> {
         return;
       }
 
+      // Check if user is an Administrator
+      if (StudentIdentityHelper.isAdminEmail(user.email)) {
+        try {
+          await _profileRepository.setupFacultyProfile(
+            uid: user.uid,
+            email: user.email!,
+            fullName: user.displayName ?? 'College Administrator',
+          );
+        } catch (_) {}
+
+        if (!mounted) return;
+        context.go(RoutePaths.admin);
+        return;
+      }
+
       // Check if user is a faculty/staff member (e.g. vinaybvcec@bvcgroup.in)
       if (StudentIdentityHelper.isFacultyEmail(user.email)) {
         try {
@@ -183,6 +198,20 @@ class _LoginScreenState extends State<LoginScreen> {
       if (!mounted) return;
 
       if (user != null) {
+        if (StudentIdentityHelper.isAdminEmail(user.email)) {
+          try {
+            await _profileRepository.setupFacultyProfile(
+              uid: user.uid,
+              email: user.email!,
+              fullName: user.displayName ?? 'College Administrator',
+            );
+          } catch (_) {}
+
+          if (!mounted) return;
+          context.go(RoutePaths.admin);
+          return;
+        }
+
         if (StudentIdentityHelper.isFacultyEmail(user.email)) {
           try {
             final api = NexoraApiService();

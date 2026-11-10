@@ -71,6 +71,19 @@ class _SplashScreenState extends State<SplashScreen>
       return;
     }
 
+    // Logged in administrator → jump directly to admin dashboard
+    if (StudentIdentityHelper.isAdminEmail(user.email)) {
+      try {
+        await _profileRepository.setupFacultyProfile(
+          uid: user.uid,
+          email: user.email!,
+          fullName: user.displayName ?? 'College Administrator',
+        );
+      } catch (_) {}
+      if (mounted) context.go(RoutePaths.admin);
+      return;
+    }
+
     // Logged in faculty/staff member → ensure profile is established and jump directly to startChat
     if (StudentIdentityHelper.isFacultyEmail(user.email)) {
       try {

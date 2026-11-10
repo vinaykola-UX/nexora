@@ -1,3 +1,4 @@
+import '../core/constants/student_identity_helper.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import '../core/constants/app_constants.dart';
 
@@ -135,6 +136,10 @@ class StudentProfile {
       updatedAt: updatedAt ?? this.updatedAt,
     );
   }
+
+  bool get isAdmin => role == 'admin' || StudentIdentityHelper.isAdminEmail(email);
+  bool get isHod => role == 'hod' || StudentIdentityHelper.isHodEmail(email);
+  bool get isFaculty => role == 'teacher' || role == 'faculty' || StudentIdentityHelper.isFacultyEmail(email);
 
   @override
   String toString() {

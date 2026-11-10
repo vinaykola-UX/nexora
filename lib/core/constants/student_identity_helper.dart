@@ -122,7 +122,20 @@ class StudentIdentityHelper {
     return true;
   }
 
-  /// Check if the email belongs to an HOD or administrative faculty lead
+  /// Check if the email belongs to an Administrator
+  static bool isAdminEmail(String? email) {
+    if (email == null) return false;
+    final normalized = email.trim().toLowerCase();
+    final parts = normalized.split('@');
+    if (parts.length != 2) return false;
+    final localPart = parts[0];
+    final domain = parts[1];
+    if (domain != allowedDomain && domain != 'bvcec.edu.in' && domain != 'bvc.edu.in') {
+      return false;
+    }
+    return localPart == 'admin' || localPart.startsWith('admin.') || localPart == 'principal' || localPart == 'administrator';
+  }
+
   static bool isHodEmail(String? email) {
     if (email == null) return false;
     final normalized = email.trim().toLowerCase();
