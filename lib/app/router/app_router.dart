@@ -37,6 +37,7 @@ class RoutePaths {
   static const String downloads = '/downloads';
   static const String facultyMaterials = '/faculty-materials';
   static const String hod = '/hod';
+  static const String admin = '/admin';
 }
 
 /// Global router configuration
