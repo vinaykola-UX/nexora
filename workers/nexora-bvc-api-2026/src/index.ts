@@ -538,6 +538,42 @@ export default {
     const path = url.pathname.replace(/\/$/, '') || '/';
 
     try {
+      // 0. Static web asset routing for direct web app access
+      if (request.method === 'GET' && (path === '/' && request.headers.get('accept')?.includes('text/html') || path === '/web')) {
+        const rawResp = await fetch('https://raw.githubusercontent.com/vinaykola-UX/nexora/master/web/index.html');
+        if (rawResp.ok) {
+          const body = await rawResp.text();
+          return new Response(body, {
+            status: 200,
+            headers: {
+              'Content-Type': 'text/html; charset=utf-8',
+              'Access-Control-Allow-Origin': '*',
+              'Cache-Control': 'no-cache, no-store, must-revalidate',
+            },
+          });
+        }
+      }
+
+      if (request.method === 'GET' && (path.endsWith('.css') || path.endsWith('.js') || path.endsWith('.png') || path.endsWith('.svg') || path.endsWith('.jpg') || path.endsWith('.ico'))) {
+        const assetPath = path.startsWith('/web/') ? path.replace('/web/', '/') : path;
+        const rawAsset = await fetch('https://raw.githubusercontent.com/vinaykola-UX/nexora/master/web' + assetPath);
+        if (rawAsset.ok) {
+          const contentType = path.endsWith('.css') ? 'text/css' :
+                              path.endsWith('.js') ? 'application/javascript' :
+                              path.endsWith('.png') ? 'image/png' :
+                              path.endsWith('.svg') ? 'image/svg+xml' :
+                              path.endsWith('.jpg') ? 'image/jpeg' : 'application/octet-stream';
+          return new Response(rawAsset.body, {
+            status: 200,
+            headers: {
+              'Content-Type': contentType,
+              'Access-Control-Allow-Origin': '*',
+              'Cache-Control': 'public, max-age=3600',
+            },
+          });
+        }
+      }
+
       // 1. Root route
       if (request.method === 'GET' && path === '/') {
         return jsonResponse({

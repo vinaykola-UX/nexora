@@ -24,6 +24,27 @@ export default {
       });
     }
 
+    // Serve updated index.html directly from GitHub master branch
+    if (url.pathname === '/' || url.pathname === '/index.html') {
+      try {
+        const rawResp = await fetch('https://raw.githubusercontent.com/vinaykola-UX/nexora/master/web/index.html');
+        if (rawResp.ok) {
+          const body = await rawResp.text();
+          return new Response(body, {
+            status: 200,
+            headers: {
+              'Content-Type': 'text/html; charset=utf-8',
+              'Access-Control-Allow-Origin': '*',
+              'Cache-Control': 'no-cache, no-store, must-revalidate',
+              'X-Served-By': 'Nexora-Direct-Sync',
+            },
+          });
+        }
+      } catch (err) {
+        // Fallback to Pages origin if raw fetch fails
+      }
+    }
+
     // Serve static web application from Pages origin
     const targetPagesUrl = new URL(url.pathname + url.search, pagesOrigin);
     let pageResponse = await fetch(targetPagesUrl.toString(), {
