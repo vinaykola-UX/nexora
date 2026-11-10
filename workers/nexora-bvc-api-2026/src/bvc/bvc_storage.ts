@@ -7,6 +7,7 @@ import {
   BVCFeeRecord,
   BVCSyncResult,
 } from './bvc_types';
+import { NotificationStorage } from '../notifications/notification_storage';
 
 /**
  * BVC Storage Manager
@@ -83,6 +84,7 @@ export class BVCStorage {
           CREATE TABLE IF NOT EXISTS bvc_student_results (
             id INTEGER PRIMARY KEY AUTOINCREMENT,
             firebase_uid TEXT NOT NULL,
+            roll_number TEXT,
             semester INTEGER NOT NULL,
             subject_code TEXT NOT NULL,
             subject_name TEXT NOT NULL,
@@ -93,8 +95,10 @@ export class BVCStorage {
             grade_points REAL,
             credits REAL,
             result_status TEXT,
+            status TEXT,
             sgpa REAL,
             cgpa REAL,
+            exam_month_year TEXT,
             updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
             UNIQUE(firebase_uid, semester, subject_code)
           )
@@ -130,6 +134,13 @@ export class BVCStorage {
           )
         `),
       ]);
+
+      // Backward compatibility migrations for existing D1 databases
+      try { await db.prepare(`ALTER TABLE bvc_student_results ADD COLUMN roll_number TEXT`).run(); } catch (_) {}
+      try { await db.prepare(`ALTER TABLE bvc_student_results ADD COLUMN status TEXT`).run(); } catch (_) {}
+      try { await db.prepare(`ALTER TABLE bvc_student_results ADD COLUMN result_status TEXT`).run(); } catch (_) {}
+      try { await db.prepare(`ALTER TABLE bvc_student_results ADD COLUMN exam_month_year TEXT`).run(); } catch (_) {}
+      try { await db.prepare(`CREATE INDEX IF NOT EXISTS idx_bvc_results_roll ON bvc_student_results(roll_number, semester)`).run(); } catch (_) {}
 
       this.schemaInitialized = true;
     } catch (err: any) {
@@ -297,13 +308,142 @@ export class BVCStorage {
     return results || [];
   }
 
-  public static async getStudentResults(db: D1Database, firebaseUid: string): Promise<BVCResultRecord[]> {
+  public static async getStudentResults(
+    db: D1Database,
+    firebaseUid: string,
+    rollNumber?: string | null
+  ): Promise<BVCResultRecord[]> {
     await this.ensurePrivateSchema(db);
-    const { results } = await db
-      .prepare(`SELECT * FROM bvc_student_results WHERE firebase_uid = ? ORDER BY semester DESC, subject_code ASC`)
-      .bind(firebaseUid)
-      .all<BVCResultRecord>();
-    return results || [];
+
+    // 1. Resolve student's roll number if not directly supplied
+    let effectiveRoll = rollNumber ? rollNumber.trim().toUpperCase() : null;
+    if (!effectiveRoll) {
+      try {
+        const profile = await db
+          .prepare(`SELECT roll_number FROM bvc_student_profiles WHERE firebase_uid = ?`)
+          .bind(firebaseUid)
+          .first<{ roll_number: string }>();
+        if (profile?.roll_number) {
+          effectiveRoll = profile.roll_number.trim().toUpperCase();
+        }
+      } catch (_) {}
+    }
+
+    // 2. Auto-claim pending unmatched results matching this student's roll number
+    if (effectiveRoll) {
+      try {
+        const { results: pendingUnmatched } = await db
+          .prepare(`SELECT * FROM unmatched_results WHERE UPPER(roll_number) = UPPER(?)`)
+          .bind(effectiveRoll)
+          .all<any>();
+
+        if (pendingUnmatched && pendingUnmatched.length > 0) {
+          const insertStmts: D1PreparedStatement[] = [];
+          for (const item of pendingUnmatched) {
+            const sem = typeof item.semester === 'number' ? item.semester : parseInt(String(item.semester), 10);
+            const statusVal = item.status || (item.grade === 'F' ? 'FAIL' : 'PASS');
+            const subCode = item.subject_code || 'GEN101';
+
+            insertStmts.push(
+              db.prepare(`
+                INSERT INTO bvc_student_results (
+                  firebase_uid, roll_number, semester, subject_code, subject_name,
+                  grade, credits, grade_points, status, result_status, sgpa, cgpa, exam_month_year, updated_at
+                ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, CURRENT_TIMESTAMP)
+                ON CONFLICT(firebase_uid, semester, subject_code) DO UPDATE SET
+                  roll_number = excluded.roll_number,
+                  subject_name = excluded.subject_name,
+                  grade = excluded.grade,
+                  credits = excluded.credits,
+                  grade_points = excluded.grade_points,
+                  status = excluded.status,
+                  result_status = excluded.result_status,
+                  sgpa = excluded.sgpa,
+                  cgpa = excluded.cgpa,
+                  exam_month_year = excluded.exam_month_year,
+                  updated_at = CURRENT_TIMESTAMP
+              `).bind(
+                firebaseUid,
+                effectiveRoll,
+                sem,
+                subCode,
+                item.subject_name || 'Academic Subject',
+                item.grade || null,
+                item.credits ?? null,
+                item.grade_points ?? null,
+                statusVal,
+                statusVal,
+                item.sgpa ?? null,
+                item.cgpa ?? null,
+                item.exam_month_year || null
+              )
+            );
+          }
+
+          if (insertStmts.length > 0) {
+            await db.batch(insertStmts);
+            // Delete claimed rows from unmatched_results
+            await db
+              .prepare(`DELETE FROM unmatched_results WHERE UPPER(roll_number) = UPPER(?)`)
+              .bind(effectiveRoll)
+              .run();
+
+            // Insert idempotent notification so the student sees results alert
+            const targetSem = pendingUnmatched[0]?.semester || 1;
+            await NotificationStorage.createNotificationIdempotent(db, {
+              firebase_uid: firebaseUid,
+              type: 'RESULT',
+              title: 'Semester Results Published',
+              body: `Your Semester ${targetSem} results are now available in Nexora.`,
+              data_json: JSON.stringify({
+                type: 'RESULT',
+                semester: targetSem,
+                screen: 'results',
+                route: '/results',
+              }),
+              reference_id: `RESULT:SEM${targetSem}:${effectiveRoll}`,
+            }).catch(() => {});
+          }
+        }
+      } catch (claimErr) {
+        console.warn('[BVCStorage] Non-critical error auto-claiming unmatched results:', claimErr);
+      }
+    }
+
+    // 3. Query results strictly scoped by verified firebase_uid or roll_number
+    let records: BVCResultRecord[] = [];
+    if (effectiveRoll) {
+      const { results } = await db
+        .prepare(`
+          SELECT * FROM bvc_student_results
+          WHERE firebase_uid = ? OR (roll_number IS NOT NULL AND UPPER(roll_number) = UPPER(?))
+          ORDER BY semester DESC, subject_code ASC
+        `)
+        .bind(firebaseUid, effectiveRoll)
+        .all<BVCResultRecord>();
+      records = results || [];
+    } else {
+      const { results } = await db
+        .prepare(`
+          SELECT * FROM bvc_student_results
+          WHERE firebase_uid = ?
+          ORDER BY semester DESC, subject_code ASC
+        `)
+        .bind(firebaseUid)
+        .all<BVCResultRecord>();
+      records = results || [];
+    }
+
+    // 4. Normalize status and result_status aliases
+    return records.map((r) => {
+      const st = r.status || r.result_status || (r.grade === 'F' ? 'FAIL' : 'PASS');
+      return {
+        ...r,
+        status: st,
+        result_status: st,
+        roll_number: r.roll_number || effectiveRoll || null,
+      };
+    });
   }
 
   public static async getStudentSubjects(db: D1Database, firebaseUid: string): Promise<BVCSubject[]> {

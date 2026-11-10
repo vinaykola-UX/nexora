@@ -66,18 +66,23 @@ export class ResultProcessor {
       return report;
     }
 
-    // Fetch existing student profiles matching these roll numbers
-    const placeholders = uniqueRollNumbers.map(() => '?').join(',');
+    // Fetch existing student profiles matching these roll numbers or student college emails
+    const rollPlaceholders = uniqueRollNumbers.map(() => '?').join(',');
+    const emailPlaceholders = uniqueRollNumbers.map(() => '?').join(',');
+    const expectedEmails = uniqueRollNumbers.map((r) => `${r.toLowerCase()}@bvcgroup.in`);
+
     const { results: matchedProfiles } = await db
       .prepare(`
-        SELECT firebase_uid, roll_number, name, branch, year, semester, section
+        SELECT firebase_uid, roll_number, college_email, name, branch, year, semester, section
         FROM bvc_student_profiles
-        WHERE roll_number IN (${placeholders})
+        WHERE UPPER(roll_number) IN (${rollPlaceholders})
+           OR LOWER(college_email) IN (${emailPlaceholders})
       `)
-      .bind(...uniqueRollNumbers)
+      .bind(...uniqueRollNumbers.map((r) => r.toUpperCase()), ...expectedEmails)
       .all<{
         firebase_uid: string;
         roll_number: string;
+        college_email: string | null;
         name: string | null;
         branch: string | null;
         year: number | null;
@@ -87,7 +92,15 @@ export class ResultProcessor {
 
     const profileByRoll = new Map<string, typeof matchedProfiles[0]>();
     for (const prof of matchedProfiles || []) {
-      profileByRoll.set(prof.roll_number, prof);
+      if (prof.roll_number) {
+        profileByRoll.set(prof.roll_number.trim().toUpperCase(), prof);
+      }
+      if (prof.college_email) {
+        const rollFromEmail = prof.college_email.split('@')[0].trim().toUpperCase();
+        if (rollFromEmail) {
+          profileByRoll.set(rollFromEmail, prof);
+        }
+      }
     }
 
     const notificationsToPush: Array<{
@@ -126,14 +139,16 @@ export class ResultProcessor {
             await db
               .prepare(`
                 INSERT INTO bvc_student_results (
-                  firebase_uid, semester, subject_code, subject_name, grade, credits, grade_points, status, sgpa, cgpa, exam_month_year, updated_at
-                ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, CURRENT_TIMESTAMP)
+                  firebase_uid, roll_number, semester, subject_code, subject_name, grade, credits, grade_points, status, result_status, sgpa, cgpa, exam_month_year, updated_at
+                ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, CURRENT_TIMESTAMP)
                 ON CONFLICT(firebase_uid, semester, subject_code) DO UPDATE SET
+                  roll_number = excluded.roll_number,
                   subject_name = excluded.subject_name,
                   grade = excluded.grade,
                   credits = excluded.credits,
                   grade_points = excluded.grade_points,
                   status = excluded.status,
+                  result_status = excluded.result_status,
                   sgpa = excluded.sgpa,
                   cgpa = excluded.cgpa,
                   exam_month_year = excluded.exam_month_year,
@@ -141,12 +156,14 @@ export class ResultProcessor {
               `)
               .bind(
                 profile.firebase_uid,
+                roll,
                 sem,
                 rec.subject_code,
                 rec.subject_name || 'Academic Course',
                 rec.grade || null,
                 credits,
                 gradePoints,
+                rec.status || (rec.grade === 'F' ? 'FAIL' : 'PASS'),
                 rec.status || (rec.grade === 'F' ? 'FAIL' : 'PASS'),
                 sgpa,
                 cgpa,
@@ -207,7 +224,7 @@ export class ResultProcessor {
               rec.grade || null,
               rec.credits ? parseFloat(String(rec.credits)) : null,
               rec.grade_points ? parseFloat(String(rec.grade_points)) : null,
-              rec.status || null,
+              rec.status || (rec.grade === 'F' ? 'FAIL' : 'PASS'),
               rec.sgpa ? parseFloat(String(rec.sgpa)) : null,
               rec.cgpa ? parseFloat(String(rec.cgpa)) : null,
               rec.exam_month_year || null,
