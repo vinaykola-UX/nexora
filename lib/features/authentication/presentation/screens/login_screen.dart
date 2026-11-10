@@ -435,35 +435,7 @@ class _LoginScreenState extends State<LoginScreen> {
                 textColor: const Color(NexoraColors.text),
                 leadingIcon: Icons.g_mobiledata_rounded,
               ),
-              const SizedBox(height: NexoraSpacing.md),
-
-              // -- Quick Demo Faculty Auto-fill Button -----------------------
-              Center(
-                child: TextButton.icon(
-                  onPressed: () {
-                    setState(() {
-                      _emailController.text = 'vinaybvcec@bvcgroup.in';
-                      _passwordController.text = 'thala777';
-                    });
-                    ScaffoldMessenger.of(context).showSnackBar(
-                      const SnackBar(
-                        content: Text('Faculty credentials filled: vinaybvcec@bvcgroup.in'),
-                        duration: Duration(seconds: 2),
-                      ),
-                    );
-                  },
-                  icon: const Icon(Icons.school_outlined, size: 16, color: Color(NexoraColors.primaryDark)),
-                  label: const Text(
-                    'Quick Test: Faculty (vinaybvcec • thala777)',
-                    style: TextStyle(
-                      fontSize: 12,
-                      color: Color(NexoraColors.primaryDark),
-                      fontWeight: FontWeight.w600,
-                    ),
-                  ),
-                ),
-              ),
-              const SizedBox(height: NexoraSpacing.xl),
+              const SizedBox(height: NexoraSpacing.xxl),
 
               // -- Footer: Sign up link -------------------------------------
               Center(
