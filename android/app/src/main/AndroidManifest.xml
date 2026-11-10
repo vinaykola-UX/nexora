@@ -11,7 +11,7 @@
         <!-- Firebase Messaging default channel and icon -->
         <meta-data
             android:name="com.google.firebase.messaging.default_notification_channel_id"
-            android:value="nexora_academic_channel" />
+            android:value="nexora_academic_alerts" />
         <meta-data
             android:name="com.google.firebase.messaging.default_notification_icon"
             android:resource="@mipmap/ic_launcher" />
