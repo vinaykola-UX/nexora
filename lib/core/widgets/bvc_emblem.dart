@@ -1,23 +1,33 @@
 import 'dart:math' as math;
 import 'package:flutter/material.dart';
 
-/// BVC College circular seal emblem component matching the Figma artwork
+/// BVC College circular seal emblem component matching the official college logo
 class BvcEmblem extends StatelessWidget {
   final double size;
+  final BoxFit fit;
 
   const BvcEmblem({
     Key? key,
     this.size = 140,
+    this.fit = BoxFit.contain,
   }) : super(key: key);
 
   @override
   Widget build(BuildContext context) {
-    return SizedBox(
+    return Image.asset(
+      'assets/images/bvc_logo.png',
       width: size,
       height: size,
-      child: CustomPaint(
-        painter: _BvcEmblemPainter(),
-      ),
+      fit: fit,
+      errorBuilder: (context, error, stackTrace) {
+        return SizedBox(
+          width: size,
+          height: size,
+          child: CustomPaint(
+            painter: _BvcEmblemPainter(),
+          ),
+        );
+      },
     );
   }
 }

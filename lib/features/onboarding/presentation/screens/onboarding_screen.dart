@@ -61,7 +61,10 @@ class OnboardingScreen extends StatelessWidget {
                       ],
                     ),
                     child: const Center(
-                      child: BvcEmblem(size: 170),
+                      child: Padding(
+                        padding: EdgeInsets.all(NexoraSpacing.md),
+                        child: BvcEmblem(size: 200),
+                      ),
                     ),
                   ),
                   const SizedBox(height: NexoraSpacing.xxl),
