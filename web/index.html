@@ -629,61 +629,6 @@
          Main Stage (Claude Style Chat)
          =================================================================== -->
     <main class="main-stage">
-      <!-- Top App Header -->
-      <header class="app-header">
-        <div class="header-left">
-          <button class="header-toggle-sidebar" id="headerToggleSidebar" title="Toggle Sidebar">
-            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-              <line x1="3" y1="12" x2="21" y2="12"></line>
-              <line x1="3" y1="6" x2="21" y2="6"></line>
-              <line x1="3" y1="18" x2="21" y2="18"></line>
-            </svg>
-          </button>
-
-          <!-- Model Selector Pill (Claude Style) -->
-          <div class="model-selector-pill" onclick="showToast('Active: Nexora 3.1 Hybrid (Grok 4.20 + BVC RAG + ADS Engine)', 'info')">
-            <span class="model-indicator-spark">
-              <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5">
-                <path d="M12 2L15.09 8.26L22 9.27L17 14.14L18.18 21.02L12 17.77L5.82 21.02L7 14.14L2 9.27L8.91 8.26L12 2Z" fill="currentColor"></path>
-              </svg>
-            </span>
-            <span>Nexora 3.1 • Grok + RAG</span>
-            <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-              <polyline points="6 9 12 15 18 9"></polyline>
-            </svg>
-          </div>
-        </div>
-
-        <div class="header-right">
-          <div id="workerStatusBadge" style="display: flex; align-items: center; gap: 6px; font-size: 0.78rem; font-weight: 500; color: var(--color-success); padding: 4px 8px; border-radius: var(--radius-pill); background: var(--bg-surface); border: 1px solid var(--border-medium);">
-            <span class="status-dot-mini"></span>
-            <span>Connecting...</span>
-          </div>
-
-          <!-- Authorized Student Badge -->
-          <div id="headerAuthBadge" style="display: flex; align-items: center; gap: 6px; font-size: 0.78rem; font-weight: 600; color: var(--color-success); padding: 4px 10px; border-radius: var(--radius-pill); background: var(--color-success-bg); border: 1px solid rgba(21, 128, 61, 0.25);">
-            <span>✓</span>
-            <span id="headerAuthRoll">25221A0568</span>
-          </div>
-
-          <button class="header-pill-btn primary" onclick="openModal('portalModal')">
-            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-              <path d="M22 10v6M2 10l10-5 10 5-10 5z"></path>
-              <path d="M6 12v5c3 3 9 3 12 0v-5"></path>
-            </svg>
-            <span>Sync Portal</span>
-          </button>
-
-          <button class="btn-signout-mini" onclick="AuthManager.signOut()" title="Sign Out of Nexora">
-            <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-              <path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"></path>
-              <polyline points="16 17 21 12 16 7"></polyline>
-              <line x1="21" y1="12" x2="9" y2="12"></line>
-            </svg>
-            <span>Sign Out</span>
-          </button>
-        </div>
-      </header>
 
       <!-- Scrollable Chat Stream / Welcome Canvas -->
       <section class="chat-scroll-area" id="chatScrollArea">
