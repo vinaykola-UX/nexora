@@ -217,7 +217,17 @@ export class NotificationStorage {
         .first<{ id: number }>();
 
       if (existing) {
-        return { created: false, duplicate: true, id: existing.id };
+        // Re-arm notification as fresh & unread so re-uploaded results trigger new alerts
+        await db
+          .prepare(`
+            UPDATE notifications
+            SET title = ?, body = ?, data_json = ?, is_read = 0, created_at = CURRENT_TIMESTAMP, read_at = NULL
+            WHERE id = ?
+          `)
+          .bind(notif.title, notif.body, notif.data_json || null, existing.id)
+          .run();
+
+        return { created: true, duplicate: false, id: existing.id };
       }
     }
 

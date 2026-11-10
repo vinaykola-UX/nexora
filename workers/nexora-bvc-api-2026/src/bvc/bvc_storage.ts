@@ -434,8 +434,16 @@ export class BVCStorage {
       records = results || [];
     }
 
-    // 4. Normalize status and result_status aliases
-    return records.map((r) => {
+    // 4. Deduplicate records by semester and subject_code, then normalize status aliases
+    const dedupMap = new Map<string, BVCResultRecord>();
+    for (const r of records) {
+      const key = `${r.semester}:${r.subject_code}`;
+      if (!dedupMap.has(key)) {
+        dedupMap.set(key, r);
+      }
+    }
+
+    return Array.from(dedupMap.values()).map((r) => {
       const st = r.status || r.result_status || (r.grade === 'F' ? 'FAIL' : 'PASS');
       return {
         ...r,

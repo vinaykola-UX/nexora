@@ -2350,14 +2350,20 @@ export default {
 
         // GET /student/results - Retrieve semester marks & results
         if (request.method === 'GET' && path === '/student/results') {
-          // Deterministically extract roll number from student's verified college email
+          // 1. Authoritative check: Fetch profile for studentUser.uid first
           let rollNumber: string | null = null;
-          if (studentUser.email) {
+          try {
+            const existingProfile = await BVCStorage.getStudentProfile(env.DB, studentUser.uid);
+            if (existingProfile?.roll_number) {
+              rollNumber = existingProfile.roll_number.trim().toUpperCase();
+            }
+          } catch (_) {}
+
+          // 2. Fallback: extract roll number from student's verified college email if valid roll pattern
+          if (!rollNumber && studentUser.email) {
             const emailPrefix = studentUser.email.split('@')[0].trim().toUpperCase();
             if (BVCNormalizer.isValidRollNumber(emailPrefix)) {
               rollNumber = BVCNormalizer.normalizeRollNumber(emailPrefix);
-            } else {
-              rollNumber = emailPrefix;
             }
           }
 

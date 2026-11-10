@@ -90,16 +90,20 @@ export class ResultProcessor {
         section: string | null;
       }>();
 
-    const profileByRoll = new Map<string, typeof matchedProfiles[0]>();
+    const profilesByRoll = new Map<string, Array<typeof matchedProfiles[0]>>();
     for (const prof of matchedProfiles || []) {
-      if (prof.roll_number) {
-        profileByRoll.set(prof.roll_number.trim().toUpperCase(), prof);
-      }
+      const keys = new Set<string>();
+      if (prof.roll_number) keys.add(prof.roll_number.trim().toUpperCase());
       if (prof.college_email) {
         const rollFromEmail = prof.college_email.split('@')[0].trim().toUpperCase();
-        if (rollFromEmail) {
-          profileByRoll.set(rollFromEmail, prof);
+        if (rollFromEmail) keys.add(rollFromEmail);
+      }
+      for (const k of keys) {
+        const list = profilesByRoll.get(k) || [];
+        if (!list.some((p) => p.firebase_uid === prof.firebase_uid)) {
+          list.push(prof);
         }
+        profilesByRoll.set(k, list);
       }
     }
 
@@ -115,94 +119,96 @@ export class ResultProcessor {
     // Process each student's results
     for (const roll of uniqueRollNumbers) {
       const studentRecords = normalizedMap.get(roll) || [];
-      const profile = profileByRoll.get(roll);
+      const profiles = profilesByRoll.get(roll) || [];
 
-      if (profile) {
+      if (profiles.length > 0) {
         // MATCHED STUDENT
         report.matched_students++;
-        report.matched_profiles.push({
-          roll_number: roll,
-          firebase_uid: profile.firebase_uid,
-          name: profile.name,
-          branch: profile.branch,
-        });
-
-        // Insert / Update results in private table `bvc_student_results`
-        for (const rec of studentRecords) {
-          const sem = typeof rec.semester === 'number' ? rec.semester : parseInt(String(rec.semester), 10);
-          const credits = rec.credits ? parseFloat(String(rec.credits)) : null;
-          const gradePoints = rec.grade_points ? parseFloat(String(rec.grade_points)) : null;
-          const sgpa = rec.sgpa ? parseFloat(String(rec.sgpa)) : null;
-          const cgpa = rec.cgpa ? parseFloat(String(rec.cgpa)) : null;
-
-          if (rec.subject_code) {
-            await db
-              .prepare(`
-                INSERT INTO bvc_student_results (
-                  firebase_uid, roll_number, semester, subject_code, subject_name, grade, credits, grade_points, status, result_status, sgpa, cgpa, exam_month_year, updated_at
-                ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, CURRENT_TIMESTAMP)
-                ON CONFLICT(firebase_uid, semester, subject_code) DO UPDATE SET
-                  roll_number = excluded.roll_number,
-                  subject_name = excluded.subject_name,
-                  grade = excluded.grade,
-                  credits = excluded.credits,
-                  grade_points = excluded.grade_points,
-                  status = excluded.status,
-                  result_status = excluded.result_status,
-                  sgpa = excluded.sgpa,
-                  cgpa = excluded.cgpa,
-                  exam_month_year = excluded.exam_month_year,
-                  updated_at = CURRENT_TIMESTAMP
-              `)
-              .bind(
-                profile.firebase_uid,
-                roll,
-                sem,
-                rec.subject_code,
-                rec.subject_name || 'Academic Course',
-                rec.grade || null,
-                credits,
-                gradePoints,
-                rec.status || (rec.grade === 'F' ? 'FAIL' : 'PASS'),
-                rec.status || (rec.grade === 'F' ? 'FAIL' : 'PASS'),
-                sgpa,
-                cgpa,
-                rec.exam_month_year || null
-              )
-              .run();
-          }
-        }
-
-        // Create Idempotent Notification
-        const targetSemester = studentRecords[0]?.semester || profile.semester || 1;
-        const referenceId = `RESULT:SEM${targetSemester}:${roll}`;
-
-        const notifResult = await NotificationStorage.createNotificationIdempotent(db, {
-          firebase_uid: profile.firebase_uid,
-          type: 'RESULT',
-          title: 'Semester Results Published',
-          body: `Your Semester ${targetSemester} results are now available in Nexora.`,
-          data_json: JSON.stringify({
-            type: 'RESULT',
-            semester: targetSemester,
-            screen: 'results',
-            route: '/results',
-          }),
-          reference_id: referenceId,
-        });
-
-        if (notifResult.created) {
-          report.notifications_queued++;
-          notificationsToPush.push({
+        for (const profile of profiles) {
+          report.matched_profiles.push({
+            roll_number: roll,
             firebase_uid: profile.firebase_uid,
+            name: profile.name,
+            branch: profile.branch,
+          });
+
+          // Insert / Update results in private table `bvc_student_results`
+          for (const rec of studentRecords) {
+            const sem = typeof rec.semester === 'number' ? rec.semester : parseInt(String(rec.semester), 10);
+            const credits = rec.credits ? parseFloat(String(rec.credits)) : null;
+            const gradePoints = rec.grade_points ? parseFloat(String(rec.grade_points)) : null;
+            const sgpa = rec.sgpa ? parseFloat(String(rec.sgpa)) : null;
+            const cgpa = rec.cgpa ? parseFloat(String(rec.cgpa)) : null;
+
+            if (rec.subject_code) {
+              await db
+                .prepare(`
+                  INSERT INTO bvc_student_results (
+                    firebase_uid, roll_number, semester, subject_code, subject_name, grade, credits, grade_points, status, result_status, sgpa, cgpa, exam_month_year, updated_at
+                  ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, CURRENT_TIMESTAMP)
+                  ON CONFLICT(firebase_uid, semester, subject_code) DO UPDATE SET
+                    roll_number = excluded.roll_number,
+                    subject_name = excluded.subject_name,
+                    grade = excluded.grade,
+                    credits = excluded.credits,
+                    grade_points = excluded.grade_points,
+                    status = excluded.status,
+                    result_status = excluded.result_status,
+                    sgpa = excluded.sgpa,
+                    cgpa = excluded.cgpa,
+                    exam_month_year = excluded.exam_month_year,
+                    updated_at = CURRENT_TIMESTAMP
+                `)
+                .bind(
+                  profile.firebase_uid,
+                  roll,
+                  sem,
+                  rec.subject_code,
+                  rec.subject_name || 'Academic Course',
+                  rec.grade || null,
+                  credits,
+                  gradePoints,
+                  rec.status || (rec.grade === 'F' ? 'FAIL' : 'PASS'),
+                  rec.status || (rec.grade === 'F' ? 'FAIL' : 'PASS'),
+                  sgpa,
+                  cgpa,
+                  rec.exam_month_year || null
+                )
+                .run();
+            }
+          }
+
+          // Create / Re-arm Notification
+          const targetSemester = studentRecords[0]?.semester || profile.semester || 1;
+          const referenceId = `RESULT:SEM${targetSemester}:${roll}`;
+
+          const notifResult = await NotificationStorage.createNotificationIdempotent(db, {
+            firebase_uid: profile.firebase_uid,
+            type: 'RESULT',
             title: 'Semester Results Published',
             body: `Your Semester ${targetSemester} results are now available in Nexora.`,
-            type: 'RESULT',
-            route: '/results',
-            referenceId: referenceId,
+            data_json: JSON.stringify({
+              type: 'RESULT',
+              semester: targetSemester,
+              screen: 'results',
+              route: '/results',
+            }),
+            reference_id: referenceId,
           });
-        } else if (notifResult.duplicate) {
-          report.duplicates_skipped++;
+
+          if (notifResult.created) {
+            report.notifications_queued++;
+            notificationsToPush.push({
+              firebase_uid: profile.firebase_uid,
+              title: 'Semester Results Published',
+              body: `Your Semester ${targetSemester} results are now available in Nexora.`,
+              type: 'RESULT',
+              route: '/results',
+              referenceId: referenceId,
+            });
+          } else if (notifResult.duplicate) {
+            report.duplicates_skipped++;
+          }
         }
       } else {
         // UNMATCHED ROLL NUMBER — store safely in unmatched_results
