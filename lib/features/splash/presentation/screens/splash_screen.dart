@@ -66,12 +66,12 @@ class _SplashScreenState extends State<SplashScreen>
     final user = _authService.currentUser;
 
     // Not logged in → onboarding/login
-    if (user == null || !_authService.isAuthenticatedAndValid || !user.emailVerified) {
+    if (user == null || !_authService.isAuthenticatedAndValid) {
       if (mounted) context.go(RoutePaths.onboarding);
       return;
     }
 
-    // Logged in administrator → jump directly to admin dashboard
+    // 1. Logged in administrator → jump directly to admin dashboard (no email verification barrier)
     if (StudentIdentityHelper.isAdminEmail(user.email)) {
       try {
         await _profileRepository.setupFacultyProfile(
@@ -81,6 +81,22 @@ class _SplashScreenState extends State<SplashScreen>
         );
       } catch (_) {}
       if (mounted) context.go(RoutePaths.admin);
+      return;
+    }
+
+    // 2. Check if Firestore profile is an Admin (supports non-hardcoded admin emails)
+    try {
+      final existingProfile = await _profileRepository.getProfile(user.uid);
+      if (existingProfile?.role == 'admin') {
+        if (mounted) context.go(RoutePaths.admin);
+        return;
+      }
+    } catch (_) {}
+
+    // 3. For regular student accounts, enforce email verification
+    final isDemoFaculty = user.email?.trim().toLowerCase() == 'vinaybvcec@bvcgroup.in';
+    if (!user.emailVerified && !isDemoFaculty) {
+      if (mounted) context.go(RoutePaths.onboarding);
       return;
     }
 

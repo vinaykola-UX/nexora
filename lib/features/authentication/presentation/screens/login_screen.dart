@@ -93,14 +93,7 @@ class _LoginScreenState extends State<LoginScreen> {
 
       if (!mounted) return;
 
-      final isDemoFaculty = user.email?.trim().toLowerCase() == 'vinaybvcec@bvcgroup.in';
-      if (!user.emailVerified && !isDemoFaculty) {
-        // Redirect to verify-email screen - do NOT grant access yet
-        context.go(RoutePaths.verifyEmail, extra: user.email ?? '');
-        return;
-      }
-
-      // Check if user is an Administrator
+      // 1. Check if user is an Administrator (exempt from email verification link)
       if (StudentIdentityHelper.isAdminEmail(user.email)) {
         try {
           await _profileRepository.setupFacultyProfile(
@@ -112,6 +105,24 @@ class _LoginScreenState extends State<LoginScreen> {
 
         if (!mounted) return;
         context.go(RoutePaths.admin);
+        return;
+      }
+
+      // 2. Check if Firestore profile is an Admin (supports non-hardcoded admin emails)
+      try {
+        final existingProfile = await _profileRepository.getProfile(user.uid);
+        if (existingProfile?.role == 'admin') {
+          if (!mounted) return;
+          context.go(RoutePaths.admin);
+          return;
+        }
+      } catch (_) {}
+
+      // 3. For regular student accounts, enforce email verification
+      final isDemoFaculty = user.email?.trim().toLowerCase() == 'vinaybvcec@bvcgroup.in';
+      if (!user.emailVerified && !isDemoFaculty) {
+        // Redirect to verify-email screen - do NOT grant access yet
+        context.go(RoutePaths.verifyEmail, extra: user.email ?? '');
         return;
       }
 
